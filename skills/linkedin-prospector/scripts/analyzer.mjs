@@ -739,7 +739,7 @@ async function modeSimilar(graph, opts) {
     rank++;
     const contact = result.metadata || graph.contacts[result.id] || {};
     const displayName = contact.name || result.id;
-    const similarity = result.score?.toFixed(3) || '?';
+    const similarity = (1 - (result.score || 0)).toFixed(3);  // cosine distance → similarity
     const tier = contact.tier || '?';
     const headline = (contact.headline || '').substring(0, 70);
     console.log(`  ${rank}. [${tier}] ${displayName} (similarity: ${similarity})`);
@@ -786,7 +786,7 @@ async function modeSemantic(graph, opts) {
     const result = results[i];
     const contact = result.metadata || graph.contacts[result.id] || {};
     const name = contact.name || result.id;
-    const relevance = result.score?.toFixed(3) || '?';
+    const relevance = (1 - (result.score || 0)).toFixed(3);  // cosine distance → similarity
     const tier = contact.tier || '?';
     const headline = (contact.headline || '').substring(0, 70);
     console.log(`  ${i + 1}. [${tier}] ${name} (relevance: ${relevance})`);

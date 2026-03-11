@@ -237,7 +237,7 @@ if (isMain) {
               const c = result.metadata || {};
               const name = c.name || result.id;
               const headline = (c.headline || c.title || '').substring(0, 60);
-              const score = result.score?.toFixed(3) || '?';
+              const score = (1 - (result.score || 0)).toFixed(3);  // cosine distance → similarity
               const tier = c.tier || '?';
               console.log(`  ${String(i + 1).padStart(3)}. [${tier}] ${name.padEnd(30)} | ${headline.padEnd(60)} | sim=${score}`);
             });

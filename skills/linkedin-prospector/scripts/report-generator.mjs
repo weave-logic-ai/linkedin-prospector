@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { parseArgs, DATA_DIR } from './lib.mjs';
+import { isRvfAvailable, queryStore, getContact, storeLength, closeStore } from './rvf-store.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const GRAPH_PATH = resolve(DATA_DIR, 'graph.json');
@@ -475,6 +476,117 @@ function buildRecommendations(graph, allContacts) {
 }
 
 // ---------------------------------------------------------------------------
+// Vector Intelligence (requires ruvector + built store)
+// ---------------------------------------------------------------------------
+
+async function computeVectorData(graph) {
+  if (!isRvfAvailable()) return { available: false };
+
+  const size = await storeLength();
+  if (size === 0) return { available: false, reason: 'empty' };
+
+  const result = {
+    available: true,
+    storeSize: size,
+    goldNeighbors: [],
+    hubReach: [],
+    hiddenGems: [],
+  };
+
+  const allContacts = Object.entries(graph.contacts)
+    .map(([url, c]) => ({ url, ...c }))
+    .filter(c => c.scores);
+
+  function normalizeUrl(u) { return u.replace(/\/$/, '').split('?')[0]; }
+
+  // Gold contact similarity neighborhoods (top 10)
+  const goldContacts = [...allContacts]
+    .filter(c => c.scores?.tier === 'gold')
+    .sort((a, b) => (b.scores.goldScore || 0) - (a.scores.goldScore || 0))
+    .slice(0, 10);
+
+  for (const gc of goldContacts) {
+    const nUrl = normalizeUrl(gc.url);
+    const stored = await getContact(nUrl);
+    if (!stored) continue;
+    const results = await queryStore(stored.vector, 6);
+    if (!results) continue;
+    const neighbors = results
+      .filter(r => r.id !== nUrl)
+      .slice(0, 5)
+      .map(r => ({
+        name: r.metadata?.name || 'Unknown',
+        url: r.id,
+        tier: r.metadata?.tier || 'watch',
+        similarity: Math.max(0, 1 - (r.score || 0)),  // cosine distance → similarity
+        role: r.metadata?.currentRole || r.metadata?.headline || '',
+        company: r.metadata?.currentCompany || '',
+        goldScore: r.metadata?.goldScore || 0,
+      }));
+    result.goldNeighbors.push({
+      name: gc.enrichedName || gc.name,
+      url: gc.url,
+      goldScore: gc.scores.goldScore,
+      role: gc.currentRole || gc.headline || '',
+      company: gc.currentCompany || '',
+      neighbors,
+    });
+  }
+
+  // Hub semantic reach (top 10 hubs)
+  const hubs = [...allContacts]
+    .sort((a, b) => (b.scores.networkHub || 0) - (a.scores.networkHub || 0))
+    .slice(0, 10);
+
+  for (const hub of hubs) {
+    const nUrl = normalizeUrl(hub.url);
+    const stored = await getContact(nUrl);
+    if (!stored) continue;
+    const results = await queryStore(stored.vector, 11);
+    if (!results) continue;
+    const neighbors = results
+      .filter(r => r.id !== nUrl)
+      .slice(0, 10)
+      .map(r => ({
+        name: r.metadata?.name || 'Unknown',
+        url: r.id,
+        tier: r.metadata?.tier || 'watch',
+        similarity: Math.max(0, 1 - (r.score || 0)),  // cosine distance → similarity
+        goldScore: r.metadata?.goldScore || 0,
+      }));
+    const tierSet = new Set(neighbors.map(n => n.tier));
+    result.hubReach.push({
+      name: hub.enrichedName || hub.name,
+      url: hub.url,
+      hubScore: hub.scores.networkHub || 0,
+      goldScore: hub.scores.goldScore || 0,
+      semanticDiversity: tierSet.size,
+      avgSimilarity: neighbors.length > 0
+        ? neighbors.reduce((s, n) => s + n.similarity, 0) / neighbors.length : 0,
+      neighbors,
+    });
+  }
+
+  // Hidden gems: bronze/watch contacts similar to gold contacts
+  const gemCandidates = new Map();
+  for (const gn of result.goldNeighbors) {
+    for (const n of gn.neighbors) {
+      if (n.tier === 'gold' || n.tier === 'silver') continue;
+      const existing = gemCandidates.get(n.url);
+      if (!existing || n.similarity > existing.similarity) {
+        gemCandidates.set(n.url, { ...n, similarTo: gn.name, similarToScore: gn.goldScore });
+      }
+    }
+  }
+  result.hiddenGems = [...gemCandidates.values()]
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, 15);
+
+  await closeStore();
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // HTML generation
 // ---------------------------------------------------------------------------
 
@@ -861,6 +973,7 @@ a:hover { text-decoration: underline; }
   <a href="#header">Overview</a>
   <a href="#graph">3D Network Graph</a>
   <a href="#distributions">Score Distributions</a>
+  <a href="#vector-intel" id="nav-vector" style="display:none">Vector Intelligence</a>
   <a href="#contacts">Top Contacts</a>
   <a href="#hubs">Network Hubs</a>
   <a href="#super-connectors">Super-Connectors</a>
@@ -906,6 +1019,32 @@ a:hover { text-decoration: underline; }
     <div class="chart-card"><h3>Tier Breakdown</h3><canvas id="chart-tier"></canvas></div>
     <div class="chart-card"><h3>Behavioral Persona Breakdown</h3><canvas id="chart-persona"></canvas></div>
   </div>
+</div>
+
+<!-- Section: Vector Intelligence -->
+<div class="section" id="vector-intel" style="display:none;">
+  <h2>Vector Intelligence</h2>
+  <p style="color:var(--text-dim);margin-bottom:16px;">Semantic insights powered by 384-dim ONNX embeddings — discovering connections invisible to keyword matching.</p>
+  <div class="stat-cards" id="vector-stat-cards"></div>
+
+  <h3>Similar to Your Gold Contacts</h3>
+  <p style="color:var(--text-dim);margin-bottom:16px;">Each gold contact's semantic nearest neighbors — people whose profiles are most similar in meaning.</p>
+  <div id="gold-neighbors-list" class="info-list" style="grid-template-columns:1fr;"></div>
+
+  <h3 style="margin-top:32px;">Hidden Gems</h3>
+  <p style="color:var(--text-dim);margin-bottom:16px;">Bronze/watch contacts with high semantic similarity to your gold contacts — potential undiscovered prospects worth investigating.</p>
+  <div style="overflow-x:auto;">
+    <table class="data-table" id="gems-table">
+      <thead><tr>
+        <th>Name</th><th>Similarity</th><th>Similar To</th><th>Current Tier</th><th>Gold Score</th><th>Role</th><th>Company</th>
+      </tr></thead>
+      <tbody id="gems-tbody"></tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:32px;">Hub Semantic Reach</h3>
+  <p style="color:var(--text-dim);margin-bottom:16px;">How far each hub's influence extends across semantic space — broader diversity means wider introductions.</p>
+  <div id="hub-reach-list" class="info-list" style="grid-template-columns:1fr;"></div>
 </div>
 
 <!-- Section 3: Top Contacts Table -->
@@ -1712,6 +1851,109 @@ a:hover { text-decoration: underline; }
   });
 
   // ---------------------------------------------------------------------------
+  // Vector Intelligence
+  // ---------------------------------------------------------------------------
+  if (DATA.vectorInsights && DATA.vectorInsights.available) {
+    document.getElementById('vector-intel').style.display = '';
+    document.getElementById('nav-vector').style.display = '';
+
+    // Stats cards
+    var vCards = document.getElementById('vector-stat-cards');
+    [
+      { v: DATA.vectorInsights.storeSize, l: 'Vectorized Contacts', cls: 'accent' },
+      { v: DATA.vectorInsights.goldNeighbors.length, l: 'Gold Neighborhoods', cls: 'gold' },
+      { v: DATA.vectorInsights.hiddenGems.length, l: 'Hidden Gems Found', cls: 'accent' },
+      { v: DATA.vectorInsights.hubReach.length, l: 'Hub Reach Maps', cls: 'accent' },
+    ].forEach(function(s) {
+      var d = document.createElement('div');
+      d.className = 'stat-card ' + s.cls;
+      d.innerHTML = '<div class="value">' + s.v + '</div><div class="label">' + s.l + '</div>';
+      vCards.appendChild(d);
+    });
+
+    // Gold similarity neighborhoods
+    var gnList = document.getElementById('gold-neighbors-list');
+    DATA.vectorInsights.goldNeighbors.forEach(function(gn) {
+      var rows = gn.neighbors.map(function(n) {
+        var simPct = (n.similarity * 100).toFixed(1);
+        var barW = Math.max(n.similarity * 100, 5);
+        return '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-weight:600;">' + esc(n.name) + ' <span class="tier-badge ' + n.tier + '" style="font-size:10px;">' + n.tier + '</span></div>' +
+            '<div style="font-size:12px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(n.role) + (n.company ? ' @ ' + esc(n.company) : '') + '</div>' +
+          '</div>' +
+          '<div style="width:120px;display:flex;align-items:center;gap:8px;">' +
+            '<div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">' +
+              '<div style="height:100%;width:' + barW + '%;background:var(--accent);border-radius:3px;"></div>' +
+            '</div>' +
+            '<span style="font-size:13px;font-weight:600;color:var(--accent2);white-space:nowrap;">' + simPct + '%</span>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      gnList.innerHTML +=
+        '<div class="info-card" style="margin-bottom:16px;max-width:100%;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">' +
+            '<div>' +
+              '<div class="card-name">' + esc(gn.name) + ' <span class="tier-badge gold" style="font-size:10px;">GOLD</span></div>' +
+              '<div class="card-role">' + esc(gn.role) + (gn.company ? ' @ ' + esc(gn.company) : '') + '</div>' +
+            '</div>' +
+            '<div style="text-align:right;"><span style="font-size:12px;color:var(--text-dim);">Gold Score</span><div style="font-size:18px;font-weight:700;color:var(--gold);">' + gn.goldScore.toFixed(3) + '</div></div>' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--accent2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Nearest Semantic Neighbors</div>' +
+          rows +
+        '</div>';
+    });
+
+    // Hidden gems table
+    var gemsTbody = document.getElementById('gems-tbody');
+    DATA.vectorInsights.hiddenGems.forEach(function(g) {
+      var simPct = (g.similarity * 100).toFixed(1);
+      gemsTbody.innerHTML += '<tr>' +
+        '<td style="font-weight:600;">' + esc(g.name) + '</td>' +
+        '<td style="color:var(--accent2);font-weight:600;">' + simPct + '%</td>' +
+        '<td>' + esc(g.similarTo) + ' <span class="tier-badge gold" style="font-size:10px;">GOLD</span></td>' +
+        '<td><span class="tier-badge ' + g.tier + '">' + g.tier + '</span></td>' +
+        '<td>' + (g.goldScore || 0).toFixed(3) + '</td>' +
+        '<td title="' + esc(g.role) + '">' + esc(g.role) + '</td>' +
+        '<td title="' + esc(g.company) + '">' + esc(g.company) + '</td>' +
+        '</tr>';
+    });
+
+    // Hub semantic reach
+    var hrList = document.getElementById('hub-reach-list');
+    DATA.vectorInsights.hubReach.forEach(function(h) {
+      var tierColors = { gold: '#FFD700', silver: '#C0C0C0', bronze: '#CD7F32', watch: '#555' };
+      var barSegments = h.neighbors.map(function(n) {
+        var c = tierColors[n.tier] || '#555';
+        var op = (0.4 + n.similarity * 0.6).toFixed(2);
+        return '<div title="' + esc(n.name) + ' (' + (n.similarity * 100).toFixed(0) + '% sim, ' + n.tier + ')" style="flex:1;height:28px;background:' + c + ';opacity:' + op + ';border-radius:3px;cursor:help;transition:opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=' + op + '"></div>';
+      }).join('');
+
+      var tierBreakdown = {};
+      h.neighbors.forEach(function(n) { tierBreakdown[n.tier] = (tierBreakdown[n.tier] || 0) + 1; });
+      var breakdown = Object.entries(tierBreakdown).map(function(e) {
+        return '<span class="tier-badge ' + e[0] + '" style="font-size:10px;">' + e[1] + ' ' + e[0] + '</span>';
+      }).join(' ');
+
+      hrList.innerHTML +=
+        '<div class="info-card" style="margin-bottom:12px;max-width:100%;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+            '<div class="card-name">' + esc(h.name) + '</div>' +
+            '<div class="card-stats">' +
+              '<span>Hub: ' + h.hubScore.toFixed(2) + '</span>' +
+              '<span>Avg Sim: ' + (h.avgSimilarity * 100).toFixed(1) + '%</span>' +
+              '<span>Diversity: ' + h.semanticDiversity + ' tiers</span>' +
+            '</div>' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Semantic Neighborhood — color = tier, opacity = similarity strength</div>' +
+          '<div style="display:flex;gap:3px;margin-bottom:8px;">' + barSegments + '</div>' +
+          '<div>' + breakdown + '</div>' +
+        '</div>';
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Active sidebar link tracking
   // ---------------------------------------------------------------------------
   const sidebarLinks = document.querySelectorAll('.sidebar a');
@@ -1741,22 +1983,47 @@ a:hover { text-decoration: underline; }
 // Main
 // ---------------------------------------------------------------------------
 
-const args = parseArgs(process.argv);
-const topN = parseInt(args.top, 10) || 200;
-const outputPath = args.output
-  ? resolve(process.cwd(), args.output)
-  : DEFAULT_OUTPUT;
+(async () => {
+  const args = parseArgs(process.argv);
+  const topN = parseInt(args.top, 10) || 200;
+  const outputPath = args.output
+    ? resolve(process.cwd(), args.output)
+    : DEFAULT_OUTPUT;
 
-console.log(`Loading graph.json...`);
-const graph = loadGraph();
+  console.log(`Loading graph.json...`);
+  const graph = loadGraph();
 
-console.log(`Computing report data (top ${topN} contacts)...`);
-const data = computeReportData(graph, topN);
+  console.log(`Computing report data (top ${topN} contacts)...`);
+  const data = computeReportData(graph, topN);
 
-console.log(`Generating HTML...`);
-const html = generateHTML(data);
+  console.log(`Computing vector intelligence...`);
+  data.vectorInsights = await computeVectorData(graph);
+  if (data.vectorInsights.available) {
+    console.log(`  Vector store: ${data.vectorInsights.storeSize} contacts`);
+    console.log(`  Gold neighborhoods: ${data.vectorInsights.goldNeighbors.length}`);
+    console.log(`  Hidden gems found: ${data.vectorInsights.hiddenGems.length}`);
 
-writeFileSync(outputPath, html, 'utf-8');
-console.log(`Report written to ${outputPath}`);
-console.log(`  Nodes: ${data.meta.graphNodes}, Edges: ${data.meta.edgeCount}`);
-console.log(`  Open in browser: file://${outputPath}`);
+    // Add vector-powered recommendation
+    if (data.vectorInsights.hiddenGems.length > 0) {
+      data.recommendations.push({
+        category: 'Vector-Discovered Prospects',
+        icon: 'search',
+        items: data.vectorInsights.hiddenGems.slice(0, 5).map(g => ({
+          name: g.name,
+          detail: `${(g.similarity * 100).toFixed(0)}% similar to ${g.similarTo} — currently ${g.tier}`,
+          action: 'Review and potentially upgrade — their profile closely matches your gold contacts',
+        })),
+      });
+    }
+  } else {
+    console.log(`  Vector store not available — skipping vector sections`);
+  }
+
+  console.log(`Generating HTML...`);
+  const html = generateHTML(data);
+
+  writeFileSync(outputPath, html, 'utf-8');
+  console.log(`Report written to ${outputPath}`);
+  console.log(`  Nodes: ${data.meta.graphNodes}, Edges: ${data.meta.edgeCount}`);
+  console.log(`  Open in browser: file://${outputPath}`);
+})();
