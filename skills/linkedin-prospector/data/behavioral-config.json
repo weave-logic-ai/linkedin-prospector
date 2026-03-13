@@ -77,6 +77,9 @@
       "recencyDays": 180,
       "description": "<500 connections AND connected in last 6 months"
     },
+    "data-insufficient": {
+      "description": "Fewer than 2 non-null behavioral components — cannot classify"
+    },
     "passive-network": {
       "description": "Default — no strong behavioral signals"
     }

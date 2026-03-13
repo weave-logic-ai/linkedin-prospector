@@ -150,6 +150,7 @@ async function computeData(graph) {
           name: r.metadata?.name || 'Unknown',
           url: r.id,
           tier: r.metadata?.tier || 'watch',
+          degree: r.metadata?.degree || (graph.contacts[r.id]?.degree) || 1,
           similarity: Math.max(0, 1 - (r.score || 0)),
           goldScore: r.metadata?.goldScore || 0,
           role: r.metadata?.currentRole || r.metadata?.headline || '',
@@ -221,6 +222,7 @@ async function computeData(graph) {
           const reps = (clResults || []).map(r => ({
             name: r.metadata?.name || 'Unknown',
             tier: r.metadata?.tier || 'watch',
+            degree: r.metadata?.degree || (graph.contacts[r.id]?.degree) || 1,
             similarity: Math.max(0, 1 - (r.score || 0)),
             role: r.metadata?.currentRole || r.metadata?.headline || '',
           }));
@@ -260,10 +262,14 @@ async function computeData(graph) {
         name: c.enrichedName || c.name,
         url: c.url,
         goldScore: c.scores?.goldScore || 0,
+        degree: c.degree || 1,
         role: c.currentRole || c.headline || '',
         company: c.currentCompany || '',
         persona: c.personaType || '',
       })),
+    silverContacts: tiers.silver.map(c => ({ degree: c.degree || 1 })),
+    bronzeContacts: tiers.bronze.map(c => ({ degree: c.degree || 1 })),
+    watchContacts: tiers.watch.map(c => ({ degree: c.degree || 1 })),
     roleKeywords: topKw(roleKw, 25).map(([word, weight]) => ({ word, weight })),
     headlineKeywords: topKw(headlineKw, 25).map(([word, weight]) => ({ word, weight })),
     aboutKeywords: topKw(aboutKw, 20).map(([word, weight]) => ({ word, weight })),
@@ -373,14 +379,66 @@ a:hover { text-decoration: underline; }
 .exec-summary .highlight { color: var(--gold); font-weight: 600; }
 .exec-summary .metric { color: var(--accent2); font-weight: 600; }
 
+/* Degree badges */
+.degree-badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: 4px; vertical-align: middle; }
+.degree-badge.d1 { background: rgba(34,197,94,0.2); color: #22c55e; }
+.degree-badge.d2 { background: rgba(59,130,246,0.2); color: #3b82f6; }
+.degree-badge.d3 { background: rgba(245,158,11,0.2); color: #f59e0b; }
+
+/* Export button */
+.export-btn { display: inline-block; padding: 6px 14px; background: var(--accent); color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-bottom: 12px; }
+.export-btn:hover { background: var(--accent2); }
+
+/* Navigation bar */
+.nav-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 0; margin-bottom: 24px; position: sticky; top: 0; z-index: 50; }
+.nav-bar-inner { max-width: 1200px; margin: 0 auto; display: flex; gap: 16px; align-items: center; padding: 0 40px; }
+.nav-link { padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--text-dim); transition: all 0.2s; }
+.nav-link:hover { background: var(--surface2); color: var(--text); text-decoration: none; }
+.nav-link.active { background: var(--accent); color: white; }
+
+/* Niche badges */
+.niche-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.count-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: var(--surface2); color: var(--text-dim); }
+.count-badge.gold-avg { background: rgba(255,215,0,0.2); color: var(--gold); }
+
+/* Contact detail modal */
+.contact-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; display: none; align-items: center; justify-content: center; }
+.contact-modal-overlay.active { display: flex; }
+.contact-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0; max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+.contact-modal-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 24px 24px 16px; border-bottom: 1px solid var(--border); }
+.contact-modal-header h3 { font-size: 20px; font-weight: 700; }
+.contact-modal-close { background: none; border: none; color: var(--text-dim); font-size: 24px; cursor: pointer; padding: 0 4px; line-height: 1; }
+.contact-modal-close:hover { color: var(--text); }
+.contact-modal-body { padding: 20px 24px 24px; }
+.contact-modal-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.contact-modal-row:last-child { border-bottom: none; }
+.contact-modal-row .label { color: var(--text-dim); }
+.contact-modal-row .value { font-weight: 600; text-align: right; max-width: 60%; }
+.contact-modal-badges { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.contact-modal-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.contact-modal-section h4 { font-size: 14px; color: var(--accent2); margin-bottom: 8px; }
+.contact-modal-linkedin { display: inline-block; margin-top: 16px; padding: 8px 20px; background: var(--accent); color: white; border-radius: 6px; font-weight: 600; font-size: 14px; text-decoration: none; }
+.contact-modal-linkedin:hover { background: var(--accent2); text-decoration: none; }
+.clickable-name { cursor: pointer; border-bottom: 1px dashed rgba(129,140,248,0.3); }
+.clickable-name:hover { color: var(--accent2); border-bottom-color: var(--accent2); }
+
 @media print {
   .sidebar { display: none; }
   .main { margin-left: 0; }
   body { background: #fff; color: #000; }
+  .contact-modal-overlay { display: none !important; }
 }
 </style>
 </head>
 <body>
+
+<!-- Contact Detail Modal -->
+<div class="contact-modal-overlay" id="contact-modal-overlay" onclick="if(event.target===this)closeContactModal()">
+  <div class="contact-modal">
+    <div class="contact-modal-header" id="contact-modal-header"></div>
+    <div class="contact-modal-body" id="contact-modal-body"></div>
+  </div>
+</div>
 
 <nav class="sidebar">
   <h2>ICP & NICHE</h2>
@@ -397,6 +455,14 @@ a:hover { text-decoration: underline; }
 
 <div class="main">
 <script>const DATA = ${dataJSON};<\/script>
+
+<!-- Navigation Bar -->
+<div class="nav-bar">
+  <div class="nav-bar-inner">
+    <a href="network-report.html" class="nav-link">Network Report</a>
+    <a href="icp-niche-report.html" class="nav-link active">ICP Niche Report</a>
+  </div>
+</div>
 
 <div class="header" id="header">
   <h1>ICP & Niche Discovery Report</h1>
@@ -475,6 +541,141 @@ a:hover { text-decoration: underline; }
 (function() {
   function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
 
+  // --- CSV Export functionality ---
+  window.exportTableToCSV = function(tableId, filename) {
+    var table = document.getElementById(tableId);
+    if (!table) {
+      console.error('Table not found:', tableId);
+      return;
+    }
+    var rows = table.querySelectorAll('tr');
+    var csv = '';
+    rows.forEach(function(row) {
+      var cells = row.querySelectorAll('th, td');
+      var rowData = [];
+      cells.forEach(function(cell) {
+        var text = cell.textContent.replace(/\s+/g, ' ').trim();
+        text = text.replace(/"/g, '""');
+        rowData.push('"' + text + '"');
+      });
+      csv += rowData.join(',') + '\n';
+    });
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    if (link.download !== undefined) {
+      var url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  window.exportDataToCSV = function(data, headers, filename) {
+    var csv = headers.join(',') + '\n';
+    data.forEach(function(row) {
+      var rowData = row.map(function(cell) {
+        var text = String(cell).replace(/"/g, '""');
+        return '"' + text + '"';
+      });
+      csv += rowData.join(',') + '\n';
+    });
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    if (link.download !== undefined) {
+      var url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  // --- Contact detail modal helpers ---
+  window.degreeBadge = function(degree) {
+    var d = degree || 1;
+    if (d === 1) return '<span class="degree-badge d1">1st</span>';
+    if (d === 2) return '<span class="degree-badge d2">2nd</span>';
+    return '<span class="degree-badge d3">3rd+</span>';
+  };
+
+  window.clickableName = function(name, contactData) {
+    var dataAttr = encodeURIComponent(JSON.stringify(contactData));
+    return '<span class="clickable-name" onclick="showContactModal(this)" data-contact="' + dataAttr + '">' + esc(name) + '</span>';
+  };
+
+  window.showContactModal = function(el) {
+    var data = JSON.parse(decodeURIComponent(el.getAttribute('data-contact')));
+    var overlay = document.getElementById('contact-modal-overlay');
+    var body = document.getElementById('contact-modal-body');
+    var header = document.getElementById('contact-modal-header');
+
+    var degree = data.degree || 1;
+    var degreeTxt = degree === 1 ? '1st Degree' : degree === 2 ? '2nd Degree' : '3rd+ Degree';
+
+    header.innerHTML = '<div>' +
+      '<h3>' + esc(data.name || 'Unknown') + '</h3>' +
+      '<div style="margin-top:4px;">' +
+        '<span class="tier-badge ' + (data.tier || 'watch') + '">' + (data.tier || 'watch') + '</span> ' +
+        degreeBadge(degree) +
+      '</div>' +
+    '</div>' +
+    '<button class="contact-modal-close" onclick="closeContactModal()">&times;</button>';
+
+    var rows = '';
+    if (data.role) rows += contactModalRow('Role', data.role);
+    if (data.company) rows += contactModalRow('Company', data.company);
+    if (data.location) rows += contactModalRow('Location', data.location);
+    rows += contactModalRow('Degree', degreeTxt);
+    if (data.goldScore !== undefined) rows += contactModalRow('Gold Score', (data.goldScore || 0).toFixed(3));
+    if (data.icpFit !== undefined) rows += contactModalRow('ICP Fit', (data.icpFit || 0).toFixed(3));
+    if (data.networkHub !== undefined) rows += contactModalRow('Network Hub', (data.networkHub || 0).toFixed(3));
+    if (data.relStrength !== undefined) rows += contactModalRow('Relationship', (data.relStrength || 0).toFixed(3));
+    if (data.behavioral !== undefined && data.behavioral > 0) rows += contactModalRow('Behavioral', (data.behavioral || 0).toFixed(3));
+    if (data.mutuals) rows += contactModalRow('Mutual Connections', data.mutuals);
+    if (data.discoveredVia) rows += contactModalRow('Discovered Via', data.discoveredVia + ' contact(s)');
+    if (data.persona && data.persona !== 'unknown') rows += contactModalRow('Persona', data.persona);
+    if (data.behPersona && data.behPersona !== 'unknown') rows += contactModalRow('Behavioral Persona', data.behPersona);
+    if (data.referralTier) rows += contactModalRow('Referral Tier', data.referralTier);
+    if (data.referralPersona) rows += contactModalRow('Referral Persona', data.referralPersona);
+    if (data.referralLikelihood) rows += contactModalRow('Referral Likelihood', (data.referralLikelihood || 0).toFixed(3));
+    if (data.similarity !== undefined) rows += contactModalRow('ICP Similarity', ((data.similarity || 0) * 100).toFixed(1) + '%');
+
+    var badges = '';
+    if (data.clusters && data.clusters.length > 0) {
+      badges += '<div class="contact-modal-section"><h4>Clusters</h4><div class="contact-modal-badges">';
+      data.clusters.forEach(function(cl) { badges += '<span class="tier-badge silver" style="font-size:10px;">' + esc(cl) + '</span>'; });
+      badges += '</div></div>';
+    }
+    if (data.traits && data.traits.length > 0) {
+      badges += '<div class="contact-modal-section"><h4>Super-Connector Traits</h4><div class="contact-modal-badges">';
+      data.traits.forEach(function(t) { badges += '<span class="tier-badge bronze" style="font-size:10px;">' + esc(t) + '</span>'; });
+      badges += '</div></div>';
+    }
+
+    var linkedin = '';
+    if (data.url) {
+      linkedin = '<a href="' + esc(data.url) + '" target="_blank" rel="noopener" class="contact-modal-linkedin">View on LinkedIn &#8599;</a>';
+    }
+
+    body.innerHTML = rows + badges + linkedin;
+    overlay.classList.add('active');
+  };
+
+  window.contactModalRow = function(label, value) {
+    return '<div class="contact-modal-row"><span class="label">' + esc(String(label)) + '</span><span class="value">' + esc(String(value)) + '</span></div>';
+  };
+
+  window.closeContactModal = function() {
+    document.getElementById('contact-modal-overlay').classList.remove('active');
+  };
+
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeContactModal(); });
+
   // Header
   document.getElementById('gen-date').textContent = new Date(DATA.meta.generated).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   document.getElementById('total-contacts').textContent = DATA.meta.totalContacts;
@@ -495,12 +696,29 @@ a:hover { text-decoration: underline; }
     cards.appendChild(d);
   });
 
-  // Executive Summary
+  // Executive Summary with Degree Distribution
   var topRoles = DATA.roleKeywords.slice(0, 5).map(function(k) { return k.word; });
   var topHeadlines = DATA.headlineKeywords.slice(0, 5).map(function(k) { return k.word; });
   var topNiche = DATA.clusters[0] || { id: 'unknown', size: 0 };
   var bestNiche = DATA.vectorData && DATA.vectorData.nicheCentroids && DATA.vectorData.nicheCentroids[0];
   var alignPct = DATA.vectorData ? (DATA.vectorData.goldNetAlignment * 100).toFixed(0) : '?';
+
+  // Calculate degree distribution by tier
+  var degreeDist = { gold: { d1: 0, d2: 0 }, silver: { d1: 0, d2: 0 }, bronze: { d1: 0, d2: 0 }, watch: { d1: 0, d2: 0 } };
+
+  // Helper to safely increment degree distribution
+  function addToDist(tier, degree) {
+    if (degreeDist[tier]) {
+      if (degree === 1) degreeDist[tier].d1++;
+      else degreeDist[tier].d2++;
+    }
+  }
+
+  // Process all tiers
+  DATA.goldContacts.forEach(function(c) { addToDist('gold', c.degree); });
+  if (DATA.silverContacts) DATA.silverContacts.forEach(function(c) { addToDist('silver', c.degree); });
+  if (DATA.bronzeContacts) DATA.bronzeContacts.forEach(function(c) { addToDist('bronze', c.degree); });
+  if (DATA.watchContacts) DATA.watchContacts.forEach(function(c) { addToDist('watch', c.degree); });
 
   var execDiv = document.getElementById('exec-summary');
   execDiv.innerHTML = '<div class="exec-summary">' +
@@ -515,15 +733,63 @@ a:hover { text-decoration: underline; }
     '</p>' +
     (DATA.vectorData && DATA.vectorData.promotionCandidates && DATA.vectorData.promotionCandidates.length > 0 ?
       '<p style="margin-top:12px;">We found <span class="metric">' + DATA.vectorData.promotionCandidates.length + '</span> non-gold contacts who semantically match your gold ICP — these are your strongest promotion candidates.</p>' : '') +
+    '</div>' +
+    '<div style="margin-top:20px;"><button class="export-btn" onclick="exportExecutiveSummary()">Export Summary CSV</button></div>' +
+    '<div class="chart-grid" style="margin-top:16px;">' +
+      '<div class="chart-card"><h3>Degree Distribution by Tier</h3><canvas id="chart-degree-dist"></canvas></div>' +
     '</div>';
+
+  // Export executive summary function
+  window.exportExecutiveSummary = function() {
+    var headers = ['Metric', 'Value'];
+    var rows = [
+      ['Total Contacts', DATA.meta.totalContacts],
+      ['Gold Contacts', DATA.tierCounts.gold],
+      ['Silver Contacts', DATA.tierCounts.silver],
+      ['Bronze Contacts', DATA.tierCounts.bronze],
+      ['Watch Contacts', DATA.tierCounts.watch],
+      ['Niches Identified', DATA.clusters.length],
+      ['ICP Alignment', alignPct + '%'],
+      ['Strongest Niche', bestNiche ? bestNiche.id : topNiche.id],
+      ['Top Role Keywords', topRoles.join(', ')],
+      ['Top Headline Keywords', topHeadlines.join(', ')],
+    ];
+    if (DATA.vectorData) {
+      rows.push(['Vectorized Contacts', DATA.vectorData.storeSize]);
+      if (DATA.vectorData.promotionCandidates) {
+        rows.push(['Promotion Candidates', DATA.vectorData.promotionCandidates.length]);
+      }
+    }
+    exportDataToCSV(rows, headers, 'icp-executive-summary.csv');
+  };
+
+  // Degree Distribution Chart
+  new Chart(document.getElementById('chart-degree-dist'), {
+    type: 'bar',
+    data: {
+      labels: ['Gold', 'Silver', 'Bronze', 'Watch'],
+      datasets: [
+        { label: '1st Degree', data: [degreeDist.gold.d1, degreeDist.silver.d1, degreeDist.bronze.d1, degreeDist.watch.d1], backgroundColor: 'rgba(34,197,94,0.7)', borderWidth: 0 },
+        { label: '2nd Degree', data: [degreeDist.gold.d2, degreeDist.silver.d2, degreeDist.bronze.d2, degreeDist.watch.d2], backgroundColor: 'rgba(59,130,246,0.7)', borderWidth: 0 }
+      ]
+    },
+    options: {
+      plugins: { legend: { position: 'top' } },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, beginAtZero: true, grid: { color: '#2d3148' } }
+      }
+    }
+  });
 
   // Gold contacts
   var goldList = document.getElementById('gold-list');
+  goldList.innerHTML = '<button class="export-btn" onclick="exportGoldContacts()">Export Gold Contacts CSV</button>';
   DATA.goldContacts.forEach(function(gc) {
     goldList.innerHTML += '<div class="info-card">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;">' +
         '<div>' +
-          '<div class="card-name">' + esc(gc.name) + ' <span class="tier-badge gold">GOLD</span></div>' +
+          '<div class="card-name">' + clickableName(gc.name, gc) + ' ' + degreeBadge(gc.degree) + ' <span class="tier-badge gold">GOLD</span></div>' +
           '<div class="card-role">' + esc(gc.role) + (gc.company ? ' @ ' + esc(gc.company) : '') + '</div>' +
         '</div>' +
         '<div style="text-align:right;">' +
@@ -534,15 +800,42 @@ a:hover { text-decoration: underline; }
     '</div>';
   });
 
-  // Niche map
+  window.exportGoldContacts = function() {
+    var headers = ['Name', 'Degree', 'Gold Score', 'Role', 'Company', 'Persona', 'LinkedIn URL'];
+    var rows = DATA.goldContacts.map(function(gc) {
+      return [
+        gc.name,
+        gc.degree === 1 ? '1st' : gc.degree === 2 ? '2nd' : '3rd+',
+        gc.goldScore.toFixed(3),
+        gc.role,
+        gc.company,
+        gc.persona,
+        gc.url
+      ];
+    });
+    exportDataToCSV(rows, headers, 'gold-contacts.csv');
+  };
+
+  // Niche map with improved badges and sorting
   var nicheList = document.getElementById('niche-list');
   var niches = DATA.vectorData && DATA.vectorData.nicheCentroids ? DATA.vectorData.nicheCentroids : DATA.clusters;
   var useVector = DATA.vectorData && DATA.vectorData.nicheCentroids && DATA.vectorData.nicheCentroids.length > 0;
 
-  niches.forEach(function(n) {
+  // Add CSV export button
+  nicheList.innerHTML = '<button class="export-btn" onclick="exportNicheMap()">Export Niche Map CSV</button>';
+
+  // Sort niches by total gold score (gold count * avg gold score) for better prioritization
+  var sortedNiches = niches.slice().sort(function(a, b) {
+    var scoreA = (a.goldCount || 0) * (a.avgGold || a.goldDensity || 0);
+    var scoreB = (b.goldCount || 0) * (b.avgGold || b.goldDensity || 0);
+    return scoreB - scoreA;
+  });
+
+  sortedNiches.forEach(function(n) {
     var alignVal = useVector ? n.icpAlignment : n.goldDensity;
     var alignPct = (alignVal * 100).toFixed(1);
     var barColor = alignVal > 0.85 ? 'var(--gold)' : alignVal > 0.7 ? 'var(--accent2)' : alignVal > 0.5 ? 'var(--blue)' : 'var(--watch)';
+    var avgGoldScore = n.avgGold || (n.goldCount > 0 ? alignVal : 0);
 
     var repsHtml = '';
     if (n.representatives) {
@@ -550,7 +843,7 @@ a:hover { text-decoration: underline; }
       n.representatives.forEach(function(r) {
         repsHtml += '<div style="font-size:12px;padding:2px 0;">' +
           '<span class="tier-badge ' + r.tier + '" style="font-size:10px;">' + r.tier + '</span> ' +
-          esc(r.name) + ' — ' + esc(r.role) + '</div>';
+          clickableName(r.name, r) + ' ' + degreeBadge(r.degree) + ' — ' + esc(r.role) + '</div>';
       });
     }
 
@@ -559,16 +852,38 @@ a:hover { text-decoration: underline; }
         '<div class="niche-title">' + esc(n.id) + '</div>' +
         '<div style="font-size:22px;font-weight:700;color:' + barColor + ';">' + alignPct + '%</div>' +
       '</div>' +
-      '<div class="niche-meta">' +
-        '<span>' + n.size + ' contacts</span>' +
-        '<span>' + (n.goldCount || 0) + ' gold</span>' +
-        '<span>' + (n.silverCount || 0) + ' silver</span>' +
+      '<div class="niche-badges">' +
+        '<span class="count-badge">' + n.size + ' contacts</span>' +
+        '<span class="count-badge" style="background:rgba(255,215,0,0.15);color:var(--gold);">' + (n.goldCount || 0) + ' gold</span>' +
+        '<span class="count-badge" style="background:rgba(192,192,192,0.15);color:var(--silver);">' + (n.silverCount || 0) + ' silver</span>' +
+        '<span class="count-badge gold-avg">Avg: ' + avgGoldScore.toFixed(3) + '</span>' +
+      '</div>' +
+      '<div class="niche-meta" style="margin-top:8px;">' +
         '<span>' + (n.keywords || []).join(', ') + '</span>' +
       '</div>' +
       '<div class="alignment-bar"><div class="alignment-fill" style="width:' + alignPct + '%;background:' + barColor + ';"></div></div>' +
       repsHtml +
     '</div>';
   });
+
+  window.exportNicheMap = function() {
+    var headers = ['Niche ID', 'Total Contacts', 'Gold Count', 'Silver Count', 'Bronze Count', 'Avg Gold Score', 'ICP Alignment %', 'Keywords'];
+    var rows = sortedNiches.map(function(n) {
+      var alignVal = useVector ? n.icpAlignment : n.goldDensity;
+      var avgGoldScore = n.avgGold || (n.goldCount > 0 ? alignVal : 0);
+      return [
+        n.id,
+        n.size,
+        n.goldCount || 0,
+        n.silverCount || 0,
+        n.bronzeCount || 0,
+        avgGoldScore.toFixed(3),
+        (alignVal * 100).toFixed(1),
+        (n.keywords || []).join('; ')
+      ];
+    });
+    exportDataToCSV(rows, headers, 'niche-map.csv');
+  };
 
   // Niche charts
   Chart.defaults.color = '#8b8fa3';
@@ -618,9 +933,27 @@ a:hover { text-decoration: underline; }
     });
   }
 
+  // Add export buttons for keywords
+  var kwRolesDiv = document.getElementById('kw-roles');
+  kwRolesDiv.innerHTML = '<button class="export-btn" onclick="exportKeywords(\'role\')">Export CSV</button>';
   renderKwBars('kw-roles', DATA.roleKeywords, 'rgba(99,102,241,0.7)');
+
+  var kwHeadlinesDiv = document.getElementById('kw-headlines');
+  kwHeadlinesDiv.innerHTML = '<button class="export-btn" onclick="exportKeywords(\'headline\')">Export CSV</button>';
   renderKwBars('kw-headlines', DATA.headlineKeywords, 'rgba(34,197,94,0.7)');
+
+  var kwAboutDiv = document.getElementById('kw-about');
+  kwAboutDiv.innerHTML = '<button class="export-btn" onclick="exportKeywords(\'about\')">Export CSV</button>';
   renderKwBars('kw-about', DATA.aboutKeywords, 'rgba(245,158,11,0.7)');
+
+  window.exportKeywords = function(type) {
+    var headers = ['Keyword', 'Weight'];
+    var data = type === 'role' ? DATA.roleKeywords : type === 'headline' ? DATA.headlineKeywords : DATA.aboutKeywords;
+    var rows = data.map(function(kw) {
+      return [kw.word, kw.weight.toFixed(3)];
+    });
+    exportDataToCSV(rows, headers, 'keywords-' + type + '.csv');
+  };
 
   // Tier donut
   new Chart(document.getElementById('chart-tiers'), {
@@ -635,14 +968,15 @@ a:hover { text-decoration: underline; }
   // Centroid contacts
   if (DATA.vectorData && DATA.vectorData.centroidContacts) {
     var centDiv = document.getElementById('centroid-contacts');
-    centDiv.innerHTML = '<div style="overflow-x:auto;"><table class="data-table"><thead><tr>' +
+    centDiv.innerHTML = '<button class="export-btn" onclick="exportCentroidContacts()">Export Centroid Analysis CSV</button>' +
+      '<div style="overflow-x:auto;"><table class="data-table" id="centroid-table"><thead><tr>' +
       '<th>#</th><th>Name</th><th>ICP Similarity</th><th>Tier</th><th>Gold Score</th><th>Role</th><th>Company</th>' +
       '</tr></thead><tbody>' +
       DATA.vectorData.centroidContacts.slice(0, 25).map(function(c, i) {
         var simPct = (c.similarity * 100).toFixed(1);
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
-          '<td style="font-weight:600;">' + esc(c.name) + '</td>' +
+          '<td style="font-weight:600;">' + clickableName(c.name, c) + ' ' + degreeBadge(c.degree) + '</td>' +
           '<td style="color:var(--accent2);font-weight:600;">' + simPct + '%</td>' +
           '<td><span class="tier-badge ' + c.tier + '">' + c.tier + '</span></td>' +
           '<td>' + c.goldScore.toFixed(3) + '</td>' +
@@ -651,16 +985,35 @@ a:hover { text-decoration: underline; }
           '</tr>';
       }).join('') +
       '</tbody></table></div>';
+
+    window.exportCentroidContacts = function() {
+      var headers = ['Rank', 'Name', 'Degree', 'ICP Similarity %', 'Tier', 'Gold Score', 'Role', 'Company', 'LinkedIn URL'];
+      var rows = DATA.vectorData.centroidContacts.slice(0, 25).map(function(c, i) {
+        return [
+          i + 1,
+          c.name,
+          c.degree === 1 ? '1st' : c.degree === 2 ? '2nd' : '3rd+',
+          (c.similarity * 100).toFixed(1),
+          c.tier,
+          c.goldScore.toFixed(3),
+          c.role,
+          c.company,
+          c.url
+        ];
+      });
+      exportDataToCSV(rows, headers, 'icp-centroid-analysis.csv');
+    };
   }
 
   // Promotion candidates
   if (DATA.vectorData && DATA.vectorData.promotionCandidates) {
     var promoList = document.getElementById('promo-list');
+    promoList.innerHTML = '<button class="export-btn" onclick="exportPromotionCandidates()">Export Promotion Candidates CSV</button>';
     DATA.vectorData.promotionCandidates.forEach(function(c) {
       var simPct = (c.similarity * 100).toFixed(1);
       promoList.innerHTML += '<div class="promo-card">' +
         '<div class="promo-info">' +
-          '<div class="promo-name">' + esc(c.name) + ' <span class="tier-badge ' + c.tier + '" style="font-size:10px;">' + c.tier + '</span></div>' +
+          '<div class="promo-name">' + clickableName(c.name, c) + ' ' + degreeBadge(c.degree) + ' <span class="tier-badge ' + c.tier + '" style="font-size:10px;">' + c.tier + '</span></div>' +
           '<div class="promo-role">' + esc(c.role) + (c.company ? ' @ ' + esc(c.company) : '') + '</div>' +
         '</div>' +
         '<div class="promo-scores">' +
@@ -669,9 +1022,33 @@ a:hover { text-decoration: underline; }
         '</div>' +
       '</div>';
     });
+
+    window.exportPromotionCandidates = function() {
+      var headers = ['Name', 'Degree', 'Current Tier', 'ICP Similarity %', 'Gold Score', 'Role', 'Company', 'LinkedIn URL'];
+      var rows = DATA.vectorData.promotionCandidates.map(function(c) {
+        return [
+          c.name,
+          c.degree === 1 ? '1st' : c.degree === 2 ? '2nd' : '3rd+',
+          c.tier,
+          (c.similarity * 100).toFixed(1),
+          c.goldScore.toFixed(3),
+          c.role,
+          c.company,
+          c.url
+        ];
+      });
+      exportDataToCSV(rows, headers, 'promotion-candidates.csv');
+    };
   }
 
   // Company table
+  var compSection = document.getElementById('companies');
+  var exportBtn = document.createElement('button');
+  exportBtn.className = 'export-btn';
+  exportBtn.textContent = 'Export Companies CSV';
+  exportBtn.onclick = function() { exportTableToCSV('company-table', 'company-clusters.csv'); };
+  compSection.insertBefore(exportBtn, compSection.querySelector('.data-table').parentElement);
+
   var compTbody = document.getElementById('company-tbody');
   DATA.topCompanies.forEach(function(c) {
     compTbody.innerHTML += '<tr>' +

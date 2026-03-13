@@ -12,13 +12,18 @@
  *   --deep-scan  deep-scan a single contact + rebuild graph + report
  *   --visualize  (Phase 2 - not yet implemented)
  *
+ * GDPR Compliance:
+ *   --forget <url>   purge all data for a contact (right to erasure)
+ *   --auto-archive   archive terminal-state contacts older than 180 days
+ *   --consent <url> --basis <type>  record consent basis for a contact
+ *
  * Options:
  *   --niche <name>   filter niche for search step (full mode only)
  *   --verbose        pass-through to sub-scripts
  */
 
 import { execFileSync } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -126,6 +131,20 @@ function parseCliArgs(argv) {
         break;
       case '--verbose':
         opts.verbose = true;
+        break;
+      case '--forget':
+        opts.mode = 'forget';
+        opts.forgetUrl = argv[++i] || null;
+        break;
+      case '--auto-archive':
+        opts.mode = 'auto-archive';
+        break;
+      case '--consent':
+        opts.mode = 'consent';
+        opts.consentUrl = argv[++i] || null;
+        break;
+      case '--basis':
+        opts.consentBasis = argv[++i] || null;
         break;
       default:
         console.warn(`Unknown flag: ${argv[i]}`);
@@ -240,9 +259,318 @@ function buildSteps(opts) {
     case 'visualize':
       return []; // handled separately
 
+    case 'forget':
+    case 'auto-archive':
+    case 'consent':
+      return []; // handled directly in main()
+
     default:
       return [];
   }
+}
+
+// ---------------------------------------------------------------------------
+// GDPR Compliance
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize a LinkedIn URL or slug to a canonical URL.
+ */
+function normalizeUrl(input) {
+  let url = input.trim();
+  if (!url.startsWith('https://')) {
+    // Strip leading slashes or "in/" prefix for bare slugs
+    url = url.replace(/^\/+/, '').replace(/^in\//, '');
+    url = `https://www.linkedin.com/in/${url}`;
+  }
+  // Strip trailing slash for consistent matching
+  return url.replace(/\/+$/, '');
+}
+
+/**
+ * Safely read a JSON file. Returns null if it doesn't exist or can't be parsed.
+ */
+function safeReadJson(filePath) {
+  if (!existsSync(filePath)) return null;
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Safely write a JSON file, creating parent dirs if needed.
+ */
+function safeWriteJson(filePath, data) {
+  writeFileSync(filePath, JSON.stringify(data, null, 2));
+}
+
+/**
+ * Purge ALL data for a contact across every data file (GDPR right to erasure).
+ */
+async function forgetContact(rawUrl) {
+  const { DATA_DIR } = await import('./lib.mjs');
+  const url = normalizeUrl(rawUrl);
+  const startMs = Date.now();
+
+  console.log(`\nGDPR Forget: ${url}`);
+  console.log('='.repeat(60));
+
+  const summary = [];
+
+  // --- graph.json ---
+  const graphPath = resolve(DATA_DIR, 'graph.json');
+  const graph = safeReadJson(graphPath);
+  if (graph) {
+    let contactRemoved = 0;
+    let edgesRemoved = 0;
+    let clusterMemberships = 0;
+    let discoveredViaRefs = 0;
+
+    // Remove contact entry
+    if (graph.contacts && graph.contacts[url]) {
+      delete graph.contacts[url];
+      contactRemoved = 1;
+    }
+
+    // Remove edges referencing this contact
+    if (graph.edges && Array.isArray(graph.edges)) {
+      const before = graph.edges.length;
+      graph.edges = graph.edges.filter(
+        e => e.source !== url && e.target !== url
+      );
+      edgesRemoved = before - graph.edges.length;
+    }
+
+    // Remove from cluster contact arrays
+    if (graph.clusters) {
+      for (const [clusterId, cluster] of Object.entries(graph.clusters)) {
+        if (cluster.contacts && Array.isArray(cluster.contacts)) {
+          const before = cluster.contacts.length;
+          cluster.contacts = cluster.contacts.filter(c => c !== url);
+          if (cluster.contacts.length < before) {
+            clusterMemberships++;
+          }
+        }
+      }
+    }
+
+    // Remove from discoveredVia arrays in other contacts
+    if (graph.contacts) {
+      for (const [, contact] of Object.entries(graph.contacts)) {
+        if (contact.discoveredVia && Array.isArray(contact.discoveredVia)) {
+          const before = contact.discoveredVia.length;
+          contact.discoveredVia = contact.discoveredVia.filter(v => v !== url);
+          if (contact.discoveredVia.length < before) {
+            discoveredViaRefs++;
+          }
+        }
+      }
+    }
+
+    if (contactRemoved || edgesRemoved || clusterMemberships || discoveredViaRefs) {
+      safeWriteJson(graphPath, graph);
+      const parts = [];
+      if (contactRemoved) parts.push(`${contactRemoved} contact`);
+      if (edgesRemoved) parts.push(`${edgesRemoved} edges`);
+      if (clusterMemberships) parts.push(`${clusterMemberships} cluster memberships`);
+      if (discoveredViaRefs) parts.push(`${discoveredViaRefs} discoveredVia refs`);
+      summary.push(`Removed from graph.json (${parts.join(', ')})`);
+    } else {
+      summary.push('Not found in graph.json (no changes)');
+    }
+  } else {
+    console.log('  graph.json not found, skipping');
+  }
+
+  // --- outreach-state.json ---
+  const statePath = resolve(DATA_DIR, 'outreach-state.json');
+  const state = safeReadJson(statePath);
+  if (state) {
+    if (state.contacts && state.contacts[url]) {
+      delete state.contacts[url];
+      state.lastUpdated = new Date().toISOString();
+      safeWriteJson(statePath, state);
+      summary.push('Removed from outreach-state.json');
+    } else {
+      summary.push('Not found in outreach-state.json (no changes)');
+    }
+  } else {
+    console.log('  outreach-state.json not found, skipping');
+  }
+
+  // --- outreach-plan.json ---
+  const planPath = resolve(DATA_DIR, 'outreach-plan.json');
+  const plan = safeReadJson(planPath);
+  if (plan) {
+    let planRemoved = false;
+
+    // Plan may be an object with contacts/entries keyed by URL, or an array
+    if (plan.contacts && plan.contacts[url]) {
+      delete plan.contacts[url];
+      planRemoved = true;
+    }
+    if (plan.plans && Array.isArray(plan.plans)) {
+      const before = plan.plans.length;
+      plan.plans = plan.plans.filter(p => p.url !== url && p.contactUrl !== url);
+      if (plan.plans.length < before) planRemoved = true;
+    }
+    if (plan.entries && Array.isArray(plan.entries)) {
+      const before = plan.entries.length;
+      plan.entries = plan.entries.filter(e => e.url !== url && e.contactUrl !== url);
+      if (plan.entries.length < before) planRemoved = true;
+    }
+
+    if (planRemoved) {
+      safeWriteJson(planPath, plan);
+      summary.push('Removed from outreach-plan.json');
+    } else {
+      summary.push('Not found in outreach-plan.json (no changes)');
+    }
+  } else {
+    console.log('  outreach-plan.json not found, skipping');
+  }
+
+  // --- contacts.json ---
+  const contactsPath = resolve(DATA_DIR, 'contacts.json');
+  const contactsDb = safeReadJson(contactsPath);
+  if (contactsDb) {
+    if (contactsDb.contacts && contactsDb.contacts[url]) {
+      delete contactsDb.contacts[url];
+      contactsDb.meta = contactsDb.meta || {};
+      contactsDb.meta.totalContacts = Object.keys(contactsDb.contacts).length;
+      contactsDb.meta.lastUpdated = new Date().toISOString();
+      safeWriteJson(contactsPath, contactsDb);
+      summary.push('Removed from contacts.json');
+    } else {
+      summary.push('Not found in contacts.json (no changes)');
+    }
+  } else {
+    console.log('  contacts.json not found, skipping');
+  }
+
+  // --- network.rvf (vector store) ---
+  const rvfPath = resolve(DATA_DIR, 'network.rvf');
+  const rvfExists = existsSync(rvfPath);
+
+  // --- Print summary ---
+  console.log(`\nGDPR Forget Complete for: ${url}`);
+  for (const line of summary) {
+    const marker = line.includes('no changes') ? '-' : 'v';
+    console.log(`  ${marker} ${line}`);
+  }
+  if (rvfExists) {
+    console.log("  ! Run 'node pipeline.mjs --rebuild' to regenerate vector store");
+  }
+  console.log(`\n  Elapsed: ${elapsed(startMs)}\n`);
+}
+
+/**
+ * Auto-archive contacts in terminal states older than N days.
+ */
+async function autoArchive(days = 180) {
+  const { DATA_DIR } = await import('./lib.mjs');
+  const statePath = resolve(DATA_DIR, 'outreach-state.json');
+  const startMs = Date.now();
+
+  console.log(`\nAuto-Archive: terminal states older than ${days} days`);
+  console.log('='.repeat(60));
+
+  const state = safeReadJson(statePath);
+  if (!state || !state.contacts) {
+    console.log('  outreach-state.json not found or empty. Nothing to archive.');
+    return;
+  }
+
+  const terminalStates = new Set(['closed_lost', 'declined']);
+  const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+  state.archived = state.archived || {};
+
+  let archivedCount = 0;
+  const breakdown = {};
+  const toArchive = [];
+
+  for (const [url, contact] of Object.entries(state.contacts)) {
+    if (!terminalStates.has(contact.currentState)) continue;
+
+    // Determine last transition date from history or fallback to createdAt
+    let lastTransitionMs = 0;
+    if (contact.history && contact.history.length > 0) {
+      const lastEntry = contact.history[contact.history.length - 1];
+      lastTransitionMs = new Date(lastEntry.date || lastEntry.timestamp || 0).getTime();
+    }
+    if (!lastTransitionMs && contact.createdAt) {
+      lastTransitionMs = new Date(contact.createdAt).getTime();
+    }
+
+    if (lastTransitionMs && lastTransitionMs < cutoff) {
+      toArchive.push({ url, contact });
+    }
+  }
+
+  for (const { url, contact } of toArchive) {
+    state.archived[url] = {
+      state: contact.currentState,
+      archivedDate: new Date().toISOString().slice(0, 10),
+      reason: `auto-archive-${days}d`,
+    };
+    breakdown[contact.currentState] = (breakdown[contact.currentState] || 0) + 1;
+    delete state.contacts[url];
+    archivedCount++;
+  }
+
+  if (archivedCount > 0) {
+    state.lastUpdated = new Date().toISOString();
+    safeWriteJson(statePath, state);
+    const parts = Object.entries(breakdown)
+      .map(([s, n]) => `${s}: ${n}`)
+      .join(', ');
+    console.log(`  Auto-archived ${archivedCount} contacts (${parts})`);
+  } else {
+    console.log('  No contacts eligible for archiving.');
+  }
+
+  console.log(`  Elapsed: ${elapsed(startMs)}\n`);
+}
+
+/**
+ * Record GDPR consent basis on a contact in graph.json.
+ */
+async function setConsent(rawUrl, basis) {
+  const validBases = ['legitimate_interest', 'explicit_consent', 'contract'];
+  if (!validBases.includes(basis)) {
+    console.error(`Invalid consent basis: "${basis}"`);
+    console.error(`  Valid values: ${validBases.join(', ')}`);
+    process.exit(1);
+  }
+
+  const { DATA_DIR } = await import('./lib.mjs');
+  const url = normalizeUrl(rawUrl);
+  const graphPath = resolve(DATA_DIR, 'graph.json');
+  const graph = safeReadJson(graphPath);
+
+  if (!graph || !graph.contacts) {
+    console.error('graph.json not found or has no contacts. Run pipeline first.');
+    process.exit(1);
+  }
+
+  if (!graph.contacts[url]) {
+    console.error(`Contact not found in graph: ${url}`);
+    process.exit(1);
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  graph.contacts[url].gdpr = {
+    consentBasis: basis,
+    consentDate: today,
+    lastProcessed: today,
+  };
+
+  safeWriteJson(graphPath, graph);
+  console.log(`\nConsent recorded for: ${url}`);
+  console.log(`  Basis: ${basis}`);
+  console.log(`  Date:  ${today}\n`);
 }
 
 // ---------------------------------------------------------------------------
@@ -269,6 +597,28 @@ async function main() {
         console.log("  Run 'node pipeline.mjs --configure' to customize for your business.\n");
       }
     } catch { /* ignore parse errors here */ }
+  }
+
+  // --- GDPR modes (handled directly, no pipeline steps) ---
+  if (opts.mode === 'forget') {
+    if (!opts.forgetUrl) {
+      console.error('Usage: node pipeline.mjs --forget <linkedin-url-or-slug>');
+      process.exit(1);
+    }
+    await forgetContact(opts.forgetUrl);
+    process.exit(0);
+  }
+  if (opts.mode === 'auto-archive') {
+    await autoArchive();
+    process.exit(0);
+  }
+  if (opts.mode === 'consent') {
+    if (!opts.consentUrl || !opts.consentBasis) {
+      console.error('Usage: node pipeline.mjs --consent <linkedin-url> --basis <legitimate_interest|explicit_consent|contract>');
+      process.exit(1);
+    }
+    await setConsent(opts.consentUrl, opts.consentBasis);
+    process.exit(0);
   }
 
   // Phase 2 placeholder

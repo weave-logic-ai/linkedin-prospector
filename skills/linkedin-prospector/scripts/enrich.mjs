@@ -1,6 +1,7 @@
 import { launchBrowser, parseArgs } from './lib.mjs';
 import { load, save } from './db.mjs';
 import { saveProfilePage } from './cache.mjs';
+import { checkBudget, consumeBudget } from './rate-budget.mjs';
 
 /**
  * Extract detailed profile data from a LinkedIn profile page.
@@ -48,6 +49,70 @@ async function extractProfileData(page) {
 
 async function main() {
   const args = parseArgs(process.argv);
+
+  // Single URL mode
+  if (args.url) {
+    const db = load(args['db-path']);
+    const profileUrl = args.url.startsWith('http') ? args.url : `https://www.linkedin.com/in/${args.url}`;
+
+    console.log(`Single-contact enrichment: ${profileUrl}`);
+
+    const { context, page } = await launchBrowser();
+
+    try {
+      const budget = checkBudget('profile_visits');
+      if (!budget.allowed) {
+        console.log(`Rate limit reached: ${budget.used}/${budget.limit} profile visits today.`);
+        await context.close();
+        return;
+      }
+
+      await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await page.waitForTimeout(2500);
+      await saveProfilePage(page, profileUrl);
+      consumeBudget('profile_visits');
+
+      const data = await extractProfileData(page);
+
+      const dbContact = db.contacts[profileUrl];
+      if (dbContact) {
+        if (data.name) dbContact.enrichedName = data.name;
+        if (data.headline) dbContact.headline = data.headline;
+        if (data.location) dbContact.enrichedLocation = data.location;
+        if (data.currentRole) dbContact.currentRole = data.currentRole;
+        if (data.currentCompany) dbContact.currentCompany = data.currentCompany;
+        if (data.about) dbContact.about = data.about;
+        if (data.connections) dbContact.connections = data.connections;
+        dbContact.enriched = true;
+        dbContact.enrichedAt = new Date().toISOString();
+        console.log(`Enriched: ${data.headline || 'no headline'}`);
+      } else {
+        console.log(`Contact not found in DB for ${profileUrl}. Creating entry.`);
+        db.contacts[profileUrl] = {
+          profileUrl,
+          name: data.name,
+          enrichedName: data.name,
+          headline: data.headline,
+          enrichedLocation: data.location,
+          currentRole: data.currentRole,
+          currentCompany: data.currentCompany,
+          about: data.about,
+          connections: data.connections,
+          enriched: true,
+          enrichedAt: new Date().toISOString(),
+        };
+      }
+
+      save(db, args['db-path']);
+      console.log('Enrichment complete.');
+    } catch (err) {
+      console.log(`ERROR: ${err.message}`);
+    }
+
+    await context.close();
+    return;
+  }
+
   const maxProfiles = parseInt(args.max || '100');
   const unenrichedOnly = args['unenriched-only'] !== undefined ? true : !args.all;
 
@@ -84,12 +149,20 @@ async function main() {
     const c = contacts[i];
     if (!c.profileUrl) continue;
 
+    // Rate budget check before profile visit
+    const budget = checkBudget('profile_visits');
+    if (!budget.allowed) {
+      console.log(`  Rate limit reached: ${budget.used}/${budget.limit} profile visits today. Enriched ${enriched}/${contacts.length} planned.`);
+      break;
+    }
+
     console.log(`  [${i + 1}/${contacts.length}] ${c.name}...`);
 
     try {
       await page.goto(c.profileUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
       await page.waitForTimeout(2500);
       await saveProfilePage(page, c.profileUrl);
+      consumeBudget('profile_visits');
 
       const data = await extractProfileData(page);
 

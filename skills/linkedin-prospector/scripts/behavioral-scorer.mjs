@@ -79,6 +79,12 @@ function daysSince(date) {
 function scoreConnectionPower(contact, config) {
   const count = parseConnectionCount(contact.connections);
   const isFollower = isFollowerMode(contact.connections);
+
+  // If no connection data available, return null instead of defaulting to 0.1
+  if (count === 0 && !contact.connections) {
+    return { score: null, count: 0, isFollower: false };
+  }
+
   const t = config.connectionPower.thresholds;
 
   let score;
@@ -94,6 +100,12 @@ function scoreConnectionPower(contact, config) {
 function scoreConnectionRecency(contact, config) {
   const date = parseConnectedTime(contact.connectedTime);
   const days = daysSince(date);
+
+  // If no recency data available (Infinity days), return null instead of defaulting to 0.1
+  if (days === Infinity) {
+    return { score: null, days: Infinity, date: null };
+  }
+
   const ranges = config.connectionRecency.ranges;
 
   if (days <= 30) return { score: ranges['30'], days: Math.round(days), date };
@@ -170,8 +182,10 @@ function scoreSuperConnectorIndex(contact, aboutResult, headlineResult, connecti
   for (const p of headlineResult.matchedPatterns) {
     if (config.superConnectorIndex.traitSources.includes(p)) traits.add(p);
   }
-  // Connection power (500+ = trait)
-  if (connectionPowerResult.count >= 500) traits.add('500+');
+  // Connection power (500+ = trait) - only if we have connection data
+  if (connectionPowerResult.score !== null && connectionPowerResult.count >= 500) {
+    traits.add('500+');
+  }
 
   const minTraits = config.superConnectorIndex.minTraits;
   const score = cap(traits.size / (minTraits + 2)); // 5 traits = 1.0 with minTraits=3
@@ -179,6 +193,11 @@ function scoreSuperConnectorIndex(contact, aboutResult, headlineResult, connecti
 }
 
 function scoreNetworkAmplifier(contact, connectionPowerResult, baselines) {
+  // If connectionPower is null (no data), amplifier should also be null
+  if (connectionPowerResult.score === null) {
+    return { score: null };
+  }
+
   const mutuals = contact.mutualConnections || 0;
   const normalizedMutuals = cap(mutuals / baselines.p90Mutuals);
   return { score: cap(normalizedMutuals * connectionPowerResult.score) };
@@ -188,9 +207,14 @@ function scoreNetworkAmplifier(contact, connectionPowerResult, baselines) {
 // Behavioral Persona
 // ---------------------------------------------------------------------------
 
-function assignBehavioralPersona(contact, behavioralScore, components, config) {
+function assignBehavioralPersona(contact, behavioralScore, components, config, availableComponentCount) {
   const { connectionPower, aboutSignals, connectionRecency } = components;
   const personas = config.behavioralPersonas;
+
+  // Data-insufficient: if fewer than 2 non-null behavioral components, we can't classify properly
+  if (availableComponentCount < 2) {
+    return 'data-insufficient';
+  }
 
   // Super-connector: 3+ traits AND 500+ connections
   if (components.superConnector.traitCount >= personas['super-connector'].minTraits &&
@@ -294,18 +318,31 @@ async function score() {
     const superConn = scoreSuperConnectorIndex(c, aboutSig, headlineSig, connPower, config);
     const amplifier = scoreNetworkAmplifier(c, connPower, baselines);
 
-    // Composite behavioral score
-    const behavioralScore = round(
-      connPower.score * config.connectionPower.weight +
-      connRecency.score * config.connectionRecency.weight +
-      aboutSig.score * config.aboutSignals.weight +
-      headlineSig.score * config.headlineSignals.weight +
-      superConn.score * config.superConnectorIndex.weight +
-      amplifier.score * config.networkAmplifier.weight
-    );
+    // Composite behavioral score with dynamic weight redistribution
+    // Exclude components with null scores and redistribute weights proportionally
+    const components = [
+      { key: 'connectionPower', value: connPower.score, weight: config.connectionPower.weight },
+      { key: 'connectionRecency', value: connRecency.score, weight: config.connectionRecency.weight },
+      { key: 'aboutSignals', value: aboutSig.score, weight: config.aboutSignals.weight },
+      { key: 'headlineSignals', value: headlineSig.score, weight: config.headlineSignals.weight },
+      { key: 'superConnector', value: superConn.score, weight: config.superConnectorIndex.weight },
+      { key: 'amplifier', value: amplifier.score, weight: config.networkAmplifier.weight },
+    ];
+
+    const available = components.filter(c => c.value !== null);
+    const totalAvailableWeight = available.reduce((sum, c) => sum + c.weight, 0);
+
+    let behavioralScore;
+    if (available.length === 0 || totalAvailableWeight === 0) {
+      behavioralScore = 0;
+    } else {
+      behavioralScore = round(
+        available.reduce((sum, c) => sum + c.value * (c.weight / totalAvailableWeight), 0)
+      );
+    }
 
     // Behavioral persona
-    const components = {
+    const componentData = {
       connectionPower: connPower,
       connectionRecency: connRecency,
       aboutSignals: aboutSig,
@@ -313,33 +350,73 @@ async function score() {
       superConnector: superConn,
       amplifier,
     };
-    const behavioralPersona = assignBehavioralPersona(c, behavioralScore, components, config);
+    const behavioralPersona = assignBehavioralPersona(c, behavioralScore, componentData, config, available.length);
 
     // Store on contact
     c.behavioralScore = behavioralScore;
     c.behavioralPersona = behavioralPersona;
     c.behavioralSignals = {
       connectionCount: connPower.count,
-      connectionPower: round(connPower.score),
-      connectionRecency: round(connRecency.score),
+      connectionPower: connPower.score !== null ? round(connPower.score) : null,
+      connectionRecency: connRecency.score !== null ? round(connRecency.score) : null,
       connectedDaysAgo: connRecency.days === Infinity ? null : connRecency.days,
       aboutSignals: aboutSig.matchedCategories,
       headlineSignals: headlineSig.matchedPatterns,
       superConnectorTraits: superConn.traits,
       traitCount: superConn.traitCount,
-      amplification: round(amplifier.score),
+      amplification: amplifier.score !== null ? round(amplifier.score) : null,
+      availableComponents: available.length,
+      totalComponents: components.length,
     };
 
     // Recompute goldScore v2 (weighted with behavioral)
+    // If behavioral score is null/insufficient, redistribute its weight
     const w = config.goldScoreV2;
     const oldScores = c.scores;
-    const goldScoreV2 = round(
-      (oldScores.icpFit || 0) * w.icpWeight +
-      (oldScores.networkHub || 0) * w.networkHubWeight +
-      (oldScores.relationshipStrength || 0) * w.relationshipWeight +
-      behavioralScore * w.behavioralWeight +
-      (oldScores.signalBoost || 0) * w.signalBoostWeight
-    );
+    const degree = c.degree || 1;
+    let goldScoreV2;
+
+    if (degree >= 2) {
+      // 2nd-degree: behavioral and signalBoost data is sparse
+      const goldComponents = [
+        { value: oldScores.icpFit || 0, weight: 0.38 },
+        { value: oldScores.networkHub || 0, weight: 0.32 },
+        { value: oldScores.relationshipStrength || 0, weight: 0.22 },
+        { value: behavioralScore, weight: 0.05 },
+        { value: oldScores.signalBoost || 0, weight: 0.03 },
+      ];
+
+      const availableGold = goldComponents.filter(c => c.value !== null && c.value !== undefined && !isNaN(c.value));
+      const totalGoldWeight = availableGold.reduce((sum, c) => sum + c.weight, 0);
+
+      if (totalGoldWeight > 0) {
+        goldScoreV2 = round(
+          availableGold.reduce((sum, c) => sum + c.value * (c.weight / totalGoldWeight), 0)
+        );
+      } else {
+        goldScoreV2 = 0;
+      }
+    } else {
+      // 1st-degree: use standard weights with redistribution if behavioral is null
+      const goldComponents = [
+        { value: oldScores.icpFit || 0, weight: w.icpWeight },
+        { value: oldScores.networkHub || 0, weight: w.networkHubWeight },
+        { value: oldScores.relationshipStrength || 0, weight: w.relationshipWeight },
+        { value: behavioralScore, weight: w.behavioralWeight },
+        { value: oldScores.signalBoost || 0, weight: w.signalBoostWeight },
+      ];
+
+      const availableGold = goldComponents.filter(c => c.value !== null && c.value !== undefined && !isNaN(c.value));
+      const totalGoldWeight = availableGold.reduce((sum, c) => sum + c.weight, 0);
+
+      if (totalGoldWeight > 0) {
+        goldScoreV2 = round(
+          availableGold.reduce((sum, c) => sum + c.value * (c.weight / totalGoldWeight), 0)
+        );
+      } else {
+        goldScoreV2 = 0;
+      }
+    }
 
     // Update scores
     oldScores.behavioral = behavioralScore;
@@ -347,10 +424,11 @@ async function score() {
     oldScores.goldScore = goldScoreV2;
 
     // Re-tier based on v2 goldScore (thresholds from icp-config.json)
-    const tiers = icp.tiers || { gold: 0.55, silver: 0.40, bronze: 0.28 };
-    oldScores.tier = goldScoreV2 >= tiers.gold ? 'gold'
-      : goldScoreV2 >= tiers.silver ? 'silver'
-      : goldScoreV2 >= tiers.bronze ? 'bronze' : 'watch';
+    // Support both flat tiers and degree-specific tiers
+    const tierConfig = icp.tiers?.[degree] || icp.tiers || { gold: 0.55, silver: 0.40, bronze: 0.28 };
+    oldScores.tier = goldScoreV2 >= tierConfig.gold ? 'gold'
+      : goldScoreV2 >= tierConfig.silver ? 'silver'
+      : goldScoreV2 >= tierConfig.bronze ? 'bronze' : 'watch';
 
     personaCounts[behavioralPersona] = (personaCounts[behavioralPersona] || 0) + 1;
     totalBehavioral += behavioralScore;

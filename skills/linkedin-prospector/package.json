@@ -5,7 +5,8 @@
   "description": "Claude Code skill for LinkedIn network intelligence",
   "private": true,
   "dependencies": {
-    "playwright": "^1.40.0"
+    "playwright": "^1.40.0",
+    "yaml": "^2.8.2"
   },
   "optionalDependencies": {
     "ruvector": "^0.2.12"

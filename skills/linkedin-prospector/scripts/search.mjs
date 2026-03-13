@@ -1,6 +1,7 @@
 import { launchBrowser, NICHE_KEYWORDS, parseArgs } from './lib.mjs';
 import { load, save, merge } from './db.mjs';
 import { saveSearchPage } from './cache.mjs';
+import { checkBudget, consumeBudget } from './rate-budget.mjs';
 
 /**
  * Extract profile data from a LinkedIn search results page via DOM walking.
@@ -142,9 +143,18 @@ async function main() {
     let emptyPages = 0;
 
     while (hasMore && pageNum <= maxPages && allResults.length < maxResults) {
+      // Rate budget check before loading search page
+      const budget = checkBudget('search_pages');
+      if (!budget.allowed) {
+        console.log(`  Rate limit reached: ${budget.used}/${budget.limit} search pages today. Stopping.`);
+        hasMore = false;
+        break;
+      }
+
       console.log(`  Page ${pageNum}...`);
       await scrollPage(page);
       await saveSearchPage(page, term, pageNum);
+      consumeBudget('search_pages');
 
       const people = await extractSearchResults(page);
       console.log(`  Found ${people.length} people on page ${pageNum}`);

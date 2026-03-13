@@ -13,6 +13,9 @@ Determine the user's intent from their prompt and route to the right action:
 
 | Intent | Trigger Words | Action |
 |--------|--------------|--------|
+| dashboard | "dashboard", "start dashboard", "open dashboard", "launch app" | Start the dashboard app (see Dashboard section below) |
+| dashboard-stop | "stop dashboard", "kill dashboard", "shut down dashboard" | Stop the running dashboard app |
+| dashboard-status | "dashboard status", "is dashboard running" | Check if the dashboard is running |
 | bootstrap | "set up", "initialize", "bootstrap", "build graph" | `node pipeline.mjs --rebuild` |
 | configure | "configure", "set up ICP", "customize" | Ask user conversationally, then `node configure.mjs generate --json '<config>'` (do NOT use wizard/init — they need interactive stdin) |
 | validate | "validate config", "check config" | `node configure.mjs validate` |
@@ -203,3 +206,137 @@ User: "build the vector store"
 
 User: "vectorize my contacts"
 -> Run: `node scripts/vectorize.mjs --from-graph`
+
+User: "start the dashboard"
+-> Start the dashboard app (see Dashboard section)
+
+User: "stop the dashboard"
+-> Stop the running dashboard process
+
+## Dashboard App
+
+The Network Intelligence Dashboard is a local Next.js app at `.claude/linkedin-prospector/app/` that provides a visual interface over the network data.
+
+**App directory**: `.claude/linkedin-prospector/app/`
+**Data source**: `.linkedin-prospector/data/` (graph.json, network.rvf, outreach-state.json, rate-budget.json)
+
+### Starting the Dashboard
+
+Use the Bash tool with `run_in_background: true` to start the dev server:
+
+```bash
+cd .claude/linkedin-prospector/app && npm run dev -- --port 3100
+```
+
+IMPORTANT:
+- Always use `run_in_background: true` so Claude Code can continue working
+- Use port 3100 (avoids conflicts with other dev servers)
+- Save the background task ID — you'll need it to check output or stop the server
+
+After starting, verify the server is ready:
+
+```bash
+sleep 3 && curl -sf http://localhost:3100/api/dashboard | head -c 200
+```
+
+If the server started successfully, tell the user:
+> "Dashboard is running at **http://localhost:3100**. You can open it in your browser."
+
+### Checking Dashboard Status
+
+To check if the dashboard is running:
+
+```bash
+curl -sf http://localhost:3100/api/dashboard > /dev/null 2>&1 && echo "Dashboard is running on port 3100" || echo "Dashboard is not running"
+```
+
+### Stopping the Dashboard
+
+Kill the Next.js dev server:
+
+```bash
+pkill -f "next dev.*3100" 2>/dev/null || pkill -f "next-server" 2>/dev/null; echo "Dashboard stopped"
+```
+
+Or use fuser if available:
+
+```bash
+fuser -k 3100/tcp 2>/dev/null && echo "Dashboard stopped" || echo "Dashboard was not running"
+```
+
+### Using the Dashboard API from Claude Code
+
+The dashboard exposes REST APIs that can be called from within Claude Code to query data or trigger actions without running scripts directly. This is useful for building workflows that combine analysis with action.
+
+#### Data Queries
+
+| API | Use Case | Example |
+|-----|----------|---------|
+| `GET /api/dashboard` | KPIs, top gold contacts, suggested actions | `curl -s http://localhost:3100/api/dashboard` |
+| `GET /api/contacts?tier=gold&sort=goldScore&order=desc&pageSize=10` | Query contacts with filters | Gold contacts sorted by score |
+| `GET /api/contacts/[slug]` | Full contact detail + edges | `curl -s http://localhost:3100/api/contacts/johndoe` |
+| `GET /api/contacts/[slug]/similar` | 5 most similar contacts | Find lookalikes |
+| `GET /api/search?q=keyword&limit=20` | Search contacts | `curl -s "http://localhost:3100/api/search?q=CEO"` |
+| `GET /api/graph` | Network graph data (200 nodes, pruned edges) | For visualization or analysis |
+| `GET /api/niches` | All 10 clusters with stats | Niche/ICP breakdown |
+| `GET /api/pipeline` | Outreach funnel + state counts | Pipeline status |
+| `GET /api/budget` | Rate budget usage | Check daily limits |
+
+#### Triggering Actions
+
+The dashboard can run prospector scripts via its process manager, which handles Playwright queueing (max 1 concurrent) and SSE output streaming:
+
+```bash
+# Start a script
+curl -s -X POST http://localhost:3100/api/actions/run \
+  -H "Content-Type: application/json" \
+  -d '{"scriptId": "rescore"}'
+
+# Start a deep scan
+curl -s -X POST http://localhost:3100/api/actions/run \
+  -H "Content-Type: application/json" \
+  -d '{"scriptId": "deep-scan", "params": {"url": "https://www.linkedin.com/in/johndoe"}}'
+
+# Check what's running
+curl -s http://localhost:3100/api/actions/active
+
+# Cancel a running process
+curl -s -X POST http://localhost:3100/api/actions/cancel \
+  -H "Content-Type: application/json" \
+  -d '{"processId": "xxx"}'
+```
+
+Available script IDs: `rescore`, `scorer`, `behavioral`, `referral`, `deep-scan`, `batch-deep-scan`, `enrich`, `enrich-graph`, `search`, `activity-scanner`, `report`, `niche-report`, `targeted-plan`, `forget`
+
+#### Updating Config
+
+```bash
+# Read current ICP config
+curl -s http://localhost:3100/api/config/icp-config.json
+
+# Update ICP config (creates backup first)
+curl -s -X PUT http://localhost:3100/api/config/icp-config.json \
+  -H "Content-Type: application/json" \
+  -d @new-config.json
+```
+
+### Workflow Examples
+
+**1. Start dashboard, check status, then run analysis:**
+```
+/network-intel start dashboard
+/network-intel give me an overview
+```
+
+**2. Query dashboard API for gold contacts, then deep-dive top one:**
+```
+curl -s http://localhost:3100/api/contacts?tier=gold&sort=goldScore&order=desc&pageSize=1
+# → Take the top slug
+curl -s -X POST http://localhost:3100/api/actions/run -H "Content-Type: application/json" -d '{"scriptId":"deep-scan","params":{"url":"..."}}'
+```
+
+**3. Monitor pipeline from within Claude Code:**
+```
+curl -s http://localhost:3100/api/pipeline | python3 -m json.tool
+curl -s http://localhost:3100/api/budget | python3 -m json.tool
+```

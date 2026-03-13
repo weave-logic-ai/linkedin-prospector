@@ -7,30 +7,34 @@
  *
  * Options:
  *   --url <url>          Required. The 1st-degree contact to scan.
- *   --max-pages 5        Pages of connections to scrape (default: 5)
- *   --max-results 100    Max connections to discover (default: 100)
+ *   --max-pages 20       Pages of connections to scrape (default: 20)
+ *   --max-results 1000   Max connections to discover (default: 1000)
  *   --depth 2            Store as degree-2 (default) or 3
  *   --mutual-only        Only capture mutual connections (shared with you)
+ *   --exclude-1st        Filter out 1st-degree connections (show only 2nd+)
  *
  * What it does:
  *   1. Navigates to the contact's profile page
  *   2. Clicks their connections count to view their connection list
- *   3. Scrolls and extracts visible connections (name, title, URL, mutuals)
- *   4. Stores discovered contacts in contacts.json with degree/discoveredVia
- *   5. Marks the scanned contact as deep-scanned
+ *   3. Filters to 2nd-degree only (--exclude-1st, default in batch mode)
+ *   4. Scrolls and extracts visible connections (name, title, URL, mutuals)
+ *   5. Stores discovered contacts in contacts.json with degree/discoveredVia
+ *   6. Marks the scanned contact as deep-scanned
  *
  * Run graph-builder.mjs afterward to create discovered-connection edges.
  */
 
+import { fileURLToPath } from 'url';
 import { launchBrowser, parseArgs } from './lib.mjs';
 import { load, save } from './db.mjs';
 import { saveConnectionsPage } from './cache.mjs';
+import { checkBudget, consumeBudget } from './rate-budget.mjs';
 
 // ---------------------------------------------------------------------------
-// Extract connections from a search results page (reuses search.mjs pattern)
+// Extract connections from a search results page
 // ---------------------------------------------------------------------------
 
-async function extractConnections(page) {
+export async function extractConnections(page) {
   return page.evaluate(() => {
     const people = [];
     const profileLinks = document.querySelectorAll('a[href*="/in/"]');
@@ -116,14 +120,16 @@ async function extractConnections(page) {
   });
 }
 
-async function scrollPage(page) {
-  for (let s = 0; s < 6; s++) {
-    await page.evaluate(() => window.scrollBy(0, 600));
-    await page.waitForTimeout(700);
+export async function scrollPage(page) {
+  // Scroll down slowly to trigger lazy loading
+  for (let s = 0; s < 12; s++) {
+    await page.evaluate(() => window.scrollBy(0, 500));
+    await page.waitForTimeout(600);
   }
+  // Scroll back to top and do a second pass
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(500);
-  for (let s = 0; s < 8; s++) {
+  await page.waitForTimeout(800);
+  for (let s = 0; s < 15; s++) {
     await page.evaluate(() => window.scrollBy(0, 400));
     await page.waitForTimeout(500);
   }
@@ -135,16 +141,6 @@ async function scrollPage(page) {
 
 async function extractMemberUrn(page) {
   return page.evaluate(() => {
-    // Method 1: Look for it in page data
-    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-    for (const s of scripts) {
-      try {
-        const data = JSON.parse(s.textContent);
-        if (data['@type'] === 'Person' && data.url) return null; // no URN here
-      } catch {}
-    }
-
-    // Method 2: Look in page source for entity URN patterns
     const html = document.documentElement.innerHTML;
     // Pattern: "entityUrn":"urn:li:fsd_profile:ACoAA..."
     const urnMatch = html.match(/"entityUrn":"(urn:li:(?:fsd_profile|member):([A-Za-z0-9_-]+))"/);
@@ -159,116 +155,132 @@ async function extractMemberUrn(page) {
 }
 
 // ---------------------------------------------------------------------------
-// Main
+// Navigate to a contact's connections page, filtering for 2nd-degree only
 // ---------------------------------------------------------------------------
 
-async function main() {
-  const args = parseArgs(process.argv);
-  const targetUrl = args.url;
-  const maxPages = parseInt(args['max-pages'] || '5');
-  const maxResults = parseInt(args['max-results'] || '100');
-  const storeDepth = parseInt(args.depth || '2');
-  const mutualOnly = !!args['mutual-only'];
+async function navigateToConnections(page, cleanUrl, exclude1st) {
+  // Step 1: Navigate to the target's profile
+  console.log('  Navigating to profile...');
+  await page.goto(cleanUrl, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(4000);
 
-  if (!targetUrl) {
-    console.error('Usage: node deep-scan.mjs --url <linkedin-profile-url> [--max-pages 5] [--max-results 100] [--depth 2]');
-    process.exit(1);
+  // Step 2: Find connections link and extract member URN
+  let memberUrn = null;
+
+  const connectionsLink = await page.$('a[href*="/search/results/people"]');
+  if (connectionsLink) {
+    const linkText = await connectionsLink.textContent();
+    console.log(`  Found connections link: "${linkText.trim()}"`);
+
+    // Extract member URN from the link href or page
+    const linkHref = await connectionsLink.getAttribute('href');
+    const urnFromLink = linkHref?.match(/connectionOf=%5B%22([A-Za-z0-9_-]+)%22%5D/);
+    if (urnFromLink) {
+      memberUrn = urnFromLink[1];
+    }
   }
+
+  if (!memberUrn) {
+    memberUrn = await extractMemberUrn(page);
+  }
+
+  if (!memberUrn) {
+    // Last resort: try clicking the link directly
+    if (connectionsLink) {
+      await connectionsLink.click();
+      await page.waitForTimeout(4000);
+      // Modify URL in-place to remove 1st-degree filter
+      if (exclude1st) {
+        const currentUrl = page.url();
+        const modified = currentUrl
+          .replace(/network=%5B%22F%22%2C%22S%22%5D/, 'network=%5B%22S%22%5D')
+          .replace(/network=%5B%22F%22%5D/, 'network=%5B%22S%22%5D');
+        if (modified !== currentUrl) {
+          await page.goto(modified, { waitUntil: 'domcontentloaded' });
+          await page.waitForTimeout(4000);
+        }
+      }
+      return true;
+    }
+    console.log('  Could not find connections link or member URN.');
+    return false;
+  }
+
+  // Build search URL directly — filter for 2nd degree only if exclude1st
+  const networkFilter = exclude1st
+    ? '%5B%22S%22%5D'          // ["S"] = 2nd degree only
+    : '%5B%22F%22%2C%22S%22%5D'; // ["F","S"] = 1st and 2nd
+
+  const searchUrl = `https://www.linkedin.com/search/results/people/?connectionOf=%5B%22${encodeURIComponent(memberUrn)}%22%5D&network=${networkFilter}&origin=MEMBER_PROFILE_CANNED_SEARCH`;
+  console.log(`  Navigating to ${exclude1st ? '2nd-degree only' : 'all'} connections...`);
+  await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(4000);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Core scan function — can accept an existing page (for browser reuse)
+// ---------------------------------------------------------------------------
+
+export async function scanContact(targetUrl, opts = {}) {
+  const maxPages = opts.maxPages || 20;
+  const maxResults = opts.maxResults || 1000;
+  const storeDepth = opts.depth || 2;
+  const mutualOnly = opts.mutualOnly || false;
+  const exclude1st = opts.exclude1st !== false; // default true
+  const existingPage = opts.page || null;
 
   // Normalize URL
   const cleanUrl = targetUrl.replace(/\/$/, '').split('?')[0];
-  console.log(`Deep-scanning: ${cleanUrl}`);
-  console.log(`  Max pages: ${maxPages}, Max results: ${maxResults}, Store as degree: ${storeDepth}`);
 
   const db = load();
 
   // Verify the target exists in our DB
   const targetContact = db.contacts[cleanUrl] || db.contacts[cleanUrl + '/'];
   const targetKey = targetContact ? (db.contacts[cleanUrl] ? cleanUrl : cleanUrl + '/') : null;
-  if (!targetContact) {
-    console.warn(`Warning: ${cleanUrl} not found in contacts.json — scanning anyway.`);
-  } else {
+  if (targetContact) {
     console.log(`  Target: ${targetContact.enrichedName || targetContact.name} (${targetContact.scores?.tier || 'unscored'})`);
   }
 
-  const { context, page } = await launchBrowser();
+  let context = null;
+  let page = existingPage;
+
+  if (!page) {
+    const browser = await launchBrowser();
+    context = browser.context;
+    page = browser.page;
+  }
+
   const allResults = [];
 
   try {
-    // Step 1: Navigate to the target's profile
-    console.log('\nNavigating to profile...');
-    await page.goto(cleanUrl, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(4000);
-
-    // Step 2: Find the connections link and click it
-    console.log('Looking for connections link...');
-
-    // Try multiple selectors for the connections link
-    let connectionsClicked = false;
-
-    // Try: "XXX connections" link text
-    const connectionsLink = await page.$('a[href*="/search/results/people"]');
-    if (connectionsLink) {
-      const linkText = await connectionsLink.textContent();
-      console.log(`  Found connections link: "${linkText.trim()}"`);
-      await connectionsLink.click();
-      await page.waitForTimeout(4000);
-      connectionsClicked = true;
+    // Rate budget check before profile visit
+    const budget = checkBudget('profile_visits');
+    if (!budget.allowed) {
+      console.log(`  Rate limit reached: ${budget.used}/${budget.limit} profile visits today. Stopping.`);
+      if (!existingPage && context) await context.close();
+      return { ok: false, error: 'Rate budget exceeded for profile_visits', discovered: 0, added: 0, updated: 0, bridges: 0 };
     }
 
-    if (!connectionsClicked) {
-      // Try: click the connections count section
-      const connSection = await page.$('li.text-body-small a[href*="connection"]');
-      if (connSection) {
-        await connSection.click();
-        await page.waitForTimeout(4000);
-        connectionsClicked = true;
-      }
+    // Navigate to connections page
+    const navOk = await navigateToConnections(page, cleanUrl, exclude1st);
+    if (!navOk) {
+      return { ok: false, error: 'Could not navigate to connections', discovered: 0, added: 0, updated: 0, bridges: 0 };
     }
+    consumeBudget('profile_visits');
 
-    if (!connectionsClicked) {
-      // Fallback: extract member URN and construct search URL
-      console.log('  No clickable link found. Extracting member URN...');
-      const memberUrn = await extractMemberUrn(page);
-      if (memberUrn) {
-        const searchUrl = `https://www.linkedin.com/search/results/people/?connectionOf=%5B%22${encodeURIComponent(memberUrn)}%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&sid=deepscan`;
-        console.log(`  Navigating via member URN: ${memberUrn}`);
-        await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(4000);
-        connectionsClicked = true;
-      }
-    }
-
-    if (!connectionsClicked) {
-      // Last fallback: try the profile connections overlay
-      const slug = cleanUrl.split('/in/')[1]?.replace(/\/$/, '');
-      if (slug) {
-        const fallbackUrl = `https://www.linkedin.com/search/results/people/?connectionOf=%5B%22${slug}%22%5D&network=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH`;
-        console.log('  Trying fallback search URL...');
-        await page.goto(fallbackUrl, { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(4000);
-        connectionsClicked = true;
-      }
-    }
-
-    if (!connectionsClicked) {
-      console.error('Could not navigate to connections page. Aborting.');
-      await context.close();
-      process.exit(1);
-    }
-
-    // Step 3: Paginate and extract
+    // Paginate and extract
     let pageNum = 1;
     let hasMore = true;
     let emptyPages = 0;
 
     while (hasMore && pageNum <= maxPages && allResults.length < maxResults) {
-      console.log(`\n  Page ${pageNum}...`);
+      console.log(`    Page ${pageNum}...`);
       await scrollPage(page);
       await saveConnectionsPage(page, cleanUrl, pageNum);
 
       const people = await extractConnections(page);
-      console.log(`    Found ${people.length} connections on page ${pageNum}`);
+      console.log(`      Found ${people.length} connections on page ${pageNum}`);
 
       if (people.length === 0) {
         emptyPages++;
@@ -285,14 +297,20 @@ async function main() {
         });
 
         allResults.push(...filtered);
-        console.log(`    Kept ${filtered.length} after filtering (total: ${allResults.length})`);
+        console.log(`      Kept ${filtered.length} after filtering (total: ${allResults.length})`);
       }
 
       // Next page
       if (allResults.length >= maxResults) break;
       try {
-        const nextButton = await page.$('button[aria-label="Next"]');
+        // Try multiple selectors for the Next button (LinkedIn changes DOM frequently)
+        let nextButton = await page.$('button[data-testid="pagination-controls-next-button-visible"]');
+        if (!nextButton) nextButton = await page.$('button[aria-label="Next"]');
+        if (!nextButton) nextButton = await page.$('button.artdeco-pagination__button--next');
+
         if (nextButton && await nextButton.isEnabled()) {
+          await nextButton.scrollIntoViewIfNeeded();
+          await page.waitForTimeout(500);
           await nextButton.click();
           await page.waitForTimeout(4000);
           pageNum++;
@@ -303,11 +321,16 @@ async function main() {
         hasMore = false;
       }
     }
-  } finally {
-    await context.close();
+  } catch (err) {
+    // On error, don't close shared browser — just report
+    if (!existingPage && context) await context.close();
+    return { ok: false, error: err.message, discovered: 0, added: 0, updated: 0, bridges: 0 };
   }
 
-  // Step 4: Deduplicate
+  // Close browser only if we opened it ourselves
+  if (!existingPage && context) await context.close();
+
+  // Deduplicate
   const byUrl = new Map();
   for (const p of allResults) {
     const key = p.profileUrl.replace(/\/$/, '');
@@ -317,13 +340,12 @@ async function main() {
   }
   const unique = [...byUrl.values()].slice(0, maxResults);
 
-  // Step 5: Store in contacts.json with degree metadata
+  // Store in contacts.json with degree metadata
   let added = 0, updated = 0, bridgesFound = 0;
 
   for (const p of unique) {
     const key = p.profileUrl.replace(/\/$/, '');
     const existing = db.contacts[key] || db.contacts[key + '/'];
-    const existingKey = existing ? (db.contacts[key] ? key : key + '/') : null;
 
     if (existing) {
       // Contact already known — update discoveredVia
@@ -333,7 +355,6 @@ async function main() {
         bridgesFound++;
       }
       // Only set degree on contacts that were previously discovered by deep-scan.
-      // Original contacts (from search/enrich) are always degree-1 — never overwrite.
       const isDeepScanOrigin = existing.source && existing.source.startsWith('deep-scan:');
       if (isDeepScanOrigin && existing.degree > storeDepth) {
         existing.degree = storeDepth;
@@ -366,7 +387,7 @@ async function main() {
     }
   }
 
-  // Step 6: Mark the scanned contact as deep-scanned
+  // Mark the scanned contact as deep-scanned
   if (targetKey && db.contacts[targetKey]) {
     db.contacts[targetKey].deepScanned = true;
     db.contacts[targetKey].deepScannedAt = new Date().toISOString();
@@ -376,34 +397,56 @@ async function main() {
 
   save(db);
 
-  // Summary
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`DEEP SCAN COMPLETE: ${targetContact?.enrichedName || targetContact?.name || cleanUrl}`);
-  console.log(`${'='.repeat(60)}`);
-  console.log(`  Discovered: ${unique.length} connections`);
-  console.log(`  New contacts: ${added}`);
-  console.log(`  Updated (already known): ${updated}`);
-  console.log(`  Bridge connections found: ${bridgesFound} (appear in multiple scans)`);
-  console.log(`  Stored as: degree-${storeDepth}`);
-  console.log(`\nNext steps:`);
-  console.log(`  1. Run graph-builder to create edges: node graph-builder.mjs`);
-  console.log(`  2. Score new contacts: node scorer.mjs && node behavioral-scorer.mjs`);
-  console.log(`  3. Regenerate report: node report-generator.mjs`);
-  console.log(`  4. Scan more contacts: node deep-scan.mjs --url <another-url>`);
+  return { ok: true, discovered: unique.length, added, updated, bridges: bridgesFound };
+}
 
-  if (bridgesFound > 0) {
-    console.log(`\nBridge contacts (known from multiple 1st-degree connections):`);
-    const bridges = unique.filter(p => {
-      const key = p.profileUrl.replace(/\/$/, '');
-      const c = db.contacts[key] || db.contacts[key + '/'];
-      return c?.discoveredVia?.length > 1;
-    });
-    bridges.slice(0, 10).forEach((p, i) => {
-      const key = p.profileUrl.replace(/\/$/, '');
-      const c = db.contacts[key] || db.contacts[key + '/'];
-      console.log(`  ${i + 1}. ${p.name} — discovered via ${c.discoveredVia.length} contacts`);
-    });
+// ---------------------------------------------------------------------------
+// CLI mode (only when run directly, not when imported)
+// ---------------------------------------------------------------------------
+
+const isMain = process.argv[1] && fileURLToPath(import.meta.url).endsWith(process.argv[1].replace(/.*\//, ''));
+
+async function main() {
+  const args = parseArgs(process.argv);
+  const targetUrl = args.url;
+  const maxPages = parseInt(args['max-pages'] || '20');
+  const maxResults = parseInt(args['max-results'] || '1000');
+  const storeDepth = parseInt(args.depth || '2');
+  const mutualOnly = !!args['mutual-only'];
+  const exclude1st = args['exclude-1st'] !== undefined ? true : false;
+
+  if (!targetUrl) {
+    console.error('Usage: node deep-scan.mjs --url <linkedin-profile-url> [--max-pages 20] [--max-results 1000] [--depth 2] [--exclude-1st]');
+    process.exit(1);
+  }
+
+  const cleanUrl = targetUrl.replace(/\/$/, '').split('?')[0];
+  console.log(`Deep-scanning: ${cleanUrl}`);
+  console.log(`  Max pages: ${maxPages}, Max results: ${maxResults}, Store as degree: ${storeDepth}, Exclude 1st: ${exclude1st}`);
+
+  const result = await scanContact(targetUrl, {
+    maxPages,
+    maxResults,
+    depth: storeDepth,
+    mutualOnly,
+    exclude1st,
+  });
+
+  console.log(`\n${'='.repeat(60)}`);
+  if (result.ok) {
+    console.log(`DEEP SCAN COMPLETE`);
+    console.log(`${'='.repeat(60)}`);
+    console.log(`  Discovered: ${result.discovered} connections`);
+    console.log(`  New contacts: ${result.added}`);
+    console.log(`  Updated (already known): ${result.updated}`);
+    console.log(`  Bridge connections found: ${result.bridges} (appear in multiple scans)`);
+    console.log(`  Stored as: degree-${storeDepth}`);
+  } else {
+    console.log(`DEEP SCAN FAILED: ${result.error}`);
+    console.log(`${'='.repeat(60)}`);
   }
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+if (isMain) {
+  main().catch(e => { console.error(e); process.exit(1); });
+}

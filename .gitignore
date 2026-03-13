@@ -9,11 +9,20 @@ skills/linkedin-prospector/data/cache/
 skills/linkedin-prospector/data/network.rvf
 skills/linkedin-prospector/data/snapshots/*.rvf
 
+# Next.js build output
+.next/
+
 # ONNX model cache
 .cache/
 
 # Browser session data
 .browser-data/
+
+# Runtime state files (may contain PII)
+skills/linkedin-prospector/data/outreach-state.json
+skills/linkedin-prospector/data/contact-notes.json
+skills/linkedin-prospector/data/operations-log.jsonl
+skills/linkedin-prospector/data/linkedin-override.json
 
 # Node
 node_modules/
