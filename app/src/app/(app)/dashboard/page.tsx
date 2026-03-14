@@ -2,6 +2,14 @@ import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 
+const GoalFocusBanner = dynamic(
+  () =>
+    import("@/components/dashboard/goal-focus-banner").then(
+      (mod) => mod.GoalFocusBanner
+    ),
+  { loading: () => <BannerSkeleton /> }
+);
+
 const NetworkHealthRing = dynamic(
   () =>
     import("@/components/dashboard/network-health-ring").then(
@@ -26,6 +34,30 @@ const EnrichmentBudgetBars = dynamic(
   { loading: () => <ChartSkeleton title="Enrichment Budget" /> }
 );
 
+const IcpRadarChart = dynamic(
+  () =>
+    import("@/components/dashboard/icp-radar-chart").then(
+      (mod) => mod.IcpRadarChart
+    ),
+  { loading: () => <ChartSkeleton title="ICP Dimensions" /> }
+);
+
+const TaskQueueWidget = dynamic(
+  () =>
+    import("@/components/dashboard/task-queue-widget").then(
+      (mod) => mod.TaskQueueWidget
+    ),
+  { loading: () => <ChartSkeleton title="Task Queue" /> }
+);
+
+const DiscoveryFeed = dynamic(
+  () =>
+    import("@/components/dashboard/discovery-feed").then(
+      (mod) => mod.DiscoveryFeed
+    ),
+  { loading: () => <ChartSkeleton title="Discovery Feed" /> }
+);
+
 const TopContactsList = dynamic(
   () =>
     import("@/components/dashboard/top-contacts-list").then(
@@ -41,6 +73,16 @@ const RecentActivity = dynamic(
     ),
   { loading: () => <ChartSkeleton title="Recent Activity" /> }
 );
+
+function BannerSkeleton() {
+  return (
+    <Card>
+      <CardContent className="py-4">
+        <Skeleton className="h-10 w-full" />
+      </CardContent>
+    </Card>
+  );
+}
 
 function ChartSkeleton({ title }: { title: string }) {
   return (
@@ -65,14 +107,22 @@ export default function DashboardPage() {
           Overview of your prospecting activity
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <NetworkHealthRing />
-        <TierDistributionChart />
-        <EnrichmentBudgetBars />
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 mt-4">
-        <TopContactsList />
-        <RecentActivity />
+      <div className="space-y-4">
+        <GoalFocusBanner />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <NetworkHealthRing />
+          <TierDistributionChart />
+          <EnrichmentBudgetBars />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <IcpRadarChart />
+          <TaskQueueWidget />
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <DiscoveryFeed />
+          <TopContactsList />
+          <RecentActivity />
+        </div>
       </div>
     </div>
   );

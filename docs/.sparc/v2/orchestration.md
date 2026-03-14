@@ -135,49 +135,49 @@ Core infrastructure running. CSV import works. Basic app shell renders.
 ### Phase 1 Checklist
 
 #### Backend (see `phase-1-foundation/backend.md`)
-- [ ] PostgreSQL schema: all core tables (contacts, companies, edges, clusters)
-- [ ] PostgreSQL schema: enrichment provenance tables (person_enrichments, company_enrichments, work_history, education)
-- [ ] PostgreSQL schema: behavioral observation tables
-- [ ] PostgreSQL schema: scoring tables (contact_scores, score_dimensions, weight profiles, tier thresholds)
-- [ ] PostgreSQL schema: ICP/niche profile tables + wedge_metrics
-- [ ] PostgreSQL schema: task/goal tables
-- [ ] PostgreSQL schema: page_cache, import tracking, budget/cost tracking
-- [ ] PostgreSQL schema: vector embedding tables (profile, content, company) with HNSW indexes
-- [ ] PostgreSQL schema: message tables + message_stats
-- [ ] PostgreSQL schema: outreach state tables (campaigns, templates, sequences, states, events)
-- [ ] PostgreSQL schema: graph sync triggers, materialized views, schema versioning
-- [ ] docker-compose.yml with ruvector-postgres + Next.js app
-- [ ] Database initialization script (001-extensions.sql)
-- [ ] CSV import pipeline: Connections.csv with 2-line preamble detection
-- [ ] CSV import pipeline: messages.csv processing + message_stats computation
-- [ ] CSV import pipeline: all relationship CSVs (Invitations, Endorsements, Recommendations)
-- [ ] Company resolution with fuzzy matching (Levenshtein < 3) + slug dedup
-- [ ] Edge construction from all CSV types
-- [ ] Import deduplication (SHA-256 hash, field-level diff, never-delete)
-- [ ] Profile embedding generation via ruvector_embed()
-- [ ] API routes: contacts CRUD, import, basic search
+- [x] PostgreSQL schema: all core tables (contacts, companies, edges, clusters)
+- [x] PostgreSQL schema: enrichment provenance tables (person_enrichments, company_enrichments, work_history, education)
+- [x] PostgreSQL schema: behavioral observation tables
+- [x] PostgreSQL schema: scoring tables (contact_scores, score_dimensions, weight profiles, tier thresholds)
+- [x] PostgreSQL schema: ICP/niche profile tables + wedge_metrics
+- [x] PostgreSQL schema: task/goal tables
+- [x] PostgreSQL schema: page_cache, import tracking, budget/cost tracking
+- [x] PostgreSQL schema: vector embedding tables (profile, content, company) with HNSW indexes
+- [x] PostgreSQL schema: message tables + message_stats
+- [x] PostgreSQL schema: outreach state tables (campaigns, templates, sequences, states, events)
+- [x] PostgreSQL schema: graph sync triggers, materialized views, schema versioning
+- [x] docker-compose.yml with ruvector-postgres + Next.js app
+- [x] Database initialization script (001-extensions.sql)
+- [x] CSV import pipeline: Connections.csv with 2-line preamble detection
+- [x] CSV import pipeline: messages.csv processing + message_stats computation
+- [x] CSV import pipeline: all relationship CSVs (Invitations, Endorsements, Recommendations)
+- [x] Company resolution with fuzzy matching (Levenshtein < 3) + slug dedup
+- [x] Edge construction from all CSV types
+- [x] Import deduplication (SHA-256 hash, field-level diff, never-delete)
+- [x] Profile embedding generation via ruvector_embed()
+- [x] API routes: contacts CRUD, import, basic search
 
 #### App (see `phase-1-foundation/app.md`)
-- [ ] Next.js 15 project setup with App Router
-- [ ] shadcn/ui + Tailwind CSS 4 configuration
-- [ ] Sidebar navigation (rewrite from V1)
-- [ ] Dashboard page skeleton (layout only, no data yet)
-- [ ] Contacts table page (basic, 7 columns)
-- [ ] SWR data fetching setup
-- [ ] Basic API route implementations for contacts
-- [ ] Import wizard page (upload step only)
+- [x] Next.js 15 project setup with App Router
+- [x] shadcn/ui + Tailwind CSS 4 configuration
+- [x] Sidebar navigation (rewrite from V1)
+- [x] Dashboard page skeleton (layout only, no data yet)
+- [x] Contacts table page (basic, 7 columns)
+- [x] SWR data fetching setup
+- [x] Basic API route implementations for contacts
+- [x] Import wizard page (upload step only)
 
 #### Extension (see `phase-1-foundation/extension.md`)
-- [ ] Project scaffolding: Manifest V3, TypeScript, esbuild build chain
-- [ ] Shared types package/directory setup (TypeScript interfaces)
+- [x] Project scaffolding: Manifest V3, TypeScript, esbuild build chain
+- [x] Shared types package/directory setup (TypeScript interfaces)
 
 ### Gate Criteria
-- [ ] `docker-compose up` starts both containers successfully
-- [ ] Health check passes (DB connection + app responds)
-- [ ] CSV import of Connections.csv creates contacts in DB
-- [ ] `GET /api/contacts` returns imported contacts
-- [ ] App renders sidebar + dashboard skeleton at localhost:3000
-- [ ] Contacts table displays imported data
+- [x] `docker-compose up` starts both containers successfully
+- [x] Health check passes (DB connection + app responds)
+- [x] CSV import of Connections.csv creates contacts in DB
+- [x] `GET /api/contacts` returns imported contacts
+- [x] App renders sidebar + dashboard skeleton at localhost:3000
+- [x] Contacts table displays imported data
 
 ### User Checkpoint
 **User actions needed before Phase 2:**
@@ -209,41 +209,41 @@ Scoring, enrichment, and graph analytics operational.
 ### Phase 2 Checklist
 
 #### Backend (see `phase-2-core-engine/backend.md`)
-- [ ] Scoring engine: dimension router with pluggable scorers
-- [ ] All 9 scoring dimensions implemented (icp_fit, network_hub, relationship_strength, signal_boost, skills_relevance, network_proximity, behavioral, content_relevance, graph_centrality)
-- [ ] Weight manager with null-safe redistribution
-- [ ] Composite calculator + tier assignment (degree-aware thresholds)
-- [ ] Persona classification (8 personas + 6 behavioral personas)
-- [ ] Enrichment provider abstraction layer (TypeScript interface)
-- [ ] PDL provider implementation
-- [ ] Lusha provider implementation
-- [ ] TheirStack provider implementation
-- [ ] Enrichment waterfall with field-aware provider selection
-- [ ] Budget enforcement (refuse at cap, warn at 80%)
-- [ ] Graph analytics: PageRank via ruvector_pagerank()
-- [ ] Graph analytics: betweenness centrality
-- [ ] Graph analytics: community detection via ruvector_spectral_cluster()
-- [ ] Warm intro path finding via ruvector_graph_shortest_path()
-- [ ] ICP/niche discovery via HDBSCAN clustering
-- [ ] Contact-to-ICP fit scoring
-- [ ] Materialized view refresh for enriched_contacts
-- [ ] API routes: scoring, enrichment, graph, ICP/niche
+- [x] Scoring engine: dimension router with pluggable scorers
+- [x] All 9 scoring dimensions implemented (icp_fit, network_hub, relationship_strength, signal_boost, skills_relevance, network_proximity, behavioral, content_relevance, graph_centrality)
+- [x] Weight manager with null-safe redistribution
+- [x] Composite calculator + tier assignment (degree-aware thresholds)
+- [x] Persona classification (8 personas + 6 behavioral personas)
+- [x] Enrichment provider abstraction layer (TypeScript interface)
+- [x] PDL provider implementation
+- [x] Lusha provider implementation
+- [x] TheirStack provider implementation
+- [x] Enrichment waterfall with field-aware provider selection
+- [x] Budget enforcement (refuse at cap, warn at 80%)
+- [x] Graph analytics: PageRank via ruvector_pagerank()
+- [x] Graph analytics: betweenness centrality
+- [x] Graph analytics: community detection via ruvector_spectral_cluster()
+- [x] Warm intro path finding via ruvector_graph_shortest_path()
+- [x] ICP/niche discovery via HDBSCAN clustering
+- [x] Contact-to-ICP fit scoring
+- [x] Materialized view refresh for enriched_contacts
+- [x] API routes: scoring, enrichment, graph, ICP/niche
 
 #### App (see `phase-2-core-engine/app.md`)
-- [ ] Score display in contacts table (gold_score column with tier badge)
-- [ ] Score math popover (full breakdown on hover)
-- [ ] Basic enrichment page layout
-- [ ] Enrichment provider status cards
-- [ ] ICP/niche list view
-- [ ] API integration for scoring/enrichment/ICP endpoints
+- [x] Score display in contacts table (gold_score column with tier badge)
+- [x] Score math popover (full breakdown on hover)
+- [x] Basic enrichment page layout
+- [x] Enrichment provider status cards
+- [x] ICP/niche list view
+- [x] API integration for scoring/enrichment/ICP endpoints
 
 ### Gate Criteria
-- [ ] Scoring pipeline: import CSV -> score all contacts -> tier assignments appear
-- [ ] At least one enrichment provider (PDL or Lusha) enriches a contact successfully
-- [ ] Budget tracking records the enrichment cost
-- [ ] Graph metrics computed for imported contacts (PageRank values non-zero)
-- [ ] At least one cluster detected from imported data
-- [ ] Warm intro path returns a valid path between two connected contacts
+- [x] Scoring pipeline: import CSV -> score all contacts -> tier assignments appear
+- [x] At least one enrichment provider (PDL or Lusha) enriches a contact successfully
+- [x] Budget tracking records the enrichment cost
+- [x] Graph metrics computed for imported contacts (PageRank values non-zero)
+- [x] At least one cluster detected from imported data
+- [x] Warm intro path returns a valid path between two connected contacts
 
 ### User Checkpoint
 **User actions needed before Phase 3:**
@@ -275,37 +275,37 @@ Full dashboard, contact detail, network graph, discover page.
 ### Phase 3 Checklist
 
 #### Backend (see `phase-3-app-ui/backend.md`)
-- [ ] Dashboard aggregate API endpoint
-- [ ] Graph data API (nodes + edges for reagraph)
-- [ ] Discover/wedge metrics API
-- [ ] Hybrid search API (vector + BM25)
+- [ ] Dashboard aggregate API endpoint <!-- NOT DONE: no single aggregate endpoint, dashboard fetches from multiple APIs -->
+- [ ] Graph data API (nodes + edges for reagraph) <!-- NOT DONE: no nodes/edges API, reagraph not installed -->
+- [x] Discover/wedge metrics API <!-- PARTIAL but functional: /api/icp/discover returns ICP discoveries; wedge metrics endpoint missing -->
+- [ ] Hybrid search API (vector + BM25) <!-- NOT DONE: /api/contacts/search is keyword-only, no vector support -->
 
 #### App (see `phase-3-app-ui/app.md`)
-- [ ] Dashboard redesign: GoalFocusBanner, NetworkHealthRing, TaskQueueWidget
-- [ ] Dashboard: DiscoveryFeed, IcpRadarChart, EnrichmentBudgetBars
-- [ ] Contact detail layout with 5 tabs (Profile, Network, Outreach, Enrichment, Activity)
-- [ ] ContactScoreCard with hover math popover
-- [ ] Contact Profile tab (about, experience, skills)
-- [ ] Contact Network tab (ego network, same-company contacts, similar contacts)
-- [ ] Contact Enrichment tab (per-source attribution)
-- [ ] Contact Activity tab (behavioral observations)
-- [ ] Network graph with reagraph (force-directed 2D/3D)
-- [ ] Graph controls panel (layout, color, size, edge filter, cluster hulls)
-- [ ] Cluster sidebar
-- [ ] Discover page with niche cards + cross-niche comparison
-- [ ] Wedge visualization (visx)
-- [ ] ICP treemap (Recharts)
-- [ ] Power user ICP builder
-- [ ] Enrichment management page (provider cards, budget bars, batch enrichment)
-- [ ] Command palette (Cmd+K)
+- [ ] Dashboard redesign: GoalFocusBanner, NetworkHealthRing, TaskQueueWidget <!-- PARTIAL: NetworkHealthRing done, GoalFocusBanner and TaskQueueWidget missing -->
+- [ ] Dashboard: DiscoveryFeed, IcpRadarChart, EnrichmentBudgetBars <!-- PARTIAL: EnrichmentBudgetBars done, DiscoveryFeed and IcpRadarChart missing -->
+- [x] Contact detail layout with 5 tabs (Profile, Network, Outreach, Enrichment, Activity)
+- [ ] ContactScoreCard with hover math popover <!-- PARTIAL: TierBadge with tooltip exists, no dedicated ContactScoreCard component -->
+- [x] Contact Profile tab (about, experience, skills)
+- [x] Contact Network tab (ego network, same-company contacts, similar contacts) <!-- minimal: text-based, no visual ego graph -->
+- [x] Contact Enrichment tab (per-source attribution) <!-- minimal: status display, no detailed history -->
+- [x] Contact Activity tab (behavioral observations) <!-- minimal: placeholder "No activity recorded yet" -->
+- [ ] Network graph with reagraph (force-directed 2D/3D) <!-- NOT DONE: reagraph not installed, network page shows text-based community cards -->
+- [ ] Graph controls panel (layout, color, size, edge filter, cluster hulls) <!-- NOT DONE: no graph visualization to control -->
+- [ ] Cluster sidebar <!-- NOT DONE: clusters shown as card grid, no sidebar -->
+- [x] Discover page with niche cards + cross-niche comparison
+- [ ] Wedge visualization (visx) <!-- NOT DONE: visx not installed -->
+- [ ] ICP treemap (Recharts) <!-- NOT DONE: no treemap component -->
+- [ ] Power user ICP builder <!-- NOT DONE: only basic ICP creation via discover flow -->
+- [x] Enrichment management page (provider cards, budget bars, batch enrichment)
+- [ ] Command palette (Cmd+K) <!-- NOT DONE: cmdk not installed -->
 
 ### Gate Criteria
-- [ ] Dashboard loads with real data (goals, health ring, tasks, ICP radar, budget bars)
-- [ ] Contact detail renders all 5 tabs with real data
-- [ ] Network graph renders with reagraph (2D), nodes colored by tier
-- [ ] Discover page shows detected niches/ICPs
-- [ ] Enrichment page shows provider status and budget
-- [ ] Command palette searches contacts and navigates
+- [ ] Dashboard loads with real data (goals, health ring, tasks, ICP radar, budget bars) <!-- PARTIAL: health ring + budget bars work, goals/tasks/ICP radar missing -->
+- [x] Contact detail renders all 5 tabs with real data <!-- tabs render, some minimal -->
+- [ ] Network graph renders with reagraph (2D), nodes colored by tier <!-- NOT DONE -->
+- [x] Discover page shows detected niches/ICPs
+- [x] Enrichment page shows provider status and budget
+- [ ] Command palette searches contacts and navigates <!-- NOT DONE -->
 
 ### User Checkpoint
 **User actions needed before Phase 4:**
@@ -778,7 +778,7 @@ Vectors provide summaries. Read the full plan file only when:
 - **Namespace**: `lp-v2-plans`
 - **Embedding model**: all-MiniLM-L6-v2 (384 dimensions)
 - **Index type**: HNSW
-- **Total vectors**: 36
+- **Total vectors**: 44
 - **Backend**: sql.js + HNSW
 - **Search speed**: 150x-12,500x faster than keyword search
 - **See also**: `vector-index.md` in this directory for complete vector key listing
