@@ -27,13 +27,13 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 - `next.config.ts` -- Next.js configuration
 - `tailwind.config.ts` -- Tailwind CSS 4 configuration
 - `postcss.config.mjs` -- PostCSS configuration
-- `src/app/globals.css` -- Global styles with Tailwind directives and shadcn/ui CSS variables
-- `src/lib/utils.ts` -- cn() utility for class merging (shadcn standard)
+- `app/src/app/globals.css` -- Global styles with Tailwind directives and shadcn/ui CSS variables
+- `app/src/lib/utils.ts` -- cn() utility for class merging (shadcn standard)
 - `components.json` -- shadcn/ui configuration
 - `.eslintrc.json` -- ESLint configuration
 - `.prettierrc` -- Prettier configuration
-- `src/app/layout.tsx` -- Root layout with providers
-- `src/app/page.tsx` -- Root page (redirects to /dashboard or renders dashboard)
+- `app/src/app/layout.tsx` -- Root layout with providers
+- `app/src/app/page.tsx` -- Root page (redirects to /dashboard or renders dashboard)
 
 ### Agent 2: Layout Engineer
 
@@ -42,25 +42,25 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 **Depends on**: Agent 1 (project scaffolding must exist).
 
 **Output files**:
-- `src/components/layout/sidebar-nav.tsx` -- Main sidebar navigation
-- `src/components/layout/sidebar-nav-item.tsx` -- Individual nav item component
-- `src/components/layout/app-header.tsx` -- Top header bar (breadcrumb, search, user area)
-- `src/components/layout/app-shell.tsx` -- Main layout wrapper (sidebar + content area)
-- `src/components/layout/page-header.tsx` -- Reusable page header component (title, description, actions)
-- `src/components/providers/theme-provider.tsx` -- Dark/light mode provider
-- `src/components/providers/swr-provider.tsx` -- SWR configuration provider
-- `src/app/(app)/layout.tsx` -- App group layout (wraps sidebar + header)
-- `src/app/(app)/dashboard/page.tsx` -- Dashboard skeleton page
-- `src/app/(app)/contacts/page.tsx` -- Contacts page (hosts table)
-- `src/app/(app)/contacts/[id]/page.tsx` -- Contact detail page (stub)
-- `src/app/(app)/network/page.tsx` -- Network graph page (stub)
-- `src/app/(app)/discover/page.tsx` -- Discover page (stub)
-- `src/app/(app)/enrichment/page.tsx` -- Enrichment page (stub)
-- `src/app/(app)/outreach/page.tsx` -- Outreach page (stub)
-- `src/app/(app)/tasks/page.tsx` -- Tasks page (stub)
-- `src/app/(app)/extension/page.tsx` -- Extension page (stub)
-- `src/app/(app)/admin/page.tsx` -- Admin page (stub)
-- `src/app/(app)/import/page.tsx` -- Import wizard page
+- `app/src/components/layout/sidebar-nav.tsx` -- Main sidebar navigation
+- `app/src/components/layout/sidebar-nav-item.tsx` -- Individual nav item component
+- `app/src/components/layout/app-header.tsx` -- Top header bar (breadcrumb, search, user area)
+- `app/src/components/layout/app-shell.tsx` -- Main layout wrapper (sidebar + content area)
+- `app/src/components/layout/page-header.tsx` -- Reusable page header component (title, description, actions)
+- `app/src/components/providers/theme-provider.tsx` -- Dark/light mode provider
+- `app/src/components/providers/swr-provider.tsx` -- SWR configuration provider
+- `app/src/app/(app)/layout.tsx` -- App group layout (wraps sidebar + header)
+- `app/src/app/(app)/dashboard/page.tsx` -- Dashboard skeleton page
+- `app/src/app/(app)/contacts/page.tsx` -- Contacts page (hosts table)
+- `app/src/app/(app)/contacts/[id]/page.tsx` -- Contact detail page (stub)
+- `app/src/app/(app)/network/page.tsx` -- Network graph page (stub)
+- `app/src/app/(app)/discover/page.tsx` -- Discover page (stub)
+- `app/src/app/(app)/enrichment/page.tsx` -- Enrichment page (stub)
+- `app/src/app/(app)/outreach/page.tsx` -- Outreach page (stub)
+- `app/src/app/(app)/tasks/page.tsx` -- Tasks page (stub)
+- `app/src/app/(app)/extension/page.tsx` -- Extension page (stub)
+- `app/src/app/(app)/admin/page.tsx` -- Admin page (stub)
+- `app/src/app/(app)/import/page.tsx` -- Import wizard page
 
 ### Agent 3: Contacts Table Engineer
 
@@ -69,20 +69,20 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 **Depends on**: Agent 1 (project setup), Agent 2 (page structure), Backend API routes (contacts + import).
 
 **Output files**:
-- `src/components/contacts/contacts-table.tsx` -- Main data table component
-- `src/components/contacts/contacts-table-columns.tsx` -- Column definitions
-- `src/components/contacts/contacts-table-toolbar.tsx` -- Filter/search toolbar
-- `src/components/contacts/contacts-table-pagination.tsx` -- Pagination controls
-- `src/components/contacts/contact-row.tsx` -- Individual row component (optional, for complex row rendering)
-- `src/components/import/import-wizard.tsx` -- Import wizard container
-- `src/components/import/upload-step.tsx` -- File upload step
-- `src/lib/api/contacts.ts` -- Contact API client functions
-- `src/lib/api/import.ts` -- Import API client functions
-- `src/lib/hooks/use-contacts.ts` -- SWR hook for contacts data
-- `src/lib/hooks/use-import.ts` -- SWR hook for import status polling
-- `src/lib/types/contact.ts` -- Contact TypeScript interfaces
-- `src/lib/types/import.ts` -- Import TypeScript interfaces
-- `src/lib/types/api.ts` -- API response TypeScript interfaces
+- `app/src/components/contacts/contacts-table.tsx` -- Main data table component
+- `app/src/components/contacts/contacts-table-columns.tsx` -- Column definitions
+- `app/src/components/contacts/contacts-table-toolbar.tsx` -- Filter/search toolbar
+- `app/src/components/contacts/contacts-table-pagination.tsx` -- Pagination controls
+- `app/src/components/contacts/contact-row.tsx` -- Individual row component (optional, for complex row rendering)
+- `app/src/components/import/import-wizard.tsx` -- Import wizard container
+- `app/src/components/import/upload-step.tsx` -- File upload step
+- `app/src/lib/api/contacts.ts` -- Contact API client functions
+- `app/src/lib/api/import.ts` -- Import API client functions
+- `app/src/lib/hooks/use-contacts.ts` -- SWR hook for contacts data
+- `app/src/lib/hooks/use-import.ts` -- SWR hook for import status polling
+- `app/src/lib/types/contact.ts` -- Contact TypeScript interfaces
+- `app/src/lib/types/import.ts` -- Import TypeScript interfaces
+- `app/src/lib/types/api.ts` -- API response TypeScript interfaces
 - `tests/components/contacts-table.test.tsx`
 - `tests/hooks/use-contacts.test.ts`
 
@@ -100,18 +100,18 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
   ```bash
   npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
   ```
-- [ ] T1.2: Verify project structure uses `src/app/` directory with App Router
+- [ ] T1.2: Verify project structure uses `app/src/app/` directory with App Router
 - [ ] T1.3: Configure `next.config.ts` with:
   - `output: 'standalone'` for Docker deployment
   - `images.remotePatterns` for LinkedIn CDN (media.licdn.com)
   - `experimental.serverActions` enabled (if needed)
-- [ ] T1.4: Update `tsconfig.json` paths to use `@/*` alias for `src/*`
+- [ ] T1.4: Update `tsconfig.json` paths to use `@/*` alias for `app/src/*`
 - [ ] T1.5: Verify `npm run dev` starts without errors
 
 **Acceptance Criteria**:
 - `npm run dev` serves the app at localhost:3000
 - TypeScript compilation succeeds with no errors
-- App Router directory structure is in place (`src/app/`)
+- App Router directory structure is in place (`app/src/app/`)
 
 ---
 
@@ -123,7 +123,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 
 - [ ] T2.1: Verify Tailwind CSS 4 is installed (comes with create-next-app)
 - [ ] T2.2: Configure `tailwind.config.ts` with:
-  - Content paths for `src/` directory
+  - Content paths for `app/src/` directory
   - Extended theme colors for tier badges (gold: #F59E0B, silver: #9CA3AF, bronze: #D97706, watch: #6B7280)
   - Extended theme colors for outreach states
   - Font family configuration (Inter or system font stack)
@@ -162,11 +162,11 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
   npx shadcn@latest add avatar progress tabs
   ```
 - [ ] T3.3: Verify `components.json` configuration is correct
-- [ ] T3.4: Verify `src/lib/utils.ts` contains `cn()` function
+- [ ] T3.4: Verify `app/src/lib/utils.ts` contains `cn()` function
 - [ ] T3.5: Verify shadcn components render correctly with a test page
 
 **Acceptance Criteria**:
-- All listed shadcn/ui components are installed in `src/components/ui/`
+- All listed shadcn/ui components are installed in `app/src/components/ui/`
 - Components render correctly with proper styling
 - `cn()` utility merges Tailwind classes correctly
 
@@ -179,7 +179,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 **Parallel**: After T1
 
 - [ ] T4.1: Install SWR: `npm install swr`
-- [ ] T4.2: Create SWR global configuration in `src/components/providers/swr-provider.tsx`:
+- [ ] T4.2: Create SWR global configuration in `app/src/components/providers/swr-provider.tsx`:
   ```tsx
   const swrConfig = {
     fetcher: (url: string) => fetch(url).then(res => res.json()),
@@ -189,7 +189,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
   }
   ```
 - [ ] T4.3: Wrap app in SWR provider in root layout
-- [ ] T4.4: Create base API client in `src/lib/api/client.ts`:
+- [ ] T4.4: Create base API client in `app/src/lib/api/client.ts`:
   - Base URL configuration (from env or relative)
   - Error handling wrapper
   - Response type parsing
@@ -204,7 +204,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T5: Root Layout and Providers
 
 **Agent**: Setup Engineer
-**File**: `src/app/layout.tsx`
+**File**: `app/src/app/layout.tsx`
 **BR**: BR-201 (App Shell)
 **Parallel**: After T3, T4
 
@@ -227,7 +227,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T6: Sidebar Navigation Component
 
 **Agent**: Layout Engineer
-**File**: `src/components/layout/sidebar-nav.tsx`
+**File**: `app/src/components/layout/sidebar-nav.tsx`
 **BR**: BR-201 (Navigation)
 **Depends on**: T3 (shadcn components)
 
@@ -266,7 +266,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T7: App Header Component
 
 **Agent**: Layout Engineer
-**File**: `src/components/layout/app-header.tsx`
+**File**: `app/src/components/layout/app-header.tsx`
 **BR**: BR-201 (Navigation)
 **Depends on**: T3 (shadcn components)
 
@@ -287,7 +287,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T8: App Shell Layout
 
 **Agent**: Layout Engineer
-**File**: `src/components/layout/app-shell.tsx`
+**File**: `app/src/components/layout/app-shell.tsx`
 **BR**: BR-201 (Layout)
 **Depends on**: T6, T7
 
@@ -306,7 +306,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T9: App Group Layout
 
 **Agent**: Layout Engineer
-**File**: `src/app/(app)/layout.tsx`
+**File**: `app/src/app/(app)/layout.tsx`
 **BR**: BR-201 (Routing)
 **Depends on**: T8
 
@@ -327,48 +327,48 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 **BR**: BR-201 (Routing)
 **Depends on**: T9
 
-- [ ] T10.1: `src/app/(app)/dashboard/page.tsx` -- Dashboard skeleton page
+- [ ] T10.1: `app/src/app/(app)/dashboard/page.tsx` -- Dashboard skeleton page
   - Render page header: "Dashboard"
   - Render placeholder card grid (6 cards with Skeleton components)
   - Cards represent future widgets: Goal Focus, Network Health, Task Queue, Discovery Feed, ICP Radar, Budget
 
-- [ ] T10.2: `src/app/(app)/contacts/page.tsx` -- Contacts table page
+- [ ] T10.2: `app/src/app/(app)/contacts/page.tsx` -- Contacts table page
   - Render page header: "Contacts" with "Import" action button
   - Render ContactsTable component (built by Agent 3)
 
-- [ ] T10.3: `src/app/(app)/contacts/[id]/page.tsx` -- Contact detail stub
+- [ ] T10.3: `app/src/app/(app)/contacts/[id]/page.tsx` -- Contact detail stub
   - Render page header with back navigation
   - Render placeholder content: "Contact detail view coming in Phase 3"
 
-- [ ] T10.4: `src/app/(app)/network/page.tsx` -- Network graph stub
+- [ ] T10.4: `app/src/app/(app)/network/page.tsx` -- Network graph stub
   - Page header: "Network Graph"
   - Placeholder: "Network visualization coming in Phase 3"
 
-- [ ] T10.5: `src/app/(app)/discover/page.tsx` -- Discover stub
+- [ ] T10.5: `app/src/app/(app)/discover/page.tsx` -- Discover stub
   - Page header: "Discover"
   - Placeholder: "Niche discovery coming in Phase 3"
 
-- [ ] T10.6: `src/app/(app)/enrichment/page.tsx` -- Enrichment stub
+- [ ] T10.6: `app/src/app/(app)/enrichment/page.tsx` -- Enrichment stub
   - Page header: "Enrichment"
   - Placeholder: "Enrichment management coming in Phase 2"
 
-- [ ] T10.7: `src/app/(app)/outreach/page.tsx` -- Outreach stub
+- [ ] T10.7: `app/src/app/(app)/outreach/page.tsx` -- Outreach stub
   - Page header: "Outreach"
   - Placeholder: "Outreach pipeline coming in Phase 5"
 
-- [ ] T10.8: `src/app/(app)/tasks/page.tsx` -- Tasks stub
+- [ ] T10.8: `app/src/app/(app)/tasks/page.tsx` -- Tasks stub
   - Page header: "Tasks"
   - Placeholder: "Task management coming in Phase 5"
 
-- [ ] T10.9: `src/app/(app)/extension/page.tsx` -- Extension stub
+- [ ] T10.9: `app/src/app/(app)/extension/page.tsx` -- Extension stub
   - Page header: "Extension"
   - Placeholder: "Extension management coming in Phase 4"
 
-- [ ] T10.10: `src/app/(app)/admin/page.tsx` -- Admin stub
+- [ ] T10.10: `app/src/app/(app)/admin/page.tsx` -- Admin stub
   - Page header: "Admin"
   - Placeholder: "Admin panel coming in Phase 6"
 
-- [ ] T10.11: `src/app/(app)/import/page.tsx` -- Import wizard page
+- [ ] T10.11: `app/src/app/(app)/import/page.tsx` -- Import wizard page
   - Page header: "Import LinkedIn Data"
   - Render ImportWizard component (built by Agent 3)
 
@@ -384,7 +384,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T11: Page Header Component
 
 **Agent**: Layout Engineer
-**File**: `src/components/layout/page-header.tsx`
+**File**: `app/src/components/layout/page-header.tsx`
 **BR**: BR-201 (UI Components)
 **Depends on**: T3
 
@@ -406,7 +406,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T12: TypeScript Type Definitions
 
 **Agent**: Contacts Table Engineer
-**Files**: `src/lib/types/contact.ts`, `src/lib/types/import.ts`, `src/lib/types/api.ts`
+**Files**: `app/src/lib/types/contact.ts`, `app/src/lib/types/import.ts`, `app/src/lib/types/api.ts`
 **BR**: BR-201 (Type Safety)
 **Depends on**: Backend schema (T2 from backend plan)
 
@@ -460,7 +460,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T13: Contact API Client Functions
 
 **Agent**: Contacts Table Engineer
-**File**: `src/lib/api/contacts.ts`
+**File**: `app/src/lib/api/contacts.ts`
 **BR**: BR-201 (API Integration)
 **Depends on**: T12, T4 (SWR setup)
 
@@ -484,7 +484,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T14: Import API Client Functions
 
 **Agent**: Contacts Table Engineer
-**File**: `src/lib/api/import.ts`
+**File**: `app/src/lib/api/import.ts`
 **BR**: BR-101 (Import Integration)
 **Depends on**: T12
 
@@ -508,7 +508,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T15: SWR Hooks
 
 **Agent**: Contacts Table Engineer
-**Files**: `src/lib/hooks/use-contacts.ts`, `src/lib/hooks/use-import.ts`
+**Files**: `app/src/lib/hooks/use-contacts.ts`, `app/src/lib/hooks/use-import.ts`
 **BR**: BR-201 (Data Fetching)
 **Depends on**: T13, T14
 
@@ -538,7 +538,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T16: Contacts Data Table
 
 **Agent**: Contacts Table Engineer
-**File**: `src/components/contacts/contacts-table.tsx`
+**File**: `app/src/components/contacts/contacts-table.tsx`
 **BR**: BR-201 (Contact List View)
 **Depends on**: T15 (hooks), T3 (shadcn Table component)
 
@@ -574,7 +574,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T17: Contacts Table Toolbar
 
 **Agent**: Contacts Table Engineer
-**File**: `src/components/contacts/contacts-table-toolbar.tsx`
+**File**: `app/src/components/contacts/contacts-table-toolbar.tsx`
 **BR**: BR-201 (Filtering)
 **Depends on**: T3 (shadcn components)
 
@@ -596,7 +596,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T18: Contacts Table Pagination
 
 **Agent**: Contacts Table Engineer
-**File**: `src/components/contacts/contacts-table-pagination.tsx`
+**File**: `app/src/components/contacts/contacts-table-pagination.tsx`
 **BR**: BR-201 (Pagination)
 **Depends on**: T15 (pagination data from hook)
 
@@ -618,7 +618,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T19: Tier Badge Component
 
 **Agent**: Contacts Table Engineer
-**File**: `src/components/contacts/tier-badge.tsx`
+**File**: `app/src/components/contacts/tier-badge.tsx`
 **BR**: BR-401 (Tier Display)
 **Depends on**: T3 (shadcn Badge)
 
@@ -641,7 +641,7 @@ Set up the Next.js 15 application shell with App Router, shadcn/ui component lib
 ### T20: Import Wizard -- Upload Step
 
 **Agent**: Contacts Table Engineer
-**Files**: `src/components/import/import-wizard.tsx`, `src/components/import/upload-step.tsx`
+**Files**: `app/src/components/import/import-wizard.tsx`, `app/src/components/import/upload-step.tsx`
 **BR**: BR-101 (Import)
 **Depends on**: T14 (import API), T3 (shadcn components)
 

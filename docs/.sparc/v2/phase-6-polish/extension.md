@@ -42,8 +42,8 @@ Both agents can run in parallel. Agent E1 focuses on new features (rate tracking
 
 ### Task E1-1: Daily Capture Tracking
 
-**File**: `extension/src/services/capture-tracker.ts`
-**Tests**: `extension/tests/services/capture-tracker.test.ts`
+**File**: `browser/src/services/capture-tracker.ts`
+**Tests**: `browser/tests/services/capture-tracker.test.ts`
 
 **Description**: Track the number of page captures performed per day to enforce rate limits and display usage information to the user.
 
@@ -97,9 +97,9 @@ interface CaptureSettings {
 ### Task E1-2: Rate Awareness Overlay
 
 **Files**:
-- `extension/src/content/rate-overlay.ts`
-- `extension/src/content/rate-overlay.css`
-**Tests**: `extension/tests/content/rate-overlay.test.ts`
+- `browser/src/content/rate-overlay.ts`
+- `browser/src/content/rate-overlay.css`
+**Tests**: `browser/tests/content/rate-overlay.test.ts`
 
 **Description**: Visual overlay displayed on LinkedIn pages when the user approaches or exceeds their daily capture limit. Provides real-time awareness of capture usage.
 
@@ -145,8 +145,8 @@ interface RateOverlayState {
 
 ### Task E1-3: Auto-Capture Toggle
 
-**File**: `extension/src/services/auto-capture.ts`
-**Tests**: `extension/tests/services/auto-capture.test.ts`
+**File**: `browser/src/services/auto-capture.ts`
+**Tests**: `browser/tests/services/auto-capture.test.ts`
 
 **Description**: Opt-in automatic capture that captures LinkedIn pages on navigation without requiring manual button clicks. Respects daily capture limits and page type filters.
 
@@ -195,11 +195,11 @@ interface AutoCaptureConfig {
 ### Task E1-4: Settings UI
 
 **Files**:
-- `extension/src/popup/settings.html`
-- `extension/src/popup/settings.ts`
-- `extension/src/popup/settings.css`
-- OR: `extension/src/sidepanel/settings-tab.ts` (if settings is a tab in the side panel)
-**Tests**: `extension/tests/popup/settings.test.ts`
+- `browser/src/popup/settings.html`
+- `browser/src/popup/settings.ts`
+- `browser/src/popup/settings.css`
+- OR: `browser/src/sidepanel/settings-tab.ts` (if settings is a tab in the side panel)
+**Tests**: `browser/tests/popup/settings.test.ts`
 
 **Description**: Comprehensive settings interface accessible from the popup or side panel for configuring all extension preferences.
 
@@ -273,8 +273,8 @@ interface ExtensionSettings {
 
 ### Task E2-1: Retry Logic for Failed Captures
 
-**File**: `extension/src/services/retry-manager.ts`
-**Tests**: `extension/tests/services/retry-manager.test.ts`
+**File**: `browser/src/services/retry-manager.ts`
+**Tests**: `browser/tests/services/retry-manager.test.ts`
 
 **Description**: Implement robust retry logic for failed capture submissions with exponential backoff.
 
@@ -326,8 +326,8 @@ interface RetryableOperation {
 
 ### Task E2-2: Queue Overflow Warning
 
-**File**: `extension/src/services/queue-monitor.ts`
-**Tests**: `extension/tests/services/queue-monitor.test.ts`
+**File**: `browser/src/services/queue-monitor.ts`
+**Tests**: `browser/tests/services/queue-monitor.test.ts`
 
 **Description**: Monitor the capture queue depth and warn the user when approaching the maximum queue size.
 
@@ -358,10 +358,10 @@ interface RetryableOperation {
 ### Task E2-3: Network Error Recovery
 
 **Files**:
-- `extension/src/services/connectivity-monitor.ts`
-- Update: `extension/src/services/http-client.ts`
-- Update: `extension/src/services/websocket-client.ts`
-**Tests**: `extension/tests/services/connectivity-monitor.test.ts`
+- `browser/src/services/connectivity-monitor.ts`
+- Update: `browser/src/services/http-client.ts`
+- Update: `browser/src/services/websocket-client.ts`
+**Tests**: `browser/tests/services/connectivity-monitor.test.ts`
 
 **Description**: Comprehensive network error recovery across HTTP and WebSocket connections.
 
@@ -402,12 +402,12 @@ interface RetryableOperation {
 ### Task E2-4: Extension Icons
 
 **Files**:
-- `extension/icons/icon-16.png`
-- `extension/icons/icon-48.png`
-- `extension/icons/icon-128.png`
-- `extension/icons/icon-16-inactive.png`
-- `extension/icons/icon-48-inactive.png`
-- `extension/icons/icon-128-inactive.png`
+- `browser/icons/icon-16.png`
+- `browser/icons/icon-48.png`
+- `browser/icons/icon-128.png`
+- `browser/icons/icon-16-inactive.png`
+- `browser/icons/icon-48-inactive.png`
+- `browser/icons/icon-128-inactive.png`
 **Tests**: Manual visual testing
 
 **Description**: Create production-quality extension icons at all required sizes.
@@ -453,10 +453,10 @@ interface RetryableOperation {
 ### Task E2-5: Popup and Side Panel Styling
 
 **Files**:
-- `extension/src/popup/popup.css`
-- `extension/src/sidepanel/sidepanel.css`
-- `extension/src/popup/popup.html`
-- `extension/src/sidepanel/sidepanel.html`
+- `browser/src/popup/popup.css`
+- `browser/src/sidepanel/sidepanel.css`
+- `browser/src/popup/popup.html`
+- `browser/src/sidepanel/sidepanel.html`
 **Tests**: Manual visual testing + snapshot tests
 
 **Description**: Achieve visual consistency between popup, side panel, and the main app. Apply production-grade styling throughout.
@@ -498,7 +498,7 @@ interface RetryableOperation {
 ### Task E2-6: Loading States for All Async Operations
 
 **Files**: Updates across all popup and side panel TypeScript files
-**Tests**: `extension/tests/ui/loading-states.test.ts`
+**Tests**: `browser/tests/ui/loading-states.test.ts`
 
 **Description**: Add proper loading states for every asynchronous operation in the extension UI.
 
@@ -541,7 +541,7 @@ interface RetryableOperation {
 ### Task E2-7: Empty States for All Data Displays
 
 **Files**: Updates across all popup and side panel TypeScript files
-**Tests**: `extension/tests/ui/empty-states.test.ts`
+**Tests**: `browser/tests/ui/empty-states.test.ts`
 
 **Description**: Add meaningful empty states for every data display in the extension.
 
@@ -660,21 +660,21 @@ For each service/component, write tests covering:
 - State transitions (connected -> disconnected -> reconnecting)
 
 Test files:
-- `extension/tests/services/capture-tracker.test.ts`
-- `extension/tests/content/rate-overlay.test.ts`
-- `extension/tests/services/auto-capture.test.ts`
-- `extension/tests/popup/settings.test.ts`
-- `extension/tests/services/retry-manager.test.ts`
-- `extension/tests/services/queue-monitor.test.ts`
-- `extension/tests/services/connectivity-monitor.test.ts`
-- `extension/tests/ui/loading-states.test.ts`
-- `extension/tests/ui/empty-states.test.ts`
+- `browser/tests/services/capture-tracker.test.ts`
+- `browser/tests/content/rate-overlay.test.ts`
+- `browser/tests/services/auto-capture.test.ts`
+- `browser/tests/popup/settings.test.ts`
+- `browser/tests/services/retry-manager.test.ts`
+- `browser/tests/services/queue-monitor.test.ts`
+- `browser/tests/services/connectivity-monitor.test.ts`
+- `browser/tests/ui/loading-states.test.ts`
+- `browser/tests/ui/empty-states.test.ts`
 
 ### Build Verification
 
 After all changes:
 ```bash
-cd extension && npm run build
+cd browser && npm run build
 ```
 
 Verify:

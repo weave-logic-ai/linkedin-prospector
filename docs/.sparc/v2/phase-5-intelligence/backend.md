@@ -20,9 +20,9 @@ Implement the Claude integration API layer and content analysis pipeline that po
 
 | Agent | Role | Files | Estimated Effort |
 |-------|------|-------|------------------|
-| Agent B1 | Claude API Routes | `src/agent/routes.ts`, `src/agent/claude-client.ts` | 2-3 days |
-| Agent B2 | Content Analysis Pipeline | `src/agent/content-analysis.ts`, `src/agent/prompts.ts` | 3-4 days |
-| Agent B3 | Behavioral Processing + Activity Patterns | `src/agent/observation-processor.ts`, `src/agent/activity-patterns.ts` | 2-3 days |
+| Agent B1 | Claude API Routes | `app/src/agent/routes.ts`, `app/src/agent/claude-client.ts` | 2-3 days |
+| Agent B2 | Content Analysis Pipeline | `app/src/agent/content-analysis.ts`, `app/src/agent/prompts.ts` | 3-4 days |
+| Agent B3 | Behavioral Processing + Activity Patterns | `app/src/agent/observation-processor.ts`, `app/src/agent/activity-patterns.ts` | 2-3 days |
 
 **Parallelism note**: Agents B1, B2, and B3 can run concurrently. B1 depends on B2's `ContentAnalysisService` interface (agree on interface first, implement in parallel). B3 has no cross-dependencies.
 
@@ -487,7 +487,7 @@ Implement the Claude integration API layer and content analysis pipeline that po
 
 | Consumer | What They Need | Interface |
 |----------|---------------|-----------|
-| App: Goal Generator | `ContentAnalysisService.analyzeBatch()` | Import from `src/agent/content-analysis` |
+| App: Goal Generator | `ContentAnalysisService.analyzeBatch()` | Import from `app/src/agent/content-analysis` |
 | App: Template Personalization | `ContentProfile` data from DB | Query `content_profiles` table |
 | App: Outreach Timing | `ActivityPattern.engagement_peaks` | Query `activity_patterns` table |
 | Extension: Template Display | Analysis results via API | `GET /api/agent/suggestions` |

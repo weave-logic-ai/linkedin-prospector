@@ -41,8 +41,8 @@ All three agents can run fully in parallel; there are no cross-dependencies betw
 
 ### Task B1-1: Apollo Provider Implementation
 
-**File**: `src/enrichment/providers/apollo.ts`
-**Types**: `src/enrichment/types/apollo.ts`
+**File**: `app/src/enrichment/providers/apollo.ts`
+**Types**: `app/src/enrichment/types/apollo.ts`
 **Tests**: `tests/enrichment/apollo.test.ts`
 
 **Description**: Implement the Apollo.io enrichment provider for person-level data including email, phone, and buying intent signals. Apollo uses the v1/people/match endpoint for person lookup by name + company + domain.
@@ -98,7 +98,7 @@ interface ApolloMatchResponse {
 ```
 
 **Sub-tasks**:
-- [ ] Define `ApolloProviderConfig`, `ApolloMatchRequest`, `ApolloMatchResponse` interfaces in `src/enrichment/types/apollo.ts`
+- [ ] Define `ApolloProviderConfig`, `ApolloMatchRequest`, `ApolloMatchResponse` interfaces in `app/src/enrichment/types/apollo.ts`
 - [ ] Implement `ApolloProvider` class extending `EnrichmentProvider` base interface
 - [ ] Implement `match()` method calling `POST /v1/people/match` with first_name, last_name, organization_name, domain, linkedin_url
 - [ ] Implement cost calculation based on reveal type requested (match-only vs email vs phone vs full)
@@ -124,8 +124,8 @@ interface ApolloMatchResponse {
 
 ### Task B1-2: Crunchbase Provider Implementation
 
-**File**: `src/enrichment/providers/crunchbase.ts`
-**Types**: `src/enrichment/types/crunchbase.ts`
+**File**: `app/src/enrichment/providers/crunchbase.ts`
+**Types**: `app/src/enrichment/types/crunchbase.ts`
 **Tests**: `tests/enrichment/crunchbase.test.ts`
 
 **Description**: Implement the Crunchbase enrichment provider for company-level data including funding, revenue, and investor information. Crunchbase is company-only enrichment; it enriches the `company_enrichments` table, not `person_enrichments`.
@@ -173,7 +173,7 @@ interface CrunchbaseOrganizationResponse {
 ```
 
 **Sub-tasks**:
-- [ ] Define `CrunchbaseProviderConfig`, `CrunchbaseOrganizationResponse` interfaces in `src/enrichment/types/crunchbase.ts`
+- [ ] Define `CrunchbaseProviderConfig`, `CrunchbaseOrganizationResponse` interfaces in `app/src/enrichment/types/crunchbase.ts`
 - [ ] Implement `CrunchbaseProvider` class extending `EnrichmentProvider` base interface
 - [ ] Implement `searchOrganization(companyName, domain?)` calling `GET /api/v4/autocompletes` for fuzzy company match
 - [ ] Implement `getOrganization(permalink)` calling `GET /api/v4/entities/organizations/:permalink` with card_ids `investors,funding_rounds`
@@ -200,8 +200,8 @@ interface CrunchbaseOrganizationResponse {
 
 ### Task B1-3: BuiltWith Provider Implementation
 
-**File**: `src/enrichment/providers/builtwith.ts`
-**Types**: `src/enrichment/types/builtwith.ts`
+**File**: `app/src/enrichment/providers/builtwith.ts`
+**Types**: `app/src/enrichment/types/builtwith.ts`
 **Tests**: `tests/enrichment/builtwith.test.ts`
 
 **Description**: Implement the BuiltWith enrichment provider for company-level technographic data. BuiltWith provides comprehensive tech stack information used for technology-based ICP matching and scoring.
@@ -250,7 +250,7 @@ interface BuiltWithLookupResponse {
 ```
 
 **Sub-tasks**:
-- [ ] Define `BuiltWithProviderConfig`, `BuiltWithLookupResponse` interfaces in `src/enrichment/types/builtwith.ts`
+- [ ] Define `BuiltWithProviderConfig`, `BuiltWithLookupResponse` interfaces in `app/src/enrichment/types/builtwith.ts`
 - [ ] Implement `BuiltWithProvider` class extending `EnrichmentProvider` base interface
 - [ ] Implement `lookup(domain)` calling `GET /v21/api.json?KEY=:key&LOOKUP=:domain&NOMETA=no&NOATTR=no`
 - [ ] Parse technology list and group by category (Analytics, CMS, E-commerce, Framework, Hosting, CDN, JavaScript, etc.)
@@ -868,7 +868,7 @@ interface CypherResponse {
 
 **Files**:
 - `app/src/lib/parsers/*.ts` (all parser files)
-- `src/enrichment/providers/*.ts` (all provider files)
+- `app/src/enrichment/providers/*.ts` (all provider files)
 **Tests**: `tests/security/sanitization.test.ts`
 
 **Description**: Ensure all data ingested from external sources (LinkedIn HTML, enrichment API responses) is sanitized before storage and display.
@@ -965,7 +965,7 @@ interface CypherResponse {
 5. Each agent should:
    a. Read existing provider/admin code patterns before implementing
    b. Follow the established `EnrichmentProvider` interface for B1 tasks
-   c. Create type definitions first in `app/src/types/admin.ts` or `src/enrichment/types/`
+   c. Create type definitions first in `app/src/types/admin.ts` or `app/src/enrichment/types/`
    d. Implement endpoints with Zod validation, error handling, and proper HTTP status codes
    e. Write unit tests for each endpoint in `tests/`
    f. Run `npm test` and `npm run lint` after implementation

@@ -23,9 +23,9 @@ Build the intelligence layer of the application: Claude-powered goal and task ge
 
 | Agent | Role | Primary Files | Estimated Effort |
 |-------|------|---------------|------------------|
-| Agent A1 | Claude Intelligence | `src/agent/goal-generator.ts`, `src/agent/task-generator.ts`, `src/agent/template-personalizer.ts` | 4-5 days |
+| Agent A1 | Claude Intelligence | `app/src/agent/goal-generator.ts`, `app/src/agent/task-generator.ts`, `app/src/agent/template-personalizer.ts` | 4-5 days |
 | Agent A2 | Tasks UI | `app/src/components/tasks/*`, `app/src/app/tasks/page.tsx` | 3-4 days |
-| Agent A3 | Outreach Engine | `src/outreach/template-engine.ts`, `src/outreach/state-machine.ts`, `src/outreach/sequence-engine.ts`, `src/outreach/campaign-manager.ts` | 4-5 days |
+| Agent A3 | Outreach Engine | `app/src/outreach/template-engine.ts`, `app/src/outreach/state-machine.ts`, `app/src/outreach/sequence-engine.ts`, `app/src/outreach/campaign-manager.ts` | 4-5 days |
 | Agent A4 | API Routes | All Phase 5 API route files under `app/src/app/api/` | 3-4 days |
 | Agent A5 | Outreach UI + Analytics | `app/src/components/outreach/*`, `app/src/app/outreach/page.tsx` | 4-5 days |
 

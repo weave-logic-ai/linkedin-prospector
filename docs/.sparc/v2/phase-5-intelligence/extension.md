@@ -24,7 +24,7 @@ Extend the Chrome extension with outreach template display, clipboard copy workf
 
 | Agent | Role | Primary Files | Estimated Effort |
 |-------|------|---------------|------------------|
-| Agent E1 | Template Display + Clipboard | `extension/src/popup/TemplateSection.tsx`, `extension/src/sidepanel/TemplatePanel.tsx`, `extension/src/shared/clipboard.ts`, `extension/src/shared/template-api.ts` | 3-4 days |
+| Agent E1 | Template Display + Clipboard | `browser/src/popup/TemplateSection.tsx`, `browser/src/sidepanel/TemplatePanel.tsx`, `browser/src/shared/clipboard.ts`, `browser/src/shared/template-api.ts` | 3-4 days |
 
 **Single agent note**: Phase 5 extension work is focused and cohesive -- one agent handles all template display, selection, and clipboard functionality. The work is small enough that splitting across agents would add coordination overhead without benefit.
 
@@ -35,7 +35,7 @@ Extend the Chrome extension with outreach template display, clipboard copy workf
 ### Task E5-1: Template API Client
 
 **BR Reference**: BR-807
-**File**: `extension/src/shared/template-api.ts`
+**File**: `browser/src/shared/template-api.ts`
 **Agent**: E1
 
 - [ ] Create `TemplateApiClient` class wrapping the extension's HTTP client:
@@ -130,7 +130,7 @@ Extend the Chrome extension with outreach template display, clipboard copy workf
 ### Task E5-2: Clipboard Utility
 
 **BR Reference**: BR-807
-**File**: `extension/src/shared/clipboard.ts`
+**File**: `browser/src/shared/clipboard.ts`
 **Agent**: E1
 
 - [ ] Create clipboard utility with extension-context handling:
@@ -225,7 +225,7 @@ Extend the Chrome extension with outreach template display, clipboard copy workf
 ### Task E5-3: Popup Template Section
 
 **BR Reference**: BR-807
-**File**: `extension/src/popup/TemplateSection.tsx`
+**File**: `browser/src/popup/TemplateSection.tsx`
 **Agent**: E1
 
 - [ ] Template section in popup (displayed when user is on a LinkedIn profile page):
@@ -311,7 +311,7 @@ Extend the Chrome extension with outreach template display, clipboard copy workf
 ### Task E5-4: Side Panel Template Panel
 
 **BR Reference**: BR-807
-**File**: `extension/src/sidepanel/TemplatePanel.tsx`
+**File**: `browser/src/sidepanel/TemplatePanel.tsx`
 **Agent**: E1
 
 - [ ] Full template section in side panel (more space than popup):
@@ -404,7 +404,7 @@ Extend the Chrome extension with outreach template display, clipboard copy workf
 ### Task E5-5: WebSocket Template Events
 
 **BR Reference**: BR-807
-**File**: `extension/src/shared/websocket-handlers.ts` (extend existing)
+**File**: `browser/src/shared/websocket-handlers.ts` (extend existing)
 **Agent**: E1
 
 - [ ] Add `TEMPLATE_READY` event handler to existing WebSocket client:
@@ -464,7 +464,7 @@ Extend the Chrome extension with outreach template display, clipboard copy workf
 ### Task E5-6: Template Section Integration with Existing Extension UI
 
 **BR Reference**: BR-807
-**File**: `extension/src/popup/Popup.tsx` (modify), `extension/src/sidepanel/SidePanel.tsx` (modify)
+**File**: `browser/src/popup/Popup.tsx` (modify), `browser/src/sidepanel/SidePanel.tsx` (modify)
 **Agent**: E1
 
 - [ ] Integrate `TemplateSection` into existing popup layout:
@@ -529,7 +529,7 @@ Agent E1 should follow this sequence for optimal flow:
 
 ### Testing Strategy
 
-1. **Unit tests** (in `extension/tests/`):
+1. **Unit tests** (in `browser/tests/`):
    - `template-api.test.ts`: Mock HTTP responses, verify caching behavior
    - `clipboard.test.ts`: Test both clipboard strategies (mock `navigator.clipboard`)
    - `websocket-handlers.test.ts`: Test `TEMPLATE_READY` event processing
@@ -548,7 +548,7 @@ Agent E1 should follow this sequence for optimal flow:
 
 3. **Build verification**:
    ```bash
-   cd extension && npm run build
+   cd browser && npm run build
    # Load unpacked extension in chrome://extensions
    # Verify no console errors on any LinkedIn page
    ```
@@ -606,6 +606,6 @@ Agent E1 should follow this sequence for optimal flow:
 - [ ] Templates are cached for 5 minutes and refresh on WebSocket invalidation
 - [ ] Contact not in database shows "Import this contact first" message
 - [ ] App offline shows "Templates unavailable offline" message
-- [ ] Extension builds without errors: `cd extension && npm run build` succeeds
+- [ ] Extension builds without errors: `cd browser && npm run build` succeeds
 - [ ] No console errors when navigating LinkedIn with extension active
 - [ ] Keyboard shortcut `Ctrl+Shift+C` copies recommended template on profile pages

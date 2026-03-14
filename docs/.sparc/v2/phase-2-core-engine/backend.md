@@ -27,11 +27,11 @@ Before any Phase 2 backend work begins, the following Phase 1 artifacts must exi
 
 | Agent | Role | Subsystem | Files | Estimated Effort |
 |---|---|---|---|---|
-| Agent 1 | Scoring Engineer | Scoring engine: all 9 dimensions, weight manager, composite calc, personas | `src/scoring/**` | Heavy (40%) |
-| Agent 2 | Enrichment Engineer | Provider abstraction, PDL/Lusha/TheirStack, waterfall, budget | `src/enrichment/**` | Medium (25%) |
-| Agent 3 | Graph Engineer | Graph analytics, Cypher builder, community detection, warm intros | `src/graph/**` | Medium (20%) |
-| Agent 4 | ICP Engineer | ICP/niche discovery, contact-to-ICP fit scoring, wedge metrics | `src/icp/**` | Light (10%) |
-| Agent 5 | API Developer | All Phase 2 API route handlers | `src/app/api/**` | Light (5%) -- blocked until Agents 1-4 complete core logic |
+| Agent 1 | Scoring Engineer | Scoring engine: all 9 dimensions, weight manager, composite calc, personas | `app/src/scoring/**` | Heavy (40%) |
+| Agent 2 | Enrichment Engineer | Provider abstraction, PDL/Lusha/TheirStack, waterfall, budget | `app/src/enrichment/**` | Medium (25%) |
+| Agent 3 | Graph Engineer | Graph analytics, Cypher builder, community detection, warm intros | `app/src/graph/**` | Medium (20%) |
+| Agent 4 | ICP Engineer | ICP/niche discovery, contact-to-ICP fit scoring, wedge metrics | `app/src/icp/**` | Light (10%) |
+| Agent 5 | API Developer | All Phase 2 API route handlers | `app/src/app/api/**` | Light (5%) -- blocked until Agents 1-4 complete core logic |
 
 ### Dependency Graph Between Agents
 
@@ -55,7 +55,7 @@ Agent 1 and Agent 3 have a bidirectional data dependency: the `graph_centrality`
 
 #### Task 1.1: Dimension Router (BR-401, BR-402)
 
-**File**: `src/scoring/dimension-router.ts`
+**File**: `app/src/scoring/dimension-router.ts`
 
 **Description**: Central dispatcher that receives a contact record and routes it to each registered dimension scorer, collecting results.
 
@@ -109,7 +109,7 @@ class DimensionRouter {
 
 #### Task 1.2: ICP Fit Scorer (BR-403, BR-404)
 
-**File**: `src/scoring/dimensions/icp-fit.ts`
+**File**: `app/src/scoring/dimensions/icp-fit.ts`
 
 **Default Weight**: 0.22
 
@@ -137,7 +137,7 @@ class DimensionRouter {
 
 #### Task 1.3: Network Hub Scorer (BR-405)
 
-**File**: `src/scoring/dimensions/network-hub.ts`
+**File**: `app/src/scoring/dimensions/network-hub.ts`
 
 **Default Weight**: 0.18
 
@@ -160,7 +160,7 @@ class DimensionRouter {
 
 #### Task 1.4: Relationship Strength Scorer (BR-406)
 
-**File**: `src/scoring/dimensions/relationship-strength.ts`
+**File**: `app/src/scoring/dimensions/relationship-strength.ts`
 
 **Default Weight**: 0.14
 
@@ -185,7 +185,7 @@ class DimensionRouter {
 
 #### Task 1.5: Signal Boost Scorer (BR-407)
 
-**File**: `src/scoring/dimensions/signal-boost.ts`
+**File**: `app/src/scoring/dimensions/signal-boost.ts`
 
 **Default Weight**: 0.06
 
@@ -209,7 +209,7 @@ class DimensionRouter {
 
 #### Task 1.6: Skills Relevance Scorer (BR-408)
 
-**File**: `src/scoring/dimensions/skills-relevance.ts`
+**File**: `app/src/scoring/dimensions/skills-relevance.ts`
 
 **Default Weight**: 0.08
 
@@ -231,7 +231,7 @@ class DimensionRouter {
 
 #### Task 1.7: Network Proximity Scorer (BR-409)
 
-**File**: `src/scoring/dimensions/network-proximity.ts`
+**File**: `app/src/scoring/dimensions/network-proximity.ts`
 
 **Default Weight**: 0.06
 
@@ -253,7 +253,7 @@ class DimensionRouter {
 
 #### Task 1.8: Behavioral Scorer (BR-410)
 
-**File**: `src/scoring/dimensions/behavioral.ts`
+**File**: `app/src/scoring/dimensions/behavioral.ts`
 
 **Default Weight**: 0.06
 
@@ -275,7 +275,7 @@ class DimensionRouter {
 
 #### Task 1.9: Content Relevance Scorer -- NEW (BR-411)
 
-**File**: `src/scoring/dimensions/content-relevance.ts`
+**File**: `app/src/scoring/dimensions/content-relevance.ts`
 
 **Default Weight**: 0.10
 
@@ -298,14 +298,14 @@ class DimensionRouter {
 
 #### Task 1.10: Graph Centrality Scorer -- NEW (BR-412)
 
-**File**: `src/scoring/dimensions/graph-centrality.ts`
+**File**: `app/src/scoring/dimensions/graph-centrality.ts`
 
 **Default Weight**: 0.10
 
 **Description**: Combines betweenness centrality, PageRank, and eigenvector centrality from graph analytics.
 
 **Sub-tasks**:
-- [ ] Import `GraphMetricsService` from `src/graph/analytics.ts` (Agent 3 dependency)
+- [ ] Import `GraphMetricsService` from `app/src/graph/analytics.ts` (Agent 3 dependency)
 - [ ] Fetch pre-computed graph metrics for contact: `betweenness`, `pagerank`, `eigenvector`, `degree`
 - [ ] Normalize each metric to 0-1 range using min-max normalization across all contacts
 - [ ] Sub-score weighting: betweenness (0.35), pagerank (0.35), eigenvector (0.20), degree (0.10)
@@ -321,7 +321,7 @@ class DimensionRouter {
 
 #### Task 1.11: Weight Manager (BR-413, BR-414)
 
-**File**: `src/scoring/weight-manager.ts`
+**File**: `app/src/scoring/weight-manager.ts`
 
 **Description**: Manages weight profiles, null-safe redistribution, and named profile CRUD.
 
@@ -369,7 +369,7 @@ class WeightManager {
 
 #### Task 1.12: Composite Calculator (BR-415, BR-416)
 
-**File**: `src/scoring/composite-calculator.ts`
+**File**: `app/src/scoring/composite-calculator.ts`
 
 **Description**: Computes gold_score from dimension results and assigns tiers.
 
@@ -423,7 +423,7 @@ class CompositeCalculator {
 
 #### Task 1.13: Persona Classifier (BR-417)
 
-**File**: `src/scoring/persona-classifier.ts`
+**File**: `app/src/scoring/persona-classifier.ts`
 
 **Description**: Classifies contacts into business personas and behavioral personas based on score dimensions.
 
@@ -484,7 +484,7 @@ class PersonaClassifier {
 
 #### Task 2.1: Provider Registry (BR-301, BR-302)
 
-**File**: `src/enrichment/provider-registry.ts`
+**File**: `app/src/enrichment/provider-registry.ts`
 
 **Description**: Registry that manages enrichment provider instances and their configuration.
 
@@ -570,7 +570,7 @@ class ProviderRegistry {
 
 #### Task 2.2: PDL Provider (BR-303)
 
-**File**: `src/enrichment/providers/pdl.ts`
+**File**: `app/src/enrichment/providers/pdl.ts`
 
 **Description**: People Data Labs integration. Cost: $0.22-0.28/call. Returns email, phone, work history, skills, education.
 
@@ -598,7 +598,7 @@ class ProviderRegistry {
 
 #### Task 2.3: Lusha Provider (BR-304)
 
-**File**: `src/enrichment/providers/lusha.ts`
+**File**: `app/src/enrichment/providers/lusha.ts`
 
 **Description**: Lusha integration. Cost: $0.00-0.087/call. Returns verified email and phone.
 
@@ -622,7 +622,7 @@ class ProviderRegistry {
 
 #### Task 2.4: TheirStack Provider (BR-305)
 
-**File**: `src/enrichment/providers/theirstack.ts`
+**File**: `app/src/enrichment/providers/theirstack.ts`
 
 **Description**: TheirStack integration. Cost: $0.03/call. Returns company technology stacks.
 
@@ -645,7 +645,7 @@ class ProviderRegistry {
 
 #### Task 2.5: Waterfall Engine (BR-306, BR-307)
 
-**File**: `src/enrichment/waterfall.ts`
+**File**: `app/src/enrichment/waterfall.ts`
 
 **Description**: Field-aware waterfall that routes enrichment requests through providers in priority order, stopping when all desired fields are populated.
 
@@ -705,7 +705,7 @@ class WaterfallEngine {
 
 #### Task 2.6: Budget Manager (BR-308, BR-309, BR-310)
 
-**File**: `src/enrichment/budget-manager.ts`
+**File**: `app/src/enrichment/budget-manager.ts`
 
 **Description**: Enforces enrichment budget caps, tracks spending, and provides cost estimation.
 
@@ -773,7 +773,7 @@ interface EnrichmentROI {
 
 #### Task 3.1: Graph Metrics Service (BR-501, BR-502, BR-503)
 
-**File**: `src/graph/analytics.ts`
+**File**: `app/src/graph/analytics.ts`
 
 **Description**: Computes and stores per-contact graph metrics using ruvector-postgres graph functions.
 
@@ -830,7 +830,7 @@ class GraphMetricsService {
 
 #### Task 3.2: Cypher Query Builder (BR-504, BR-505)
 
-**File**: `src/graph/cypher-builder.ts`
+**File**: `app/src/graph/cypher-builder.ts`
 
 **Description**: Constructs Cypher queries for ruvector_cypher_query() calls, supporting common graph patterns.
 
@@ -869,7 +869,7 @@ interface CypherPattern {
 
 #### Task 3.3: Community Detection (BR-506, BR-507, BR-508)
 
-**File**: `src/graph/community-detection.ts`
+**File**: `app/src/graph/community-detection.ts`
 
 **Description**: Detects communities/clusters using spectral clustering and HDBSCAN, stores results.
 
@@ -915,7 +915,7 @@ class CommunityDetector {
 
 #### Task 3.4: Warm Intro Path Finding (BR-509, BR-510)
 
-**File**: `src/graph/warm-intros.ts`
+**File**: `app/src/graph/warm-intros.ts`
 
 **Description**: Finds warm introduction paths between contacts and ranks them by relationship strength.
 
@@ -959,7 +959,7 @@ class WarmIntroService {
 
 #### Task 3.5: Bridge and Hub Detection (BR-511, BR-512)
 
-**File**: `src/graph/analytics.ts` (added to existing GraphMetricsService)
+**File**: `app/src/graph/analytics.ts` (added to existing GraphMetricsService)
 
 **Description**: Identifies bridge nodes (connecting disparate clusters) and hub nodes (highly connected).
 
@@ -983,7 +983,7 @@ class WarmIntroService {
 
 #### Task 4.1: ICP Profile Management (BR-413)
 
-**File**: `src/icp/icp-manager.ts`
+**File**: `app/src/icp/icp-manager.ts`
 
 **Description**: CRUD operations for ICP profiles with discover capabilities.
 
@@ -1035,7 +1035,7 @@ class IcpManager {
 
 #### Task 4.2: ICP Discovery via HDBSCAN (BR-413, BR-508)
 
-**File**: `src/icp/icp-discovery.ts`
+**File**: `app/src/icp/icp-discovery.ts`
 
 **Description**: Discovers potential ICPs by clustering contacts on embedding vectors and analyzing cluster characteristics.
 
@@ -1058,7 +1058,7 @@ class IcpManager {
 
 #### Task 4.3: Niche Profile Management
 
-**File**: `src/icp/niche-manager.ts`
+**File**: `app/src/icp/niche-manager.ts`
 
 **Description**: Manages niche profiles (broader market segments that may contain multiple ICPs).
 
@@ -1077,7 +1077,7 @@ class IcpManager {
 
 #### Task 4.4: Contact-to-ICP Fit Scoring
 
-**File**: `src/icp/fit-scorer.ts`
+**File**: `app/src/icp/fit-scorer.ts`
 
 **Description**: Scores each contact against all active ICPs, tracking best fit and per-ICP scores.
 
@@ -1097,7 +1097,7 @@ class IcpManager {
 
 #### Task 4.5: Wedge Metrics
 
-**File**: `src/icp/wedge-metrics.ts`
+**File**: `app/src/icp/wedge-metrics.ts`
 
 **Description**: Computes wedge metrics -- the penetration and opportunity analysis per ICP/niche.
 
@@ -1119,11 +1119,11 @@ class IcpManager {
 #### Task 5.1: Scoring API Routes
 
 **Files**:
-- `src/app/api/scoring/run/route.ts`
-- `src/app/api/scoring/weights/route.ts`
-- `src/app/api/scoring/weight-profiles/route.ts`
-- `src/app/api/scoring/tiers/route.ts`
-- `src/app/api/scoring/distribution/route.ts`
+- `app/src/app/api/scoring/run/route.ts`
+- `app/src/app/api/scoring/weights/route.ts`
+- `app/src/app/api/scoring/weight-profiles/route.ts`
+- `app/src/app/api/scoring/tiers/route.ts`
+- `app/src/app/api/scoring/distribution/route.ts`
 
 **Sub-tasks**:
 - [ ] `POST /api/scoring/run`: trigger scoring for all contacts (or filtered subset via query params)
@@ -1152,14 +1152,14 @@ class IcpManager {
 #### Task 5.2: Enrichment API Routes
 
 **Files**:
-- `src/app/api/enrichment/providers/route.ts`
-- `src/app/api/enrichment/providers/[id]/route.ts`
-- `src/app/api/enrichment/budget/route.ts`
-- `src/app/api/enrichment/estimate/route.ts`
-- `src/app/api/enrichment/transactions/route.ts`
-- `src/app/api/enrichment/roi/route.ts`
-- `src/app/api/contacts/[id]/enrich/route.ts`
-- `src/app/api/contacts/batch-enrich/route.ts`
+- `app/src/app/api/enrichment/providers/route.ts`
+- `app/src/app/api/enrichment/providers/[id]/route.ts`
+- `app/src/app/api/enrichment/budget/route.ts`
+- `app/src/app/api/enrichment/estimate/route.ts`
+- `app/src/app/api/enrichment/transactions/route.ts`
+- `app/src/app/api/enrichment/roi/route.ts`
+- `app/src/app/api/contacts/[id]/enrich/route.ts`
+- `app/src/app/api/contacts/batch-enrich/route.ts`
 
 **Sub-tasks**:
 - [ ] `GET /api/enrichment/providers`: list all providers with status (configured, enabled, credits remaining)
@@ -1189,12 +1189,12 @@ class IcpManager {
 #### Task 5.3: Graph API Routes
 
 **Files**:
-- `src/app/api/graph/data/route.ts`
-- `src/app/api/graph/metrics/route.ts`
-- `src/app/api/graph/recompute/route.ts`
-- `src/app/api/graph/communities/route.ts`
-- `src/app/api/graph/bridges/route.ts`
-- `src/app/api/graph/path/[from]/[to]/route.ts`
+- `app/src/app/api/graph/data/route.ts`
+- `app/src/app/api/graph/metrics/route.ts`
+- `app/src/app/api/graph/recompute/route.ts`
+- `app/src/app/api/graph/communities/route.ts`
+- `app/src/app/api/graph/bridges/route.ts`
+- `app/src/app/api/graph/path/[from]/[to]/route.ts`
 
 **Sub-tasks**:
 - [ ] `GET /api/graph/data`: return nodes + edges for graph visualization
@@ -1223,10 +1223,10 @@ class IcpManager {
 #### Task 5.4: ICP/Niche API Routes
 
 **Files**:
-- `src/app/api/niches/route.ts`
-- `src/app/api/icps/route.ts`
-- `src/app/api/icps/discover/route.ts`
-- `src/app/api/wedge/route.ts`
+- `app/src/app/api/niches/route.ts`
+- `app/src/app/api/icps/route.ts`
+- `app/src/app/api/icps/discover/route.ts`
+- `app/src/app/api/wedge/route.ts`
 
 **Sub-tasks**:
 - [ ] `GET /api/niches`: list all niche profiles

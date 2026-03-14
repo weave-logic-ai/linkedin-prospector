@@ -22,25 +22,25 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 **Runs in parallel with**: Backend and App agents (no cross-domain dependencies in Phase 1).
 
 **Output files**:
-- `extension/manifest.json` -- Manifest V3 configuration
-- `extension/package.json` -- Extension-specific dependencies and scripts
-- `extension/tsconfig.json` -- TypeScript configuration for extension
-- `extension/esbuild.config.mjs` -- esbuild build configuration
-- `extension/src/service-worker.ts` -- Service worker entry point (empty scaffold)
-- `extension/src/content/index.ts` -- Content script entry point (empty scaffold)
-- `extension/src/popup/popup.html` -- Popup HTML shell
-- `extension/src/popup/popup.ts` -- Popup script entry point (empty scaffold)
-- `extension/src/popup/popup.css` -- Popup styles (minimal)
-- `extension/src/sidepanel/sidepanel.html` -- Side panel HTML shell
-- `extension/src/sidepanel/sidepanel.ts` -- Side panel script entry point (empty scaffold)
-- `extension/src/sidepanel/sidepanel.css` -- Side panel styles (minimal)
-- `extension/src/types/index.ts` -- Extension-specific types
-- `extension/src/utils/logger.ts` -- Simple logging utility
-- `extension/src/utils/storage.ts` -- chrome.storage wrapper scaffold
-- `extension/icons/icon-16.png` -- 16x16 icon placeholder
-- `extension/icons/icon-32.png` -- 32x32 icon placeholder
-- `extension/icons/icon-48.png` -- 48x48 icon placeholder
-- `extension/icons/icon-128.png` -- 128x128 icon placeholder
+- `browser/manifest.json` -- Manifest V3 configuration
+- `browser/package.json` -- Extension-specific dependencies and scripts
+- `browser/tsconfig.json` -- TypeScript configuration for extension
+- `browser/esbuild.config.mjs` -- esbuild build configuration
+- `browser/src/service-worker.ts` -- Service worker entry point (empty scaffold)
+- `browser/src/content/index.ts` -- Content script entry point (empty scaffold)
+- `browser/src/popup/popup.html` -- Popup HTML shell
+- `browser/src/popup/popup.ts` -- Popup script entry point (empty scaffold)
+- `browser/src/popup/popup.css` -- Popup styles (minimal)
+- `browser/src/sidepanel/sidepanel.html` -- Side panel HTML shell
+- `browser/src/sidepanel/sidepanel.ts` -- Side panel script entry point (empty scaffold)
+- `browser/src/sidepanel/sidepanel.css` -- Side panel styles (minimal)
+- `browser/src/types/index.ts` -- Extension-specific types
+- `browser/src/utils/logger.ts` -- Simple logging utility
+- `browser/src/utils/storage.ts` -- chrome.storage wrapper scaffold
+- `browser/icons/icon-16.png` -- 16x16 icon placeholder
+- `browser/icons/icon-32.png` -- 32x32 icon placeholder
+- `browser/icons/icon-48.png` -- 48x48 icon placeholder
+- `browser/icons/icon-128.png` -- 128x128 icon placeholder
 - `shared/types/capture.ts` -- Shared CapturePayload type
 - `shared/types/task.ts` -- Shared ExtensionTask type
 - `shared/types/message.ts` -- Shared message protocol types
@@ -60,7 +60,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 
 - [ ] T1.1: Create the extension directory tree:
   ```
-  extension/
+  browser/
     src/
       content/         # Content scripts injected into LinkedIn pages
       popup/           # Browser action popup
@@ -76,7 +76,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
   shared/
     types/             # Types shared between app and extension
   ```
-- [ ] T1.3: Add `extension/dist/` to `.gitignore`
+- [ ] T1.3: Add `browser/dist/` to `.gitignore`
 
 **Acceptance Criteria**:
 - All directories exist
@@ -88,7 +88,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 ### T2: Manifest V3 Configuration
 
 **Agent**: Extension Scaffolder
-**File**: `extension/manifest.json`
+**File**: `browser/manifest.json`
 **BR**: BR-801 (Extension Manifest)
 **Parallel**: After T1
 
@@ -163,7 +163,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 ### T3: Extension package.json
 
 **Agent**: Extension Scaffolder
-**File**: `extension/package.json`
+**File**: `browser/package.json`
 **BR**: BR-801 (Extension Build)
 **Parallel**: After T1
 
@@ -190,7 +190,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 - [ ] T3.2: Note: `@anthropic-ai/sdk` is listed but not used in Phase 1 -- included for Phase 5 preparation
 
 **Acceptance Criteria**:
-- `npm install` in `extension/` directory succeeds
+- `npm install` in `browser/` directory succeeds
 - All declared scripts are functional
 - `@types/chrome` provides type definitions for chrome.* APIs
 
@@ -199,7 +199,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 ### T4: TypeScript Configuration
 
 **Agent**: Extension Scaffolder
-**File**: `extension/tsconfig.json`
+**File**: `browser/tsconfig.json`
 **BR**: BR-801 (Extension Build)
 **Parallel**: After T3
 
@@ -245,7 +245,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 ### T5: esbuild Build Configuration
 
 **Agent**: Extension Scaffolder
-**File**: `extension/esbuild.config.mjs`
+**File**: `browser/esbuild.config.mjs`
 **BR**: BR-801 (Extension Build)
 **Parallel**: After T3
 
@@ -300,7 +300,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 ### T6: Service Worker Scaffold
 
 **Agent**: Extension Scaffolder
-**File**: `extension/src/service-worker.ts`
+**File**: `browser/src/service-worker.ts`
 **BR**: BR-801 (Extension Background)
 **Parallel**: After T4
 
@@ -337,7 +337,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 ### T7: Content Script Scaffold
 
 **Agent**: Extension Scaffolder
-**File**: `extension/src/content/index.ts`
+**File**: `browser/src/content/index.ts`
 **BR**: BR-801 (Extension Content Script)
 **Parallel**: After T4
 
@@ -364,7 +364,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 ### T8: Popup HTML and Script
 
 **Agent**: Extension Scaffolder
-**Files**: `extension/src/popup/popup.html`, `extension/src/popup/popup.ts`, `extension/src/popup/popup.css`
+**Files**: `browser/src/popup/popup.html`, `browser/src/popup/popup.ts`, `browser/src/popup/popup.css`
 **BR**: BR-801 (Extension Popup)
 **Parallel**: After T4
 
@@ -423,7 +423,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 ### T9: Side Panel HTML and Script
 
 **Agent**: Extension Scaffolder
-**Files**: `extension/src/sidepanel/sidepanel.html`, `extension/src/sidepanel/sidepanel.ts`, `extension/src/sidepanel/sidepanel.css`
+**Files**: `browser/src/sidepanel/sidepanel.html`, `browser/src/sidepanel/sidepanel.ts`, `browser/src/sidepanel/sidepanel.css`
 **BR**: BR-801 (Extension Side Panel)
 **Parallel**: After T4
 
@@ -484,7 +484,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 ### T10: Extension-Internal Types
 
 **Agent**: Extension Scaffolder
-**File**: `extension/src/types/index.ts`
+**File**: `browser/src/types/index.ts`
 **BR**: BR-801 (Extension Types)
 **Parallel**: After T4
 
@@ -554,7 +554,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 ### T11: Utility Scaffolds
 
 **Agent**: Extension Scaffolder
-**Files**: `extension/src/utils/logger.ts`, `extension/src/utils/storage.ts`
+**Files**: `browser/src/utils/logger.ts`, `browser/src/utils/storage.ts`
 **BR**: BR-801 (Extension Utilities)
 **Parallel**: After T10
 
@@ -780,7 +780,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 ### T13: Icon Placeholders
 
 **Agent**: Extension Scaffolder
-**Files**: `extension/icons/icon-16.png`, `extension/icons/icon-32.png`, `extension/icons/icon-48.png`, `extension/icons/icon-128.png`
+**Files**: `browser/icons/icon-16.png`, `browser/icons/icon-32.png`, `browser/icons/icon-48.png`, `browser/icons/icon-128.png`
 **BR**: BR-801 (Extension Assets)
 **Parallel**: After T1
 
@@ -803,7 +803,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
 **BR**: BR-801 (Extension Build)
 **Depends on**: T1-T13 (all files created)
 
-- [ ] T14.1: Run `npm install` in `extension/` directory
+- [ ] T14.1: Run `npm install` in `browser/` directory
 - [ ] T14.2: Run `npm run typecheck` -- verify zero TypeScript errors
 - [ ] T14.3: Run `npm run build` -- verify esbuild produces output files:
   - `dist/service-worker.js`
@@ -811,7 +811,7 @@ Scaffold the Chrome Extension project with Manifest V3, TypeScript, and esbuild 
   - `dist/popup.js`
   - `dist/sidepanel.js`
 - [ ] T14.4: Verify source maps are generated alongside each output file
-- [ ] T14.5: Load extension in Chrome via `chrome://extensions` -> "Load unpacked" -> select `extension/` directory
+- [ ] T14.5: Load extension in Chrome via `chrome://extensions` -> "Load unpacked" -> select `browser/` directory
 - [ ] T14.6: Verify extension appears in toolbar with placeholder icon
 - [ ] T14.7: Navigate to a LinkedIn page and verify content script console log appears
 - [ ] T14.8: Click extension icon and verify popup renders
@@ -876,7 +876,7 @@ T1-T13 -> T14 (all files before build verification)
 
 All of the following must pass before Phase 2 begins (extension Phase 2 has no work, but this gate validates the scaffold):
 
-- [ ] `npm install` in `extension/` completes without errors
+- [ ] `npm install` in `browser/` completes without errors
 - [ ] `npm run typecheck` passes with zero TypeScript errors
 - [ ] `npm run build` produces all 4 bundles in `dist/`
 - [ ] Extension loads in Chrome via "Load unpacked" without errors

@@ -24,9 +24,9 @@ Integrate Phase 2 backend capabilities into the Next.js app frontend. By the end
 
 | Agent | Role | Focus Area | Files | Estimated Effort |
 |---|---|---|---|---|
-| Agent 1 | Score UI Developer | Score display in contacts table, score math popover | `src/components/scoring/**`, contacts table updates | Heavy (45%) |
-| Agent 2 | Enrichment UI Developer | Enrichment page shell, provider status cards | `src/app/(dashboard)/enrichment/**`, `src/components/enrichment/**` | Medium (30%) |
-| Agent 3 | ICP UI Developer | ICP/niche list view, basic ICP switching | `src/app/(dashboard)/icps/**`, `src/components/icp/**` | Light (25%) |
+| Agent 1 | Score UI Developer | Score display in contacts table, score math popover | `app/src/components/scoring/**`, contacts table updates | Heavy (45%) |
+| Agent 2 | Enrichment UI Developer | Enrichment page shell, provider status cards | `app/src/app/(dashboard)/enrichment/**`, `app/src/components/enrichment/**` | Medium (30%) |
+| Agent 3 | ICP UI Developer | ICP/niche list view, basic ICP switching | `app/src/app/(dashboard)/icps/**`, `app/src/components/icp/**` | Light (25%) |
 
 ### Dependency Graph
 
@@ -50,7 +50,7 @@ All three agents can work fully in parallel once Phase 2 backend APIs are availa
 
 #### Task 1.1: SWR Hooks for Scoring (BR-401)
 
-**File**: `src/hooks/use-scoring.ts`
+**File**: `app/src/hooks/use-scoring.ts`
 
 **Description**: SWR hooks for all scoring-related API endpoints.
 
@@ -89,7 +89,7 @@ interface DistributionBucket {
 
 #### Task 1.2: Gold Score Column in Contacts Table (BR-401, BR-415)
 
-**File**: `src/components/contacts/columns.tsx` (modify existing)
+**File**: `app/src/components/contacts/columns.tsx` (modify existing)
 
 **Description**: Add a `gold_score` column to the contacts table with gradient coloring and tier badge.
 
@@ -120,7 +120,7 @@ interface DistributionBucket {
 
 #### Task 1.3: Score Math Popover (BR-401, BR-402, BR-416)
 
-**File**: `src/components/scoring/score-math-popover.tsx`
+**File**: `app/src/components/scoring/score-math-popover.tsx`
 
 **Description**: A popover component that appears on hover/click over a contact's score, showing the full dimension breakdown with weights.
 
@@ -161,7 +161,7 @@ interface ScoreMathPopoverProps {
 
 #### Task 1.4: Score Column Integration with Table (BR-401)
 
-**File**: `src/app/(dashboard)/contacts/page.tsx` (modify existing)
+**File**: `app/src/app/(dashboard)/contacts/page.tsx` (modify existing)
 
 **Description**: Wire up score column and popover into the existing contacts table page.
 
@@ -184,7 +184,7 @@ interface ScoreMathPopoverProps {
 
 #### Task 2.1: SWR Hooks for Enrichment (BR-301)
 
-**File**: `src/hooks/use-enrichment.ts`
+**File**: `app/src/hooks/use-enrichment.ts`
 
 **Description**: SWR hooks for enrichment-related API endpoints.
 
@@ -224,7 +224,7 @@ interface EnrichmentProviderStatus {
 
 #### Task 2.2: Enrichment Page Layout (BR-301, BR-302)
 
-**File**: `src/app/(dashboard)/enrichment/page.tsx`
+**File**: `app/src/app/(dashboard)/enrichment/page.tsx`
 
 **Description**: Basic enrichment management page -- a shell layout for Phase 2 that will be fully built out in Phase 3.
 
@@ -248,7 +248,7 @@ interface EnrichmentProviderStatus {
 
 #### Task 2.3: Provider Status Cards (BR-302, BR-303, BR-304, BR-305)
 
-**File**: `src/components/enrichment/provider-card.tsx`
+**File**: `app/src/components/enrichment/provider-card.tsx`
 
 **Description**: Card component for each enrichment provider showing its configuration and status.
 
@@ -284,7 +284,7 @@ interface ProviderCardProps {
 
 #### Task 2.4: Budget Overview Component (BR-308, BR-309)
 
-**File**: `src/components/enrichment/budget-overview.tsx`
+**File**: `app/src/components/enrichment/budget-overview.tsx`
 
 **Description**: Component showing current budget period spend vs. cap with visual progress bar.
 
@@ -317,7 +317,7 @@ interface BudgetOverviewProps {
 
 #### Task 2.5: Recent Transactions Table (BR-310)
 
-**File**: `src/components/enrichment/transactions-table.tsx`
+**File**: `app/src/components/enrichment/transactions-table.tsx`
 
 **Description**: Simple table showing recent enrichment transactions.
 
@@ -346,7 +346,7 @@ interface BudgetOverviewProps {
 
 #### Task 3.1: SWR Hooks for ICPs (BR-413)
 
-**File**: `src/hooks/use-icps.ts`
+**File**: `app/src/hooks/use-icps.ts`
 
 **Description**: SWR hooks for ICP and niche API endpoints.
 
@@ -383,7 +383,7 @@ function mutateDiscoverIcps(): Promise<IcpSuggestion[]>;
 
 #### Task 3.2: ICP List Page (BR-413)
 
-**File**: `src/app/(dashboard)/icps/page.tsx`
+**File**: `app/src/app/(dashboard)/icps/page.tsx`
 
 **Description**: Page listing all ICP profiles with active/inactive status and basic management.
 
@@ -414,7 +414,7 @@ function mutateDiscoverIcps(): Promise<IcpSuggestion[]>;
 
 #### Task 3.3: ICP Card Component (BR-413)
 
-**File**: `src/components/icp/icp-card.tsx`
+**File**: `app/src/components/icp/icp-card.tsx`
 
 **Description**: Card component for displaying an individual ICP profile.
 
@@ -450,7 +450,7 @@ interface IcpCardProps {
 
 #### Task 3.4: ICP Edit Modal (BR-413)
 
-**File**: `src/components/icp/icp-edit-modal.tsx`
+**File**: `app/src/components/icp/icp-edit-modal.tsx`
 
 **Description**: Modal dialog for creating or editing an ICP profile. Basic form in Phase 2 -- the full "power user ICP builder" comes in Phase 3.
 
@@ -489,7 +489,7 @@ interface IcpEditModalProps {
 
 #### Task 3.5: Niche List Component (BR-508)
 
-**File**: `src/components/icp/niche-list.tsx`
+**File**: `app/src/components/icp/niche-list.tsx`
 
 **Description**: Simple list view of niche profiles. Basic display in Phase 2 -- full niche cards with cross-niche comparison come in Phase 3.
 
@@ -524,9 +524,9 @@ All three agents can be spawned simultaneously since they have no inter-dependen
 
 Each agent should create a mock data file for development:
 
-- Agent 1: `src/mocks/scoring-data.ts` -- sample scores, dimension breakdowns, weight profiles
-- Agent 2: `src/mocks/enrichment-data.ts` -- sample providers, budget, transactions
-- Agent 3: `src/mocks/icp-data.ts` -- sample ICPs, niches, wedge metrics
+- Agent 1: `app/src/mocks/scoring-data.ts` -- sample scores, dimension breakdowns, weight profiles
+- Agent 2: `app/src/mocks/enrichment-data.ts` -- sample providers, budget, transactions
+- Agent 3: `app/src/mocks/icp-data.ts` -- sample ICPs, niches, wedge metrics
 
 These mocks serve dual purpose: development velocity before backend is ready, and test fixtures for unit tests. Mocks should be conditionally loaded (only in dev/test, never in production).
 

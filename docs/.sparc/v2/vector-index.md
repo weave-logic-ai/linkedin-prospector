@@ -3,7 +3,7 @@
 **Namespace**: `lp-v2-plans`
 **Backend**: sql.js + HNSW
 **Embedding**: all-MiniLM-L6-v2 (384 dimensions)
-**Total Vectors**: 41
+**Total Vectors**: 44
 
 ## Quick Reference
 
@@ -40,7 +40,7 @@ mcp__claude-flow__memory_search(query="<your task>", namespace="lp-v2-plans", li
 |-----|------|-------------|
 | `v2-api-routes-contacts` | api, contacts, CRUD | 17 contact endpoints with error format |
 | `v2-api-routes-extension` | api, extension, capture, WebSocket | Capture, tasks, templates, health, register, settings, WebSocket events |
-| `v2-api-routes-scoring-enrichment` | api, scoring, enrichment, graph | Scoring, enrichment, graph, ICP API routes |
+| `v2-api-routes-scoring-enrichment` | api, scoring, enrichment, graph | Scoring, enrichment, graph, ICP API routes. V2 migrates intelligence-layer routes to MCP tools (see v2-mcp-architecture) |
 
 ## Data Pipelines (3 vectors)
 
@@ -110,6 +110,14 @@ mcp__claude-flow__memory_search(query="<your task>", namespace="lp-v2-plans", li
 | `v2-phase-5-summary` | phase-5, intelligence | Claude integration, goals/tasks, outreach templates |
 | `v2-phase-6-summary` | phase-6, polish | Remaining providers, admin panel, security hardening, extension polish |
 
+## MCP & Infrastructure (3 vectors)
+
+| Key | Tags | Description |
+|-----|------|-------------|
+| `v2-mcp-architecture` | mcp, ruvector, rust, tools, routing | MCP server (mcp-gate pattern) replacing HTTP API routes; ruvector Rust binary as stdio JSON-RPC server; FastGRNN routing via ruvector-tiny-dancer-core; 230+ ruvector-postgres SQL functions for vector/graph/attention/learning |
+| `v2-project-structure` | structure, directories, docker, agents | New directory layout: app/ (Next.js), agent/ (linkedin-prospector v1, network-intelligence v2), browser/ (extension), data/drives/ (docker mounts), docs/.sparc/v2/ (plans), tests/ |
+| `v2-docker-architecture` | docker, volumes, mounts, ruvector-postgres | Docker compose with bind mounts to data/drives/[db,shared], ruvector-postgres image (uuid-ossp, pg_trgm, ruvector, fuzzystrmatch), app build context ./app |
+
 ---
 
 ## Search Examples
@@ -143,7 +151,7 @@ npx @claude-flow/cli@latest memory search --query "security validation GDPR rate
 ## Plan Files (for full detail when vectors aren't enough)
 
 ```
-.claude/linkedin-prospector/docs/plans/v2/
+docs/.sparc/v2/
 ├── orchestration.md                          # Master plan with gates and vector instructions
 ├── vector-index.md                           # This file
 ├── phase-1-foundation/

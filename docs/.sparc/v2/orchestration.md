@@ -6,9 +6,71 @@ This plan orchestrates the implementation of LinkedIn Network Intelligence V2 ac
 
 ## Architecture Summary
 
-- **Backend**: PostgreSQL + ruvector-postgres (relational + vector + graph in one DB), docker-compose, Next.js API routes
+- **Backend**: PostgreSQL + ruvector-postgres (relational + vector + graph in one DB), docker-compose, Next.js API routes + MCP tools (ruvector Rust server via mcp-gate pattern)
 - **App**: Next.js 15 (App Router), shadcn/ui, Recharts, visx, reagraph, SWR
 - **Extension**: Manifest V3 Chrome extension, "dumb capture + smart app" model
+
+## MCP Architecture (V2) — ruvector Rust Integration
+
+V2 replaces HTTP API routes with MCP tools for the intelligence layer.
+Claude agents call application tools directly via MCP over stdio, eliminating HTTP overhead.
+
+### Architecture Shift
+- **Old**: Claude Agent → HTTP API Routes → Node.js handlers → PostgreSQL
+- **New**: Claude Agent → MCP Server (ruvector Rust binary, stdio) → PostgreSQL direct
+
+### Why ruvector Rust as MCP Server
+The `mcp-gate` crate (ruvector `crates/mcp-gate/`) provides a production MCP server pattern:
+- **Rust binary**: Compiled, sub-millisecond tool dispatch via stdio JSON-RPC
+- **Built-in to ruvector-postgres**: 230+ SQL functions already available in our DB
+- **FastGRNN routing** (`ruvector-tiny-dancer-core`): Sub-ms intelligent tool routing
+- **Self-learning**: `ruvector_record_trajectory()` + `ruvector_get_verdict()` for adaptive improvement
+- **Acts as router**: Routes MCP tool calls to appropriate handlers (vector search, graph, scoring)
+
+### ruvector-postgres Functions Available in DB
+
+Already deployed via `ruvnet/ruvector-postgres:latest` Docker image:
+
+| Category | Key Functions | Count |
+|----------|--------------|-------|
+| Vector Search | `ruvector_cosine_distance`, `<=>` operator, HNSW indexes | 5 |
+| Hybrid Search | BM25 + vector fusion via `ruvector_bm25_score` | 14 |
+| Graph | `ruvector_graph_pagerank`, `ruvector_cypher_query`, `ruvector_graph_shortest_path` | 8 |
+| Agent Routing | `ruvector_route_query`, `ruvector_adaptive_route`, `ruvector_register_agent` | 11 |
+| Self-Learning | `ruvector_record_trajectory`, `ruvector_distill_memory` | 7 |
+| Attention | Flash, multi-head, sparse, linear + 29 variants | 39 |
+| GNN | GCN, GraphSAGE, GAT layers | 5 |
+
+### MCP Server Design (based on mcp-gate pattern)
+
+The v2 MCP server follows `mcp-gate` crate's architecture:
+- `McpGateServer` — stdio JSON-RPC server (initialize → tools/list → tools/call)
+- `McpGateTools` — tool registry with `list_tools()` and `call_tool()` dispatch
+- Protocol: JSON-RPC 2.0, MCP protocol version 2024-11-05
+- Transport: stdio (line-delimited JSON)
+
+Our v2 MCP server (`agent/network-intelligence/`) will expose domain tools:
+- **Contact tools**: search, score, enrich, get-profile, list-by-tier
+- **Graph tools**: pagerank, shortest-path, communities, ego-network
+- **Vector tools**: similarity-search, embed-profile, hybrid-search
+- **Intelligence tools**: generate-goals, suggest-outreach, analyze-network
+
+### Agent Namespace
+- `agent/linkedin-prospector/` — V1 agent (preserved, standalone)
+- `agent/network-intelligence/` — V2 MCP-native agent using ruvector Rust MCP server
+
+### .mcp.json Configuration (future)
+```json
+{
+  "mcpServers": {
+    "claude-flow": { "command": "npx", "args": ["@claude-flow/cli@latest", "mcp", "start"] },
+    "network-intelligence": {
+      "command": "agent/network-intelligence/mcp-server",
+      "args": ["--db-url", "postgresql://ctox:$POSTGRES_PASSWORD@localhost:5432/ctox"]
+    }
+  }
+}
+```
 
 ## Phase Overview
 

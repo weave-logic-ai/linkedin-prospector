@@ -58,21 +58,21 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 **Depends on**: Agent 1 (schema must be complete) and Agent 2 (Docker environment must be runnable).
 
 **Output files**:
-- `src/lib/import/csv-parser.ts` -- Generic CSV parsing with preamble detection
-- `src/lib/import/connections-importer.ts` -- Connections.csv specific logic
-- `src/lib/import/messages-importer.ts` -- messages.csv processing + stats
-- `src/lib/import/relationships-importer.ts` -- Invitations, Endorsements, Recommendations
-- `src/lib/import/positions-importer.ts` -- Positions.csv (work history)
-- `src/lib/import/education-importer.ts` -- Education.csv
-- `src/lib/import/skills-importer.ts` -- Skills.csv
-- `src/lib/import/company-follows-importer.ts` -- Company Follows.csv
-- `src/lib/import/company-resolver.ts` -- Normalize, slugify, fuzzy match, create-or-link
-- `src/lib/import/deduplication.ts` -- SHA-256 hash, field-level diff, job change detection
-- `src/lib/import/edge-builder.ts` -- Edge construction from all CSV types
-- `src/lib/import/embedding-generator.ts` -- Profile embedding via ruvector_embed()
-- `src/lib/import/import-session.ts` -- Session tracking, file tracking, change log
-- `src/lib/import/pipeline.ts` -- Orchestrates ordered multi-CSV processing
-- `src/lib/import/types.ts` -- TypeScript interfaces for import domain
+- `app/src/lib/import/csv-parser.ts` -- Generic CSV parsing with preamble detection
+- `app/src/lib/import/connections-importer.ts` -- Connections.csv specific logic
+- `app/src/lib/import/messages-importer.ts` -- messages.csv processing + stats
+- `app/src/lib/import/relationships-importer.ts` -- Invitations, Endorsements, Recommendations
+- `app/src/lib/import/positions-importer.ts` -- Positions.csv (work history)
+- `app/src/lib/import/education-importer.ts` -- Education.csv
+- `app/src/lib/import/skills-importer.ts` -- Skills.csv
+- `app/src/lib/import/company-follows-importer.ts` -- Company Follows.csv
+- `app/src/lib/import/company-resolver.ts` -- Normalize, slugify, fuzzy match, create-or-link
+- `app/src/lib/import/deduplication.ts` -- SHA-256 hash, field-level diff, job change detection
+- `app/src/lib/import/edge-builder.ts` -- Edge construction from all CSV types
+- `app/src/lib/import/embedding-generator.ts` -- Profile embedding via ruvector_embed()
+- `app/src/lib/import/import-session.ts` -- Session tracking, file tracking, change log
+- `app/src/lib/import/pipeline.ts` -- Orchestrates ordered multi-CSV processing
+- `app/src/lib/import/types.ts` -- TypeScript interfaces for import domain
 - `tests/import/csv-parser.test.ts`
 - `tests/import/connections-importer.test.ts`
 - `tests/import/company-resolver.test.ts`
@@ -87,16 +87,16 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 **Depends on**: Agent 1 (schema) and Agent 3 (import pipeline, for POST /api/import/* routes).
 
 **Output files**:
-- `src/app/api/contacts/route.ts` -- GET (list) + POST (create)
-- `src/app/api/contacts/[id]/route.ts` -- GET + PATCH + DELETE
-- `src/app/api/contacts/search/route.ts` -- GET (keyword search)
-- `src/app/api/import/upload/route.ts` -- POST (file upload)
-- `src/app/api/import/csv/route.ts` -- POST (trigger CSV processing)
-- `src/app/api/import/history/route.ts` -- GET (import sessions)
-- `src/app/api/import/status/[sessionId]/route.ts` -- GET (session status)
-- `src/lib/db/client.ts` -- PostgreSQL connection pool (pg)
-- `src/lib/db/queries/contacts.ts` -- Contact query functions
-- `src/lib/db/queries/import.ts` -- Import query functions
+- `app/src/app/api/contacts/route.ts` -- GET (list) + POST (create)
+- `app/src/app/api/contacts/[id]/route.ts` -- GET + PATCH + DELETE
+- `app/src/app/api/contacts/search/route.ts` -- GET (keyword search)
+- `app/src/app/api/import/upload/route.ts` -- POST (file upload)
+- `app/src/app/api/import/csv/route.ts` -- POST (trigger CSV processing)
+- `app/src/app/api/import/history/route.ts` -- GET (import sessions)
+- `app/src/app/api/import/status/[sessionId]/route.ts` -- GET (session status)
+- `app/src/lib/db/client.ts` -- PostgreSQL connection pool (pg)
+- `app/src/lib/db/queries/contacts.ts` -- Contact query functions
+- `app/src/lib/db/queries/import.ts` -- Import query functions
 - `tests/api/contacts.test.ts`
 - `tests/api/import.test.ts`
 
@@ -1093,7 +1093,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T19: CSV Parser -- Generic Foundation
 
 **Agent**: Import Engineer
-**File**: `src/lib/import/csv-parser.ts`
+**File**: `app/src/lib/import/csv-parser.ts`
 **BR**: BR-101 (CSV Import)
 **Depends on**: T2 (schema must be deployed)
 
@@ -1115,7 +1115,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T20: Connections.csv Importer
 
 **Agent**: Import Engineer
-**File**: `src/lib/import/connections-importer.ts`
+**File**: `app/src/lib/import/connections-importer.ts`
 **BR**: BR-102 (Connections Import), BR-103 (Company Resolution)
 **Depends on**: T19 (csv-parser), T21 (company-resolver), T22 (deduplication)
 
@@ -1147,7 +1147,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T21: Company Resolver
 
 **Agent**: Import Engineer
-**File**: `src/lib/import/company-resolver.ts`
+**File**: `app/src/lib/import/company-resolver.ts`
 **BR**: BR-103 (Company Resolution)
 **Depends on**: T2 (companies table)
 
@@ -1171,7 +1171,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T22: Deduplication Engine
 
 **Agent**: Import Engineer
-**File**: `src/lib/import/deduplication.ts`
+**File**: `app/src/lib/import/deduplication.ts`
 **BR**: BR-104 (Deduplication)
 **Depends on**: T2 (contacts table)
 
@@ -1195,7 +1195,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T23: Edge Builder
 
 **Agent**: Import Engineer
-**File**: `src/lib/import/edge-builder.ts`
+**File**: `app/src/lib/import/edge-builder.ts`
 **BR**: BR-105 (Edge Construction)
 **Depends on**: T2 (edges table)
 
@@ -1224,7 +1224,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T24: Messages Importer
 
 **Agent**: Import Engineer
-**File**: `src/lib/import/messages-importer.ts`
+**File**: `app/src/lib/import/messages-importer.ts`
 **BR**: BR-108 (Message Import)
 **Depends on**: T5 (messages table), T2 (contacts table)
 
@@ -1255,7 +1255,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T25: Relationships Importers (Invitations, Endorsements, Recommendations)
 
 **Agent**: Import Engineer
-**File**: `src/lib/import/relationships-importer.ts`
+**File**: `app/src/lib/import/relationships-importer.ts`
 **BR**: BR-109 (Relationship Import)
 **Depends on**: T2 (contacts, edges)
 
@@ -1277,7 +1277,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T26: Positions and Education Importers
 
 **Agent**: Import Engineer
-**Files**: `src/lib/import/positions-importer.ts`, `src/lib/import/education-importer.ts`
+**Files**: `app/src/lib/import/positions-importer.ts`, `app/src/lib/import/education-importer.ts`
 **BR**: BR-110 (Work History), BR-111 (Education)
 **Depends on**: T3 (work_history, education tables), T21 (company-resolver)
 
@@ -1299,7 +1299,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T27: Skills and Company Follows Importers
 
 **Agent**: Import Engineer
-**Files**: `src/lib/import/skills-importer.ts`, `src/lib/import/company-follows-importer.ts`
+**Files**: `app/src/lib/import/skills-importer.ts`, `app/src/lib/import/company-follows-importer.ts`
 **BR**: BR-112 (Skills/Company Follows)
 **Depends on**: T2 (contacts, companies, edges)
 
@@ -1318,7 +1318,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T28: Import Pipeline Orchestrator
 
 **Agent**: Import Engineer
-**File**: `src/lib/import/pipeline.ts`
+**File**: `app/src/lib/import/pipeline.ts`
 **BR**: BR-101 (Import Pipeline)
 **Depends on**: T19-T27 (all importers)
 
@@ -1352,7 +1352,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T29: Profile Embedding Generation
 
 **Agent**: Import Engineer
-**File**: `src/lib/import/embedding-generator.ts`
+**File**: `app/src/lib/import/embedding-generator.ts`
 **BR**: BR-205 (Embedding Generation)
 **Depends on**: T10 (profile_embeddings table)
 
@@ -1375,7 +1375,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T30: Database Client and Connection Pool
 
 **Agent**: API Developer
-**File**: `src/lib/db/client.ts`
+**File**: `app/src/lib/db/client.ts`
 **BR**: BR-201 (Data Access)
 **Depends on**: T16 (Docker Compose -- database must be running)
 
@@ -1398,7 +1398,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T31: Contact Query Functions
 
 **Agent**: API Developer
-**File**: `src/lib/db/queries/contacts.ts`
+**File**: `app/src/lib/db/queries/contacts.ts`
 **BR**: BR-201 (Contact CRUD)
 **Depends on**: T30 (db client)
 
@@ -1422,7 +1422,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T32: Import Query Functions
 
 **Agent**: API Developer
-**File**: `src/lib/db/queries/import.ts`
+**File**: `app/src/lib/db/queries/import.ts`
 **BR**: BR-101 (Import API)
 **Depends on**: T30 (db client)
 
@@ -1442,7 +1442,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T33: API Routes -- Contacts
 
 **Agent**: API Developer
-**Files**: `src/app/api/contacts/route.ts`, `src/app/api/contacts/[id]/route.ts`, `src/app/api/contacts/search/route.ts`
+**Files**: `app/src/app/api/contacts/route.ts`, `app/src/app/api/contacts/[id]/route.ts`, `app/src/app/api/contacts/search/route.ts`
 **BR**: BR-201 (Contact API)
 **Depends on**: T31 (contact query functions)
 
@@ -1479,7 +1479,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T34: API Routes -- Import
 
 **Agent**: API Developer
-**Files**: `src/app/api/import/upload/route.ts`, `src/app/api/import/csv/route.ts`, `src/app/api/import/history/route.ts`, `src/app/api/import/status/[sessionId]/route.ts`
+**Files**: `app/src/app/api/import/upload/route.ts`, `app/src/app/api/import/csv/route.ts`, `app/src/app/api/import/history/route.ts`, `app/src/app/api/import/status/[sessionId]/route.ts`
 **BR**: BR-101 (Import API)
 **Depends on**: T28 (import pipeline), T32 (import queries)
 
@@ -1512,7 +1512,7 @@ Stand up the complete PostgreSQL database schema (30+ tables with vector/graph e
 ### T35: Health Check API Route
 
 **Agent**: API Developer
-**File**: `src/app/api/health/route.ts`
+**File**: `app/src/app/api/health/route.ts`
 **BR**: BR-101 (Infrastructure Health)
 **Depends on**: T30 (db client)
 
