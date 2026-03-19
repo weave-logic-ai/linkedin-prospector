@@ -1,0 +1,232 @@
+---
+title: Analysis Modes
+description: All 12 analysis modes with descriptions, example commands, and output formats.
+---
+
+# Analysis Modes
+
+The agent's analyzer supports 12 analysis modes, each providing a different lens into your network. All modes operate on the scored knowledge graph (`graph.json`).
+
+## 1. summary
+
+High-level overview of your entire network.
+
+**Returns:** Total contacts, tier counts, enrichment ratio, persona distribution, cluster count, company count, edge count, top 3 gold prospects, top 3 hubs, referral tier counts, last-scored timestamp.
+
+```
+/network-intel give me an overview
+```
+
+```bash
+node scripts/analyzer.mjs --mode summary
+```
+
+## 2. hubs
+
+Identifies your most connected and influential contacts.
+
+**Returns:** Contacts ranked by `networkHub` score with gold score, tier, role/company, mutual count, cluster membership, and a "why hub" explanation.
+
+```
+/network-intel who are my best hubs?
+```
+
+```bash
+node scripts/analyzer.mjs --mode hubs --top 15
+node scripts/analyzer.mjs --mode hubs --top 10 --cluster ecommerce
+```
+
+## 3. prospects
+
+Identifies best potential buyers based on ICP fit.
+
+**Returns:** Contacts ranked by `icpFit` score with gold score, tier, ICP profile matches, and signal matches.
+
+```
+/network-intel find me prospects
+/network-intel show cybersecurity prospects
+```
+
+```bash
+node scripts/analyzer.mjs --mode prospects --top 10
+node scripts/analyzer.mjs --mode prospects --icp security-budget-holder --top 20
+node scripts/analyzer.mjs --mode prospects --tier gold
+```
+
+## 4. recommend
+
+Strategic action recommendations across multiple dimensions.
+
+**Returns five sections:**
+
+1. **Immediate Pursuit** -- Top gold-tier buyers to contact now
+2. **Hub Activation** -- Top hubs to ask for introductions, with reachable gold buyer counts
+3. **Cluster Opportunities** -- Gap analysis per cluster showing where you need more gold contacts
+4. **Quick Wins** -- Silver-tier contacts close to gold threshold
+5. **Referral Partnerships** -- Top referral partners with suggested actions per persona
+6. **Enrich Next** -- Prioritized unenriched contacts by mutual count
+
+```
+/network-intel what should I focus on next?
+```
+
+```bash
+node scripts/analyzer.mjs --mode recommend
+```
+
+## 5. clusters
+
+Maps your network by industry/niche clusters.
+
+**Returns:** Each cluster with contact count, tier distribution, top hub, top prospect, and top companies.
+
+```
+/network-intel show me clusters
+```
+
+```bash
+node scripts/analyzer.mjs --mode clusters
+```
+
+## 6. company
+
+Deep-dive into a specific company's contacts in your network.
+
+**Returns:** All contacts at the company ranked by gold score with tier, ICP fit, and persona information.
+
+```
+/network-intel show me contacts at Acme Corp
+```
+
+```bash
+node scripts/analyzer.mjs --mode company --name "Acme Corp"
+```
+
+## 7. behavioral
+
+Ranks contacts by behavioral score -- how active, connected, and engaged they are.
+
+**Returns:** Contacts ranked by behavioral score with persona label, connection count, trait count, about/headline/super-connector signals, amplification score, and recency.
+
+```
+/network-intel who are the most active networkers?
+/network-intel show me super-connectors
+```
+
+```bash
+node scripts/analyzer.mjs --mode behavioral --top 20
+node scripts/analyzer.mjs --mode behavioral --persona super-connector
+node scripts/analyzer.mjs --mode behavioral --persona content-creator --top 10
+```
+
+## 8. visibility
+
+Content strategy recommendations based on network position and behavioral analysis.
+
+**Returns six sections:**
+
+1. **Engage Their Content** -- Super-connectors whose posts you should comment on
+2. **Post Topics Targeting Clusters** -- Cluster-by-cluster amplifier counts and suggested topics
+3. **Company Beachheads** -- Companies with 3+ contacts (internal amplification potential)
+4. **Bridge Connectors** -- Contacts spanning 3+ clusters who amplify across communities
+5. **Rising Stars** -- Recently connected contacts with high behavioral potential
+6. **Silent Influencers** -- 500+ connections, low engagement (dormant amplifiers)
+
+```
+/network-intel content visibility strategy
+```
+
+```bash
+node scripts/analyzer.mjs --mode visibility
+```
+
+## 9. employers
+
+Ranks companies by their "Employer Network Value" (ENV) -- a composite of contact count, behavioral scores, mutual connections, gold percentage, and cluster breadth.
+
+**Returns:** Companies ranked by ENV with contact count, gold count/percentage, average behavioral score, average mutuals, cluster coverage, and top contact.
+
+```
+/network-intel which companies have the best network value?
+```
+
+```bash
+node scripts/analyzer.mjs --mode employers --top 15
+```
+
+## 10. referrals
+
+Identifies your best referral partners -- people who can send you business.
+
+**Returns:** Contacts ranked by referral likelihood with referral tier, persona, gold score, all 6 component scores, and a "why referral" explanation.
+
+```
+/network-intel who are my best referral partners?
+/network-intel show me white-label partners
+/network-intel find warm introducers
+```
+
+```bash
+node scripts/analyzer.mjs --mode referrals --top 20
+node scripts/analyzer.mjs --mode referrals --persona white-label-partner
+node scripts/analyzer.mjs --mode referrals --persona warm-introducer
+node scripts/analyzer.mjs --mode referrals --tier gold-referral
+```
+
+## 11. similar
+
+Finds contacts whose profiles are most similar to a specific person using k-NN vector search. Requires ruvector and a built vector store.
+
+**Returns:** Contacts ranked by cosine similarity to the target contact's profile vector, with tier and headline.
+
+```
+/network-intel find contacts similar to https://linkedin.com/in/someone
+/network-intel who's like Jane Doe?
+```
+
+```bash
+node scripts/analyzer.mjs --mode similar --url "https://linkedin.com/in/someone" --top 20
+```
+
+**How it works:**
+1. Looks up the target contact's pre-computed vector in the store
+2. Runs k-NN search to find the closest vectors
+3. Returns contacts ranked by cosine similarity
+
+If the target hasn't been vectorized yet, it falls back to embedding their profile text on the fly.
+
+## 12. semantic
+
+Searches for contacts by natural language description. Embeds your query and finds the most relevant profiles by meaning, not exact keywords.
+
+**Returns:** Contacts ranked by relevance (cosine similarity) to the query text.
+
+```
+/network-intel who talks about AI transformation?
+/network-intel search for people in cloud infrastructure
+```
+
+```bash
+node scripts/analyzer.mjs --mode semantic --query "AI transformation leaders" --top 20
+node scripts/analyzer.mjs --mode semantic --query "cloud infrastructure scaling" --top 15
+```
+
+**How it works:**
+1. Initializes the ONNX embedder
+2. Converts your query text into a 384-dim vector
+3. Runs k-NN search against all stored contact vectors
+4. Returns contacts ranked by relevance
+
+## Analyzer Options Reference
+
+| Option | Used By | Description |
+|--------|---------|-------------|
+| `--mode <mode>` | All | Analysis mode (required) |
+| `--top <N>` | hubs, prospects, behavioral, employers, referrals, similar, semantic | Number of results (default 10-20) |
+| `--icp <profile>` | prospects | Filter by ICP profile slug |
+| `--persona <type>` | behavioral, referrals | Filter by persona |
+| `--tier <tier>` | prospects, referrals | Filter by tier |
+| `--cluster <id>` | hubs, visibility | Filter by cluster ID |
+| `--name "<company>"` | company | Company name to search |
+| `--url <profile-url>` | similar | Target contact for similarity search |
+| `--query "text"` | semantic | Free-text search query |
