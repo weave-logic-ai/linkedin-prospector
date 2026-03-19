@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getContactById, updateContact } from '@/lib/db/queries/contacts';
 import { FIELD_TO_COLUMN } from '@/lib/enrichment/field-map';
+import { triggerAutoScore } from '@/lib/scoring/auto-score';
 
 interface ApplyField {
   field: string;
@@ -53,6 +54,8 @@ export async function POST(request: NextRequest) {
 
     if (Object.keys(updates).length > 0) {
       await updateContact(contactId, updates);
+      // Trigger auto-scoring after enrichment data is applied
+      triggerAutoScore(contactId);
     }
 
     return NextResponse.json({
@@ -60,6 +63,7 @@ export async function POST(request: NextRequest) {
         contactId,
         fieldsApplied: applied.length,
         appliedFields: applied,
+        scoringTriggered: Object.keys(updates).length > 0,
       },
     });
   } catch (error) {

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { enrichContact } from '@/lib/enrichment/waterfall';
 import { getContactById, updateContact } from '@/lib/db/queries/contacts';
 import { FIELD_TO_COLUMN, FIELD_LABELS, isEffectivelyEmpty } from '@/lib/enrichment/field-map';
+import { triggerAutoScore } from '@/lib/scoring/auto-score';
 
 interface EnrichmentDelta {
   field: string;
@@ -158,6 +159,8 @@ export async function POST(request: NextRequest) {
 
         if (Object.keys(updates).length > 0) {
           await updateContact(id, updates);
+          // Trigger auto-scoring after enrichment auto-apply
+          triggerAutoScore(id);
         }
 
         allResults.push({
@@ -166,6 +169,7 @@ export async function POST(request: NextRequest) {
           updatedFields: Object.keys(updates),
           delta,
           results,
+          scoringTriggered: Object.keys(updates).length > 0,
         });
       }
     }
