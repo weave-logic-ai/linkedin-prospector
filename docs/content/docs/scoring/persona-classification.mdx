@@ -1,0 +1,182 @@
+---
+title: Persona Classification
+description: Decision trees for all 19 persona types across composite, behavioral, and referral classifiers.
+---
+
+# Persona Classification
+
+NetworkNav assigns three independent persona labels to each contact: a **composite persona** (based on dimension scores), a **behavioral persona** (based on activity signals), and a **referral persona** (based on referral component scores). Personas are categorical labels computed after scoring; they do not affect the numeric score.
+
+## 1. Composite Personas (7 types)
+
+The composite persona classifier operates on raw dimension scores $d_i$ (not weighted values). It uses a priority-ordered decision tree: the first matching rule wins.
+
+Let:
+- $d_{\text{icp}}$ = ICP Fit raw score
+- $d_{\text{hub}}$ = Network Hub raw score
+- $d_{\text{rel}}$ = Relationship Strength raw score
+- $d_{\text{beh}}$ = Behavioral raw score
+- $d_{\text{cont}}$ = Content Relevance raw score
+- $\delta$ = contact degree
+
+### Decision Tree
+
+```
+1. IF d_icp > 0.6 AND d_rel > 0.4
+      -> "buyer"
+
+2. IF d_icp > 0.4 AND d_rel > 0.3
+      -> "warm-lead"
+
+3. IF d_beh > 0.6 AND d_cont > 0.4
+      -> "active-influencer"
+
+4. IF d_hub > 0.6
+      -> "hub"
+
+5. IF d_rel > 0.6 AND d_icp > 0.2
+      -> "advisor"
+
+6. IF degree <= 2
+      -> "passive-contact"
+
+7. ELSE
+      -> "unknown"
+```
+
+### Formal Specification
+
+| Persona | Condition | Interpretation |
+|---|---|---|
+| `buyer` | $d_{\text{icp}} > 0.6 \land d_{\text{rel}} > 0.4$ | Strong ICP fit with established relationship. Most likely to convert. |
+| `warm-lead` | $d_{\text{icp}} > 0.4 \land d_{\text{rel}} > 0.3$ | Moderate ICP fit with some relationship. Worth nurturing. |
+| `active-influencer` | $d_{\text{beh}} > 0.6 \land d_{\text{cont}} > 0.4$ | High engagement and relevant content. Influences others. |
+| `hub` | $d_{\text{hub}} > 0.6$ | Well-connected network node. Valuable for introductions. |
+| `advisor` | $d_{\text{rel}} > 0.6 \land d_{\text{icp}} > 0.2$ | Strong relationship, some ICP relevance. Potential champion. |
+| `passive-contact` | $\delta \leq 2$ | Close connection but no strong scoring signals. |
+| `unknown` | default | 3rd+ degree with insufficient data. |
+
+<Callout type="warn">
+Priority ordering matters. A contact with $d_{\text{icp}} = 0.7$, $d_{\text{rel}} = 0.7$, and $d_{\text{hub}} = 0.8$ will be classified as "buyer" (rule 1), not "hub" (rule 4), because "buyer" is checked first.
+</Callout>
+
+### Mutual Exclusivity
+
+Each contact receives exactly one composite persona. The decision tree is exhaustive (rule 7 catches everything) and the priority ordering ensures no ambiguity.
+
+## 2. Behavioral Personas (7 types)
+
+The behavioral persona classifier evaluates activity and engagement patterns. It also uses raw dimension scores and contact metadata.
+
+Let:
+- $d_{\text{hub}}$ = Network Hub raw score
+- $d_{\text{beh}}$ = Behavioral raw score
+- $d_{\text{cont}}$ = Content Relevance raw score
+- $d_{\text{cent}}$ = Graph Centrality raw score
+- $c$ = connections count
+- $\delta_{\text{days}}$ = days since connection
+- $n_{\text{comp}}$ = number of available behavioral components
+
+### Decision Tree
+
+```
+1. IF n_comp < 2
+      -> "data-insufficient"
+
+2. IF d_hub > 0.7 AND connections > 500
+      -> "super-connector"
+
+3. IF d_cont > 0.5 AND d_beh > 0.5
+      -> "content-creator"
+
+4. IF d_cent > 0.5 AND d_beh < 0.3
+      -> "silent-influencer"
+
+5. IF connections < 500 AND connectedAt exists AND days_since <= 180
+      -> "rising-connector"
+
+6. IF d_beh > 0.3
+      -> "engaged-professional"
+
+7. ELSE
+      -> "passive-observer"
+```
+
+### Formal Specification
+
+| Persona | Condition | Interpretation |
+|---|---|---|
+| `data-insufficient` | $n_{\text{comp}} < 2$ | Fewer than 2 of 6 behavioral components had data. Cannot classify reliably. |
+| `super-connector` | $d_{\text{hub}} > 0.7 \land c > 500$ | Very high network position and large connection count. Bridges multiple networks. |
+| `content-creator` | $d_{\text{cont}} > 0.5 \land d_{\text{beh}} > 0.5$ | Actively creates content on relevant topics. |
+| `silent-influencer` | $d_{\text{cent}} > 0.5 \land d_{\text{beh}} < 0.3$ | Structurally important in the graph but low observable activity. |
+| `rising-connector` | $c < 500 \land \text{connectedAt} \neq \text{null} \land \delta_{\text{days}} \leq 180$ | Recently connected, growing network. High future potential. |
+| `engaged-professional` | $d_{\text{beh}} > 0.3$ | Moderate behavioral signals. Professionally active. |
+| `passive-observer` | default | Few behavioral signals detected. |
+
+<Callout type="info">
+The `data-insufficient` check uses the `availableComponents` count from the behavioral scorer's metadata. This is the number of the 6 internal behavioral sub-components that returned non-null values.
+</Callout>
+
+## 3. Referral Personas (5 types)
+
+The referral persona classifier operates on referral component raw scores and contact metadata. It runs after Phase 2 scoring.
+
+Let:
+- $r_{\text{role}}$ = Referral Role score
+- $r_{\text{overlap}}$ = Client Overlap score
+- $r_{\text{warmth}}$ = Relationship Warmth score
+- $r_{\text{reach}}$ = Network Reach score
+- $r_{\text{amp}}$ = Amplification Power score
+- $\text{BP}$ = behavioral persona from Phase 1
+
+### Decision Tree
+
+```
+1. IF hasAgencyConsultancyRole(contact) AND r_role >= 0.7 AND r_overlap >= 0.4
+      -> "white-label-partner"
+
+2. IF r_warmth >= 0.5 AND r_reach >= 0.5
+      -> "warm-introducer"
+
+3. IF hasCoSellerRole(contact) AND r_overlap >= 0.5
+      -> "co-seller"
+
+4. IF r_amp >= 0.5 OR BP = "super-connector" OR BP = "content-creator"
+      -> "amplifier"
+
+5. ELSE
+      -> "passive-referral"
+```
+
+### Role Detection Functions
+
+**`hasAgencyConsultancyRole`:** Returns true if title/headline contains any of: "agency", "consultancy", "consulting firm", "digital agency".
+
+**`hasCoSellerRole`:** Returns true if title/headline contains any of: "consultant", "advisor", "freelance", "fractional".
+
+### Formal Specification
+
+| Persona | Condition | Interpretation |
+|---|---|---|
+| `white-label-partner` | Agency/consultancy role $\land$ $r_{\text{role}} \geq 0.7$ $\land$ $r_{\text{overlap}} \geq 0.4$ | Service provider with strong role fit and market overlap. Can white-label or resell. |
+| `warm-introducer` | $r_{\text{warmth}} \geq 0.5$ $\land$ $r_{\text{reach}} \geq 0.5$ | Warm relationship with broad network. Can make quality introductions. |
+| `co-seller` | Consultant/advisor/freelance role $\land$ $r_{\text{overlap}} \geq 0.5$ | Independent professional serving similar clients. Can co-sell or cross-refer. |
+| `amplifier` | $r_{\text{amp}} \geq 0.5$ $\lor$ BP $\in \lbrace$super-connector, content-creator$\rbrace$ | Can broadcast your message to a large audience through content or connections. |
+| `passive-referral` | default | May refer organically but lacks strong referral indicators. |
+
+<Callout type="info">
+The amplifier persona has a disjunctive condition: a contact qualifies either through high amplification power (from referral scoring) **or** through their Phase 1 behavioral persona. This cross-phase dependency ensures that known content creators and super-connectors are recognized as amplifiers even if their referral-specific signals are modest.
+</Callout>
+
+## 4. Persona Interaction Matrix
+
+Since all three persona classifiers are independent, a single contact receives three labels. Some combinations are more common than others:
+
+| Composite | Behavioral | Referral | Typical profile |
+|---|---|---|---|
+| buyer | engaged-professional | passive-referral | Direct prospect. Focus on selling. |
+| hub | super-connector | warm-introducer | Well-connected ally. Ask for introductions. |
+| active-influencer | content-creator | amplifier | Content-driven influencer. Co-create content. |
+| advisor | silent-influencer | co-seller | Quiet expert. Leverage for credibility. |
+| passive-contact | data-insufficient | passive-referral | Needs enrichment. Limited actionability. |

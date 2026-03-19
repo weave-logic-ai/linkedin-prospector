@@ -1,0 +1,19 @@
+{
+  "title": "Documentation",
+  "root": true,
+  "pages": [
+    "index",
+    "---Guides---",
+    "guides/...",
+    "---Architecture---",
+    "architecture/...",
+    "---Scoring & Models---",
+    "scoring/...",
+    "---Integrations---",
+    "integrations/...",
+    "---Browser Extension---",
+    "browser-extension/...",
+    "---API Reference---",
+    "api-reference/..."
+  ]
+}

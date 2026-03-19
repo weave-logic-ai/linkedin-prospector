@@ -1,0 +1,233 @@
+---
+title: Graph Analytics API
+description: Network graph data, community detection, metrics, and pathfinding.
+---
+
+# Graph Analytics API
+
+The graph system models your professional network as a node-edge graph. Contacts are nodes,
+relationships are edges, and the system computes centrality metrics, communities, and
+shortest paths between contacts.
+
+---
+
+## Get Graph Data
+
+```
+GET /api/graph/data
+```
+
+Returns nodes and edges for graph visualization (designed for reagraph). Nodes are the
+top contacts by composite score; edges connect them.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | `500` | Max nodes to return (max 1000) |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "nodes": [
+      {
+        "id": "uuid",
+        "label": "Jane Doe",
+        "data": {
+          "tier": "gold",
+          "company": "Acme Corp",
+          "title": "VP Engineering",
+          "score": 0.78
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "uuid",
+        "source": "uuid-a",
+        "target": "uuid-b",
+        "data": {
+          "type": "mutual",
+          "weight": 1.0
+        }
+      }
+    ]
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/graph/data?limit=100
+```
+
+**Error Codes:** `500`
+
+---
+
+## Compute Graph Metrics
+
+```
+POST /api/graph/compute
+```
+
+Triggers computation of graph metrics (PageRank, betweenness centrality, degree centrality)
+and community detection for all contacts.
+
+**Auth:** None
+
+**Request Body:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "metricsComputed": 142,
+    "communitiesDetected": 8
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/graph/compute
+```
+
+**Error Codes:** `500`
+
+---
+
+## List Communities
+
+```
+GET /api/graph/communities
+```
+
+Returns detected community clusters in the network.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "label": "Tech Founders",
+      "description": "Cluster of startup founders and CTOs",
+      "memberCount": 15,
+      "algorithm": "louvain",
+      "metadata": { "keywords": ["startup", "saas"] }
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/graph/communities
+```
+
+**Error Codes:** `500`
+
+---
+
+## Get Contact Graph Metrics
+
+```
+GET /api/graph/metrics/:contactId
+```
+
+Returns graph centrality metrics for a specific contact.
+
+**Auth:** None
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `contactId` | UUID | Contact ID |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "contactId": "uuid",
+    "pagerank": 0.0045,
+    "betweennessCentrality": 0.12,
+    "degreeCentrality": 23,
+    "computedAt": "2025-01-15T10:00:00.000Z"
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/graph/metrics/UUID
+```
+
+**Error Codes:** `404` (no metrics), `500`
+
+---
+
+## Find Path
+
+```
+GET /api/graph/path
+```
+
+Find the shortest path between two contacts in the network graph.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `source` | UUID | Yes | Source contact ID |
+| `target` | UUID | Yes | Target contact ID |
+| `maxDepth` | integer | No | Max path length (default 4) |
+
+**Response (path found):**
+
+```json
+{
+  "data": {
+    "path": ["uuid-a", "uuid-b", "uuid-c"],
+    "length": 2,
+    "contacts": [
+      { "id": "uuid-a", "name": "You" },
+      { "id": "uuid-b", "name": "Mutual Contact" },
+      { "id": "uuid-c", "name": "Target Person" }
+    ]
+  }
+}
+```
+
+**Response (no path):**
+
+```json
+{
+  "data": null,
+  "message": "No path found between these contacts"
+}
+```
+
+**curl:**
+
+```bash
+curl "http://localhost:3000/api/graph/path?source=UUID1&target=UUID2&maxDepth=3"
+```
+
+**Error Codes:** `400` (missing source/target), `500`

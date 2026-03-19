@@ -1,0 +1,159 @@
+---
+title: Offline Mode
+description: How the extension queues captures locally when the app is unreachable and flushes them when connectivity returns.
+---
+
+
+# Offline Mode
+
+The extension is designed to work even when the NetworkNav app is temporarily unreachable. Captures are queued in `chrome.storage.local` and automatically submitted when connectivity is restored.
+
+## How the Offline Queue Works
+
+When a capture fails to submit (network error, app down, server error), the service worker:
+
+1. Logs a warning: `Capture failed, queuing: [error message]`
+2. Adds the full `CapturePayload` to the `captureQueue` array in local storage
+3. Enqueues a retry entry in the `retryQueue` for the same request
+4. Updates the extension badge to show the queue depth (yellow number)
+
+The capture payload includes the complete HTML and all metadata, so nothing is lost.
+
+## Queue Size Limit
+
+The offline queue has a configurable maximum size:
+
+- **Default:** 50 items (set by `maxQueueSize` in `ExtensionSettings`)
+- When the queue is full and a new capture fails, the **oldest** queued capture is dropped to make room
+- This prevents the queue from consuming excessive browser storage
+
+<Callout type="info">
+LinkedIn page HTML can range from 200 KB to 2 MB per capture. A full queue of 50 items could consume up to 100 MB of local storage. Chrome's `storage.local` quota is typically 10 MB by default but can be higher with the `unlimitedStorage` permission.
+</Callout>
+
+## Queue Flush Mechanism
+
+The service worker uses Chrome's Alarms API to periodically attempt flushing the queue:
+
+| Alarm | Interval | Purpose |
+|-------|----------|---------|
+| `queue-flush` | Every 60 seconds | Processes the capture queue (FIFO) |
+| `retry-queue` | Every 2 minutes | Retries failed API requests with exponential backoff |
+
+### Capture Queue Flush
+
+Every 60 seconds, the `queue-flush` alarm fires:
+
+<Steps>
+
+### Check queue depth
+
+If the queue is empty, the alarm handler returns immediately.
+
+### Dequeue items one by one
+
+The service worker removes items from the front of the queue (FIFO order) and attempts to submit each one to the app.
+
+### Stop on failure
+
+If any submission fails, the item is re-queued and processing stops. This prevents hammering an unreachable server.
+
+### Update badge
+
+After processing, the badge is updated to reflect the new queue depth. If all items were flushed, the badge clears.
+
+</Steps>
+
+### Retry Queue
+
+The retry queue provides a secondary retry mechanism with additional tracking:
+
+- Each retry item records the HTTP method, path, request body, retry count, and maximum retries
+- Default max retries: **3 attempts**
+- Items that exceed their max retry count are discarded with an error log
+- The retry queue processes every 2 minutes
+- Items are removed on successful delivery
+
+The retry queue handles not just captures but also failed task updates (`PATCH /api/extension/tasks/:id`).
+
+## Badge Indicator
+
+The extension badge communicates queue and connection state at a glance:
+
+| Badge | Color | Meaning |
+|-------|-------|---------|
+| Number (e.g., "3") | Yellow | Queue depth -- captures waiting to be flushed |
+| "MAX" | Red | Daily capture limit reached |
+| Number (e.g., "5") | Yellow | Remaining captures when approaching limit (80%+) |
+| "!" | Red | Connection error -- app unreachable |
+| (empty) | -- | Connected, queue empty, within capture limit |
+
+The badge updates after every capture attempt, queue flush, health check, and rate limit evaluation.
+
+## What Happens When the App Comes Back Online
+
+<Steps>
+
+### Health check detects connectivity
+
+The health check alarm fires every 30 seconds. When the app responds successfully, the connection state changes from `disconnected` to `connected`.
+
+### Queue flush begins
+
+On the next `queue-flush` alarm (within 60 seconds), the service worker starts processing queued captures.
+
+### Captures are submitted in order
+
+Items are submitted in FIFO order (oldest first). Each successful submission removes the item from the queue.
+
+### Tasks refresh
+
+After captures are flushed, the service worker fetches updated tasks from the server, since the newly submitted captures may have triggered auto-completion of matching tasks.
+
+### Badge clears
+
+Once the queue is empty and the app is connected, the badge returns to its default empty state.
+
+</Steps>
+
+## Queue Persistence
+
+The offline queue is stored in `chrome.storage.local`, which persists:
+
+- Across browser restarts
+- Across extension reloads (from `chrome://extensions`)
+- Across Chrome updates
+
+The queue is only lost if:
+
+- The extension is uninstalled (removing all local storage)
+- The user manually clears the extension's storage
+- `chrome.storage.local` is wiped programmatically
+
+On extension startup (`chrome.runtime.onStartup`), the service worker:
+
+1. Re-creates the alarm timers (health check, queue flush, retry queue)
+2. Runs an immediate health check
+3. Processes the retry queue to clear any stale items
+
+This ensures queued captures from a previous session are flushed as soon as possible after the browser restarts.
+
+## Monitoring the Queue
+
+You can inspect the queue state in several ways:
+
+**From the popup:** The "Queued" stat shows the current queue depth.
+
+**From the side panel:** The queue depth is displayed alongside the capture count.
+
+**From the service worker console:** Open `chrome://extensions`, click "service worker" under the extension, and run:
+
+```javascript
+chrome.storage.local.get('captureQueue', (r) => {
+  console.log('Queue depth:', r.captureQueue?.length ?? 0);
+});
+
+chrome.storage.local.get('retryQueue', (r) => {
+  console.log('Retry queue:', r.retryQueue?.length ?? 0);
+});
+```

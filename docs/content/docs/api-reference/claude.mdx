@@ -1,0 +1,215 @@
+---
+title: Claude AI API
+description: AI-powered contact analysis, goal suggestions, and template personalization.
+---
+
+# Claude AI API
+
+These endpoints use Claude AI to analyze contacts, generate networking goal and task
+suggestions, and personalize outreach templates.
+
+<Callout type="info">
+These endpoints require a configured Claude API key in the server environment.
+Requests may take 2-10 seconds due to LLM processing time.
+</Callout>
+
+---
+
+## Analyze Contact
+
+```
+POST /api/claude/analyze
+```
+
+AI-powered analysis of one or more contacts. Combines contact profile data, scoring
+breakdown, and graph metrics to generate insights.
+
+**Auth:** None
+
+**Request Body (single):**
+
+```json
+{
+  "contactId": "uuid"
+}
+```
+
+**Request Body (batch, max 10):**
+
+```json
+{
+  "contactIds": ["uuid1", "uuid2", "uuid3"]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contactId` | string | One of | Single contact UUID |
+| `contactIds` | string[] | One of | Batch (max 10) |
+
+**Response (single):**
+
+```json
+{
+  "data": {
+    "contactId": "uuid",
+    "analysis": {
+      "summary": "Jane Doe is a high-value prospect...",
+      "strengths": ["Strong ICP fit", "Active content creator"],
+      "opportunities": ["Schedule introductory call", "Share relevant case study"],
+      "risks": ["May be overloaded with outreach"],
+      "recommendedActions": [
+        { "action": "Send personalized message referencing recent post", "priority": "high" }
+      ]
+    }
+  }
+}
+```
+
+**Response (batch):**
+
+```json
+{
+  "data": [
+    { "contactId": "uuid1", "analysis": { ... } },
+    { "contactId": "uuid2", "analysis": null, "error": "Contact not found" }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/claude/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"contactId":"UUID"}'
+```
+
+**Error Codes:** `400` (missing contactId/contactIds, batch > 10), `500`
+
+---
+
+## Generate Suggestions
+
+```
+POST /api/claude/suggestions
+```
+
+Generate AI-powered goal and task suggestions for your network or a specific contact.
+
+**Auth:** None
+
+**Request Body (network scope):**
+
+```json
+{
+  "scope": "network"
+}
+```
+
+**Request Body (contact scope):**
+
+```json
+{
+  "scope": "contact",
+  "contactId": "uuid"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `scope` | string | Yes | `network` or `contact` |
+| `contactId` | UUID | Conditional | Required when scope is `contact` |
+
+For `network` scope, the system loads the top 20 scored contacts and generates
+suggestions based on the overall network composition.
+
+**Response:**
+
+```json
+{
+  "data": {
+    "suggestions": [
+      {
+        "type": "goal",
+        "title": "Strengthen SaaS Founder Network",
+        "description": "You have 12 SaaS founders in your network. Setting up regular touchpoints could yield partnership opportunities.",
+        "priority": "high",
+        "tasks": [
+          { "title": "Schedule call with top 3 founders", "type": "outreach" },
+          { "title": "Share industry report with founder group", "type": "content_share" }
+        ]
+      },
+      {
+        "type": "task",
+        "title": "Re-enrich stale silver contacts",
+        "description": "15 silver-tier contacts haven't been enriched in 60+ days.",
+        "priority": "medium"
+      }
+    ]
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/claude/suggestions \
+  -H "Content-Type: application/json" \
+  -d '{"scope":"network"}'
+```
+
+**Error Codes:** `400` (invalid scope, missing contactId for contact scope), `404` (contact not found), `500`
+
+---
+
+## Personalize Template
+
+```
+POST /api/claude/personalize
+```
+
+Use AI to personalize an outreach template for a specific contact, incorporating
+their profile data, headline, company, and interests.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "templateId": "uuid",
+  "contactId": "uuid"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `templateId` | UUID | Yes | Outreach template to personalize |
+| `contactId` | UUID | Yes | Contact to personalize for |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "personalizedContent": "Hi Jane, I saw your recent talk on scaling engineering teams at Acme Corp. As someone working in the dev tools space, I think there are some interesting synergies...",
+    "mergeFields": {
+      "name": "Jane",
+      "company": "Acme Corp",
+      "headline": "VP Engineering",
+      "recentActivity": "Talk on scaling engineering teams"
+    }
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/claude/personalize \
+  -H "Content-Type: application/json" \
+  -d '{"templateId":"UUID","contactId":"UUID"}'
+```
+
+**Error Codes:** `400` (missing templateId/contactId), `404` (template or contact not found), `500`

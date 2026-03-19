@@ -1,0 +1,503 @@
+---
+title: Goals & Tasks API
+description: Goal tracking, task management, action log, and next-action recommendations.
+---
+
+# Goals & Tasks API
+
+Manage networking goals, tasks, and track all actions taken across the system. The action
+log provides an audit trail with undo capability.
+
+---
+
+## List Goals
+
+```
+GET /api/goals
+```
+
+Returns all goals, optionally filtered by status.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `status` | string | No | Filter: `active`, `completed`, `paused`, `cancelled` |
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "title": "Connect with 10 gold contacts",
+      "description": "Reach out to top-tier prospects this quarter",
+      "goalType": "custom",
+      "status": "active",
+      "priority": 3,
+      "targetMetric": "outreach_count",
+      "targetValue": 10,
+      "currentValue": 4,
+      "deadline": "2025-03-31",
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/goals?status=active
+```
+
+**Error Codes:** `500`
+
+---
+
+## Create Goal
+
+```
+POST /api/goals
+```
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "title": "Connect with 10 gold contacts",
+  "description": "Q1 outreach target",
+  "priority": 3,
+  "deadline": "2025-03-31",
+  "goalType": "custom"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | string | Yes | Goal title |
+| `description` | string | No | Goal description |
+| `priority` | number | No | Priority (1=highest, default 5) |
+| `deadline` | string | No | ISO date string |
+| `goalType` | string | No | Type classification (default `custom`) |
+
+**Response (201):**
+
+```json
+{
+  "data": { "id": "uuid", "title": "Connect with 10 gold contacts", ... }
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/goals \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Enrich all silver contacts","priority":2}'
+```
+
+**Error Codes:** `400` (missing title), `500`
+
+---
+
+## Get Goal
+
+```
+GET /api/goals/:id
+```
+
+Returns a single goal with associated task data.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": { "id": "uuid", "title": "...", "tasks": [ ... ] }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/goals/UUID
+```
+
+**Error Codes:** `400` (invalid UUID), `404`, `500`
+
+---
+
+## Update Goal
+
+```
+PUT /api/goals/:id
+```
+
+**Auth:** None
+
+**Request Body (any subset):**
+
+```json
+{
+  "status": "completed",
+  "current_value": 10,
+  "target_value": 10
+}
+```
+
+Allowed fields: `title`, `description`, `goal_type`, `status`, `priority`,
+`target_metric`, `target_value`, `current_value`, `deadline`.
+
+**Response:**
+
+```json
+{
+  "data": { ... }
+}
+```
+
+**Error Codes:** `400` (invalid UUID, no valid fields), `404`, `500`
+
+---
+
+## Delete Goal
+
+```
+DELETE /api/goals/:id
+```
+
+**Auth:** None
+
+**Response:**
+
+```json
+{ "success": true }
+```
+
+**Error Codes:** `400` (invalid UUID), `404`, `500`
+
+---
+
+## List Tasks
+
+```
+GET /api/tasks
+```
+
+Returns tasks with optional filtering.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `status` | string | No | Filter: `pending`, `in_progress`, `completed`, `skipped` |
+| `contactId` | UUID | No | Filter by contact |
+| `goalId` | UUID \| `null` | No | Filter by goal (use `null` for ungrouped tasks) |
+| `limit` | integer | No | Max results (default 50) |
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "title": "Review Jane Doe profile",
+      "description": "Check for enrichment opportunities",
+      "task_type": "review",
+      "status": "pending",
+      "priority": 3,
+      "url": "https://linkedin.com/in/jdoe",
+      "contact_id": "uuid",
+      "contact_name": "Jane Doe",
+      "goal_id": "uuid",
+      "due_date": null,
+      "metadata": {},
+      "source": "user",
+      "created_at": "2025-01-15T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl "http://localhost:3000/api/tasks?status=pending&limit=10"
+```
+
+**Error Codes:** `500`
+
+---
+
+## Create Task
+
+```
+POST /api/tasks
+```
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "title": "Review Jane Doe profile",
+  "description": "Check for enrichment opportunities",
+  "taskType": "review",
+  "contactId": "uuid",
+  "goalId": "uuid",
+  "priority": 3,
+  "url": "https://linkedin.com/in/jdoe",
+  "metadata": { "source": "scoring" }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | string | Yes | Task title |
+| `description` | string | No | Task description |
+| `taskType` | string | No | Type (default `manual`) |
+| `contactId` | UUID | No | Associated contact |
+| `goalId` | UUID | No | Associated goal |
+| `priority` | number | No | Priority 1-10 (default 5) |
+| `url` | string | No | Target URL |
+| `metadata` | object | No | Arbitrary metadata |
+
+**Response:**
+
+```json
+{
+  "data": { "id": "uuid", "title": "Review Jane Doe profile", ... }
+}
+```
+
+**Error Codes:** `400` (missing title), `500`
+
+---
+
+## Get Task
+
+```
+GET /api/tasks/:id
+```
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": { "id": "uuid", "title": "...", ... }
+}
+```
+
+**Error Codes:** `400` (invalid UUID), `404`, `500`
+
+---
+
+## Update Task
+
+```
+PUT /api/tasks/:id
+```
+
+**Auth:** None
+
+**Request Body (any subset):**
+
+```json
+{
+  "status": "completed",
+  "priority": 1
+}
+```
+
+Allowed fields: `title`, `description`, `task_type`, `status`, `priority`,
+`url`, `due_date`, `goal_id`, `contact_id`.
+
+**Error Codes:** `400` (invalid UUID, no valid fields), `404`, `500`
+
+---
+
+## Delete Task
+
+```
+DELETE /api/tasks/:id
+```
+
+**Auth:** None
+
+**Response:** `{ "success": true }`
+
+**Error Codes:** `400` (invalid UUID), `404`, `500`
+
+---
+
+## List Actions (Audit Log)
+
+```
+GET /api/actions
+```
+
+Returns the action log with optional filtering. The action log records all significant
+operations (enrichment, scoring, imports, updates) for audit and undo purposes.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `targetType` | string | No | Filter by target type (`contact`, `goal`, etc.) |
+| `targetId` | UUID | No | Filter by target ID |
+| `actionType` | string | No | Filter by action type (`enrich`, `score`, `import`, etc.) |
+| `limit` | integer | No | Max results |
+| `offset` | integer | No | Skip N entries |
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "actionType": "enrichment",
+      "actor": "system",
+      "targetType": "contact",
+      "targetId": "uuid",
+      "targetName": "Jane Doe",
+      "metadata": {},
+      "createdAt": "2025-01-15T10:00:00.000Z"
+    }
+  ],
+  "pagination": { ... }
+}
+```
+
+**curl:**
+
+```bash
+curl "http://localhost:3000/api/actions?actionType=enrich&limit=20"
+```
+
+**Error Codes:** `500`
+
+---
+
+## Get Action Detail
+
+```
+GET /api/actions/:id
+```
+
+Returns a single action with full before/after snapshots.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "actionType": "enrichment",
+    "actor": "system",
+    "targetType": "contact",
+    "targetId": "uuid",
+    "targetName": "Jane Doe",
+    "beforeSnapshot": { "email": null },
+    "afterSnapshot": { "email": "jane@acme.com" },
+    "metadata": {},
+    "createdAt": "2025-01-15T10:00:00.000Z"
+  }
+}
+```
+
+**Error Codes:** `404`, `500`
+
+---
+
+## Revert Action
+
+```
+POST /api/actions/:id
+```
+
+Reverts an action by restoring the before-snapshot state. Creates a new `revert`
+action log entry.
+
+**Auth:** None
+
+**Request Body:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "revertActionId": "uuid",
+    "beforeSnapshot": { "email": null }
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/actions/UUID
+```
+
+**Error Codes:** `404` (not found or already reverted), `500`
+
+---
+
+## Get Next Action
+
+```
+GET /api/actions/next
+```
+
+Returns the single highest-value next action to take. The system evaluates, in order:
+1. Pending tasks (highest priority first)
+2. Gold-tier contacts without outreach
+3. Contacts due for re-enrichment (>30 days)
+4. Fallback: suggest importing more contacts
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "action": "Reach out to Jane Doe",
+  "type": "outreach",
+  "contactId": "uuid",
+  "url": "https://linkedin.com/in/jdoe"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `action` | string | Human-readable action description |
+| `type` | `task` \| `outreach` \| `enrichment` \| `import` | Action category |
+| `contactId` | string? | Associated contact (if applicable) |
+| `taskId` | string? | Associated task (if type is `task`) |
+| `url` | string? | Target URL |
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/actions/next
+```
+
+**Error Codes:** `500`

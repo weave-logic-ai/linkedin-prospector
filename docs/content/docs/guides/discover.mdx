@@ -1,0 +1,212 @@
+---
+title: Discover
+description: Use niche and ICP discovery to segment your network, identify market opportunities, and take bulk actions on filtered contact groups.
+---
+
+
+# Discover
+
+**What you will learn:** How to define niches, create Ideal Customer Profiles (ICPs), use the People Panel for bulk actions, and read the treemap and wedge visualizations to identify your strongest market segments.
+
+The Discover page is where you segment your network into actionable groups. By defining niches, creating ICPs, and mapping offerings, you move from a flat contact list to a structured view of your market opportunities.
+
+## The Niche / ICP / Offering Hierarchy
+
+NetworkNav uses a three-level hierarchy to organize your network strategy:
+
+```
+Niche (market segment)
+  └── ICP (ideal customer profile within that niche)
+       └── Offering (what you sell to that ICP)
+```
+
+| Level | Definition | Example |
+|-------|-----------|---------|
+| **Niche** | A market segment you want to serve | "B2B SaaS, 50-200 employees" |
+| **ICP** | A specific buyer persona within that niche | "VP Engineering at mid-stage SaaS" |
+| **Offering** | A product or service you sell to that ICP | "DevOps consulting engagement" |
+
+This hierarchy drives the entire discover-to-outreach pipeline. Contacts are matched against ICPs, ICPs belong to niches, and offerings connect ICPs to your sales strategy.
+
+## Creating Niches
+
+<Steps>
+
+### Open the Niche Builder
+
+Navigate to **Discover** in the sidebar and click **New Niche**.
+
+### Define the niche
+
+The Niche Builder modal asks for:
+
+- **Name** — a descriptive label (e.g., "Mid-Market SaaS")
+- **Description** — context about this market segment
+- **Affordability** (1-5) — can this segment afford your offerings?
+- **Fitability** (1-5) — how well does your offering solve their problems?
+- **Buildability** (1-5) — can you build what this segment needs?
+
+These three scores produce an overall niche attractiveness rating.
+
+### Save the niche
+
+Click **Create** to save. The niche appears in the Niches table on the Discover page.
+
+</Steps>
+
+<Callout>
+Screenshot: Niche Builder modal with Affordability, Fitability, and Buildability sliders.
+</Callout>
+
+## Creating ICPs
+
+ICPs are the bridge between a market niche and the real people in your network.
+
+<Steps>
+
+### Open the ICP Builder
+
+From the Discover page, select a niche and click **New ICP**, or click **New ICP** directly from the ICP tab.
+
+### Define ICP criteria
+
+The ICP Builder modal lets you specify:
+
+- **Roles** — target job titles (e.g., "VP Engineering", "CTO", "Head of Product")
+- **Industries** — target industries (e.g., "Software", "Financial Services")
+- **Company size ranges** — employee count brackets (e.g., "50-200", "201-1000")
+- **Locations** — geographic targets (e.g., "San Francisco", "New York")
+- **Signals** — keyword signals to look for in headlines and about sections
+- **Minimum connections** — filter by network size
+
+### Assign to a niche
+
+Select which niche this ICP belongs to. An ICP can belong to exactly one niche.
+
+### Save and match
+
+Click **Create**. The system immediately matches existing contacts against the new ICP criteria and calculates fit scores.
+
+</Steps>
+
+## The People Panel
+
+The People Panel is the action center of the Discover page. It shows contacts filtered by niche or ICP, with full scoring data and bulk action capabilities.
+
+### Filtering
+
+- **By niche** — shows all contacts matching any ICP within the niche
+- **By ICP** — shows contacts matching that specific ICP's criteria
+- **By tier** — further filter by Gold, Silver, Bronze, or Watch
+- **By persona** — filter by Buyer, Hub, Advisor, etc.
+
+### Bulk Actions
+
+Select one or more contacts in the People Panel to perform bulk actions:
+
+| Action | What It Does |
+|--------|-------------|
+| **Score** | Re-score selected contacts against current weights and ICP criteria |
+| **Enrich** | Run enrichment waterfall on selected contacts |
+| **Expand Network** | Queue tasks to explore the network around selected contacts |
+| **Add to Campaign** | Add selected contacts to an outreach campaign |
+| **Tag** | Apply custom tags for manual categorization |
+
+<Callout>
+Screenshot: People Panel showing filtered contacts with bulk action toolbar.
+</Callout>
+
+## Visualizations
+
+### Wedge Visualization
+
+The wedge chart shows the distribution of your contacts across niches. Each wedge represents a niche, sized by contact count and colored by average score. This gives you a quick visual read on where your network strength is concentrated.
+
+### ICP Treemap
+
+The treemap shows ICPs as nested rectangles within their parent niche. Rectangle size represents contact count, and color intensity represents average ICP fit score. Larger, darker rectangles are your strongest segments.
+
+Reading the treemap:
+
+- **Large, dark rectangles** — strong segments with many well-matched contacts
+- **Large, light rectangles** — many contacts but poor ICP fit (consider refining criteria)
+- **Small, dark rectangles** — few contacts but excellent fit (consider expanding through enrichment or referrals)
+- **Small, light rectangles** — weak segments (may not be worth pursuing)
+
+## History Panel
+
+The History Panel shows a chronological log of all actions taken on the Discover page:
+
+- Niche creation and edits
+- ICP creation and criteria changes
+- Bulk actions performed
+- Score changes resulting from ICP modifications
+
+Each entry in the history panel includes a **Revert** button that lets you undo the action. This is especially useful when experimenting with ICP criteria — you can try different configurations and revert if the results are not what you expected.
+
+<Callout>
+Screenshot: History panel showing recent actions with revert buttons.
+</Callout>
+
+## Auto-Scoring Hooks
+
+Scores update automatically in response to certain Discover page actions:
+
+| Trigger | Scoring Behavior |
+|---------|-----------------|
+| New ICP created | All contacts are evaluated against the new ICP criteria |
+| ICP criteria changed | Affected contacts are re-scored with updated criteria |
+| Niche deleted | ICP fit scores for contacts in that niche are recalculated |
+| Bulk enrich from People Panel | Enriched contacts are auto-rescored |
+| Offering linked to ICP | Signal Boost dimension updated for matched contacts |
+
+## API Endpoints
+
+Manage niches and ICPs programmatically:
+
+```bash title="Create a niche"
+curl -X POST http://localhost:3000/api/niches \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Mid-Market SaaS",
+    "description": "B2B SaaS companies with 50-200 employees",
+    "affordability": 4,
+    "fitability": 5,
+    "buildability": 3
+  }'
+```
+
+```bash title="Create an ICP"
+curl -X POST http://localhost:3000/api/icps \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nicheId": "niche-uuid",
+    "name": "VP Engineering at SaaS",
+    "criteria": {
+      "roles": ["VP Engineering", "CTO", "Director of Engineering"],
+      "industries": ["Software", "Internet"],
+      "companySizeRanges": ["50-200"],
+      "locations": ["San Francisco Bay Area"]
+    }
+  }'
+```
+
+```bash title="List contacts matching an ICP"
+curl http://localhost:3000/api/icps/icp-uuid/contacts
+```
+
+## Best Practices
+
+1. **Start broad, then narrow** — create a few large niches first, then split them into more specific segments as you learn what works
+2. **Use 3-5 ICPs per niche** — too many ICPs dilute your focus, too few miss opportunities
+3. **Review the treemap weekly** — shifting patterns reveal changes in your network composition
+4. **Iterate on criteria** — ICP criteria are not permanent; adjust based on outreach results
+5. **Use the history panel** — freely experiment knowing you can revert any change
+
+## Next Steps
+
+- **[Outreach](/docs/guides/outreach)** -- Create campaigns targeting ICP-matched contacts.
+- **[Enrichment](/docs/guides/enrichment)** -- Enrich contacts discovered through ICPs to improve scoring accuracy.
+- **[Scoring Contacts](/docs/guides/scoring-contacts)** -- Understand how ICP fit scoring works under the hood.
+- **[Configuration](/docs/guides/configuration)** -- Customize ICP criteria and set per-ICP weight overrides.
+- **[ICP Fit Dimension](/docs/scoring/dimensions#1-icp-fit-icp_fit)** -- See the exact formula for how contacts are matched against ICP criteria.

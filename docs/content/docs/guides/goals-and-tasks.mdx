@@ -1,0 +1,241 @@
+---
+title: Goals and Tasks
+description: Learn how NetworkNav generates AI-powered goals and actionable tasks to guide your daily networking workflow.
+---
+
+
+# Goals and Tasks
+
+**What you will learn:** How Claude AI generates strategic goals from your scored contacts, the five task types and their auto-completion triggers, the priority system, and how the browser extension integrates with the task queue.
+
+Goals and tasks form the action layer of NetworkNav. While scoring tells you who matters and discovery tells you where to focus, goals and tasks tell you exactly what to do next. Claude AI analyzes your top-scoring contacts and generates strategic goals, which are then broken into concrete, trackable tasks.
+
+## How Goals and Tasks Work Together
+
+```
+Scored Contacts → Claude AI Analysis → Goals → Tasks → Action → Feedback
+```
+
+1. **Goals** are strategic objectives (e.g., "Build relationship with VP Engineering contacts at mid-stage SaaS companies")
+2. **Tasks** are specific actions that advance a goal (e.g., "Visit Jane Smith's LinkedIn profile and capture page data")
+3. Completing tasks updates contact data and scores, which can generate new goals
+
+## Claude-Generated Goals
+
+The most powerful way to create goals is to let Claude analyze your network.
+
+<Steps>
+
+### Navigate to the Goals page
+
+Click **Tasks** in the sidebar to open the goals and tasks view.
+
+### Generate goals
+
+Click the **Generate Goals** button. Claude AI:
+
+1. Pulls your top 20 scored contacts (by composite score)
+2. Analyzes their tiers, personas, industries, and relationships
+3. Identifies strategic patterns and opportunities
+4. Generates 3-5 goals with clear objectives and success criteria
+
+### Review and activate
+
+Each generated goal appears as a card with:
+
+- **Title** — a clear, actionable objective
+- **Description** — context and reasoning from Claude
+- **Target contacts** — which contacts this goal focuses on
+- **Suggested tasks** — initial tasks to advance the goal
+
+Review the goals and click **Activate** on the ones you want to pursue.
+
+</Steps>
+
+<Callout>
+Goal generation requires the ANTHROPIC_API_KEY environment variable. Without it, you can still create goals manually.
+</Callout>
+
+### Manual Goal Creation
+
+You can also create goals manually:
+
+1. Click **New Goal** on the Tasks page
+2. Enter a title, description, and optionally link target contacts
+3. Add tasks manually or let the system auto-generate them
+
+## Task Types
+
+Each task has a specific type that determines its behavior, completion criteria, and integration with the browser extension.
+
+| Task Type | Description | Auto-Complete Trigger |
+|-----------|------------|----------------------|
+| `VISIT_PROFILE` | Visit a contact's LinkedIn profile | Extension detects URL match |
+| `CAPTURE_PAGE` | Capture page data from a LinkedIn profile | Extension captures the page |
+| `SEND_MESSAGE` | Send a message to the contact | Message logged via extension or pipeline |
+| `RESEARCH` | Research the contact's company or background | Manual completion |
+| `ENGAGE_CONTENT` | Like, comment, or share the contact's content | Manual completion |
+
+## Auto-Generated Tasks
+
+NetworkNav automatically generates tasks based on scoring events and persona classification. You do not need to create these manually — they appear in your task queue when conditions are met.
+
+### What Triggers Auto-Generation
+
+| Trigger | Tasks Generated |
+|---------|----------------|
+| Contact reaches **Gold tier** | VISIT_PROFILE, RESEARCH, SEND_MESSAGE |
+| Contact classified as **Buyer** persona | RESEARCH, SEND_MESSAGE with sales template |
+| Contact classified as **Warm Introducer** (referral) | VISIT_PROFILE, ENGAGE_CONTENT, SEND_MESSAGE with referral ask |
+| Contact enriched with new data | VISIT_PROFILE to verify enrichment data |
+| Contact replies to outreach | Follow-up SEND_MESSAGE task |
+
+### Task Priority
+
+Every task is assigned a priority from 1 (lowest) to 10 (highest). Priority is calculated based on:
+
+- Contact tier (Gold contacts get higher-priority tasks)
+- Task type (SEND_MESSAGE is typically higher priority than VISIT_PROFILE)
+- Goal urgency
+- Time sensitivity (tasks decay in priority over time if not completed)
+
+Priority is color-coded in the UI:
+
+| Priority Range | Color | Meaning |
+|---------------|-------|---------|
+| 8-10 | Red | Urgent — act today |
+| 5-7 | Yellow | Important — act this week |
+| 1-4 | Gray | Normal — act when convenient |
+
+## Browser Extension Integration
+
+The Chrome extension is the primary interface for working through your task queue.
+
+### Popup View
+
+Click the NetworkNav extension icon to see your top 5 tasks, sorted by priority. Each task shows:
+
+- Contact name and company
+- Task type icon
+- Priority indicator
+- Goal name (if linked)
+
+### Side Panel View
+
+Open the side panel for a full task management experience:
+
+- Tasks grouped by goal
+- Filter by task type, priority, or status
+- Mark tasks as complete
+- View contact details inline
+- Access outreach templates for SEND_MESSAGE tasks
+
+### Auto-Completion
+
+The extension monitors your LinkedIn browsing and automatically completes tasks when conditions are met:
+
+- **VISIT_PROFILE** completes when you visit the target contact's LinkedIn profile URL
+- **CAPTURE_PAGE** completes when the extension captures data from the target profile
+- **SEND_MESSAGE** completes when a message is logged through the extension clipboard workflow
+
+<Callout>
+Auto-completion uses URL matching. The extension compares the current page URL against the LinkedIn profile URLs stored for each task's target contact.
+</Callout>
+
+## Next Best Action API
+
+The Next Best Action endpoint recommends what you should do right now based on your current task queue, contact scores, and recent activity.
+
+```bash title="Terminal"
+curl http://localhost:3000/api/tasks?action=next-best
+```
+
+Response:
+
+```json
+{
+  "task": {
+    "id": "task-uuid",
+    "type": "SEND_MESSAGE",
+    "priority": 9,
+    "contact": {
+      "id": "contact-uuid",
+      "name": "Jane Smith",
+      "company": "Acme SaaS",
+      "tier": "gold",
+      "persona": "buyer"
+    },
+    "goal": {
+      "id": "goal-uuid",
+      "title": "Build relationships with SaaS VPs"
+    },
+    "reason": "Gold-tier buyer persona with recent profile visit — ready for outreach"
+  }
+}
+```
+
+The recommendation algorithm considers:
+
+- Highest-priority incomplete tasks
+- Tasks with recent related activity (e.g., you visited the profile yesterday, now send a message)
+- Campaign deadlines
+- Time since last contact with the person
+
+## Managing Goals and Tasks via API
+
+### Goals
+
+```bash title="List goals"
+curl http://localhost:3000/api/goals
+```
+
+```bash title="Create a goal"
+curl -X POST http://localhost:3000/api/goals \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Expand into FinTech niche",
+    "description": "Build relationships with engineering leaders at FinTech companies"
+  }'
+```
+
+```bash title="Generate goals with Claude"
+curl -X POST http://localhost:3000/api/claude/generate-goals
+```
+
+### Tasks
+
+```bash title="List tasks"
+curl http://localhost:3000/api/tasks
+```
+
+```bash title="Create a task"
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "goalId": "goal-uuid",
+    "contactId": "contact-uuid",
+    "type": "VISIT_PROFILE",
+    "priority": 7
+  }'
+```
+
+```bash title="Complete a task"
+curl -X PATCH http://localhost:3000/api/tasks/task-uuid \
+  -H "Content-Type: application/json" \
+  -d '{"status": "completed"}'
+```
+
+## Best Practices
+
+1. **Start with generated goals** — Claude's analysis often surfaces opportunities you would not spot manually
+2. **Work the task queue daily** — consistency matters more than volume
+3. **Let auto-completion work for you** — the extension handles VISIT_PROFILE and CAPTURE_PAGE tasks passively as you browse LinkedIn
+4. **Review and prune goals weekly** — deactivate goals that are no longer relevant
+5. **Trust the priority system** — red tasks first, yellow tasks second, gray tasks when you have time
+
+## Next Steps
+
+- **[Outreach](/docs/guides/outreach)** -- Turn SEND_MESSAGE tasks into full outreach campaigns.
+- **[The Game Loop](/docs/guides/game-loop)** -- See how completed tasks feed back into scoring and discovery.
+- **[Auto-Scoring Triggers](/docs/scoring/auto-scoring)** -- Understand how tier changes automatically generate tasks.
+- **[Scoring Contacts](/docs/guides/scoring-contacts)** -- Learn what Gold tier and Buyer persona mean so you can prioritize tasks effectively.

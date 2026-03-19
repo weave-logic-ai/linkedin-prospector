@@ -1,0 +1,137 @@
+---
+title: BuiltWith
+description: BuiltWith integration for company technographics and tech stack analysis.
+---
+
+[BuiltWith](https://builtwith.com/) provides technographic data -- the technology stack that a company's website uses. This data is valuable for identifying companies that use specific tools, frameworks, or platforms.
+
+## What BuiltWith Provides
+
+| Field | NetworkNav Column | Confidence |
+|-------|------------------|------------|
+| Technology names | tags (comma-separated) | 0.8 |
+| Company domain/website | website | 0.9 |
+
+BuiltWith returns an array of technology categories and individual technologies detected on a company's website. NetworkNav stores these as comma-separated tags.
+
+## Setup
+
+1. Sign up at [builtwith.com](https://builtwith.com/)
+2. Get your API key from the dashboard
+3. Set the environment variable:
+
+```bash
+BUILTWITH_API_KEY=your-api-key-here
+```
+
+4. Activate the provider:
+
+```sql
+UPDATE enrichment_providers
+SET is_active = true
+WHERE name = 'builtwith';
+```
+
+## API Usage
+
+NetworkNav calls the BuiltWith Domain API:
+
+```
+GET https://api.builtwith.com/v21/api.json
+  ?KEY={apiKey}
+  &LOOKUP={domain}
+```
+
+### Domain derivation
+
+BuiltWith requires a domain name. The provider derives it from the contact's company name:
+
+```typescript
+private deriveDomain(company: string): string {
+  // Already a domain? Use as-is
+  if (company.includes('.') && !company.includes(' ')) {
+    return company.toLowerCase();
+  }
+  // Strip common suffixes, produce .com domain
+  const cleaned = company
+    .toLowerCase()
+    .replace(/\b(inc|llc|ltd|corp|co|group|holdings|international)\b\.?/gi, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+  return `${cleaned}.com`;
+}
+```
+
+This heuristic works for many companies (e.g., "Microsoft" -> "microsoft.com") but may produce incorrect domains for companies with non-.com domains or unusual names.
+
+### Prerequisite
+
+BuiltWith requires a **company name** (to derive a domain). If the contact has no `currentCompany`, the enrichment returns early with zero cost.
+
+### Response mapping
+
+BuiltWith returns a `Results` array containing technology groups:
+
+```
+Results[].Result.Paths[].Technologies[].Name
+```
+
+The provider:
+1. Iterates through all Results, Paths, and Technologies
+2. Extracts each technology `Name` (or `Tag` as fallback)
+3. Deduplicates the list
+4. Joins into a comma-separated string stored in the `tags` field
+5. Extracts the domain from `Results[0].Lookup` as the `website` field
+
+## Example Output
+
+For a company using a modern web stack, BuiltWith might return technologies like:
+
+```
+React, Next.js, Vercel, Cloudflare, Google Analytics, Stripe,
+HubSpot, Intercom, Segment, PostgreSQL, Redis, AWS
+```
+
+These are stored as tags on the contact record and used in:
+- **Skills relevance scoring**: Matching contact skills against company tech stack
+- **ICP fit scoring**: Identifying companies using technologies in your target market
+- **Outreach personalization**: Referencing specific technologies in messages
+
+## Cost
+
+| Metric | Value |
+|--------|-------|
+| Cost per lookup (NetworkNav tracking) | $0.12 (12 cents) |
+| Cost on 404 (domain not found) | $0.00 |
+| Free tier | Limited lookups |
+| Pro plan | Starts at $295/month |
+
+BuiltWith pricing varies significantly by plan. The free tier provides limited lookups suitable for testing.
+
+## Provider Priority
+
+BuiltWith is seeded at priority 60, the lowest in the default waterfall. This reflects its specialized nature -- it provides technographics data that complements rather than replaces person-level enrichment.
+
+## Capabilities
+
+BuiltWith is registered with capabilities: `technographics`, `website`.
+
+The waterfall selects BuiltWith when the contact needs the `technographics` field. In practice, this means BuiltWith is primarily used during explicit technology-focused enrichment rather than general waterfall runs.
+
+## Combining with Crunchbase
+
+For comprehensive company intelligence, enable both Crunchbase and BuiltWith:
+
+| Data | Provider |
+|------|----------|
+| Industry, size, headquarters | Crunchbase |
+| Funding rounds, investors | Crunchbase |
+| Technology stack | BuiltWith |
+| Company website URL | BuiltWith |
+
+## Best Practices
+
+- **Enable selectively**: BuiltWith is most valuable when your ICP is technology-dependent
+- **Verify domain derivation**: Check that company names resolve to correct domains
+- **Supplement with manual domains**: If you know the correct domain, update the company record before enriching
+- **Use for ICP targeting**: Technology data is excellent for identifying companies that use complementary or competing tools

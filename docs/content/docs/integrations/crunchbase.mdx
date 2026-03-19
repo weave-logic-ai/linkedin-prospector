@@ -1,0 +1,126 @@
+---
+title: Crunchbase
+description: Crunchbase integration for company funding, leadership, and organizational data.
+---
+
+[Crunchbase](https://www.crunchbase.com/) provides company-level enrichment data including funding rounds, investor information, employee counts, and industry classification. Unlike person-focused providers, Crunchbase enriches the company associated with a contact.
+
+## What Crunchbase Provides
+
+| Field | NetworkNav Column | Confidence |
+|-------|------------------|------------|
+| Company name (canonical) | current_company | 0.95 |
+| Short description | headline (company) | 0.8 |
+| Industry categories | industry | 0.8 |
+| Founded date | founded_on | 0.9 |
+| Employee count range | company_size | 0.8 |
+| Total funding (USD) | total_funding | 0.9 |
+| Last funding type | last_funding_type | 0.9 |
+
+## Setup
+
+1. Sign up at [crunchbase.com/home](https://www.crunchbase.com/home) and apply for API access
+2. Get your API key (referred to as `user_key`)
+3. Set the environment variable:
+
+```bash
+CRUNCHBASE_API_KEY=your-api-key-here
+```
+
+4. Activate the provider:
+
+```sql
+UPDATE enrichment_providers
+SET is_active = true
+WHERE name = 'crunchbase';
+```
+
+## API Usage
+
+NetworkNav calls the Crunchbase Organizations API:
+
+```
+GET https://api.crunchbase.com/api/v4/entities/organizations/{permalink}
+  ?user_key={apiKey}
+  &field_ids=short_description,num_employees_enum,founded_on,categories,
+             funding_total,last_funding_type,identifier
+```
+
+### Company name to permalink
+
+The provider converts the contact's company name to a Crunchbase permalink slug:
+
+```typescript
+// "Acme Corp Inc." -> "acme-corp"
+const permalink = company
+  .toLowerCase()
+  .replace(/\b(inc|llc|ltd|corp|co|group|holdings|international)\b\.?/gi, '')
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '');
+```
+
+This heuristic works well for most company names but may fail for companies with unusual naming.
+
+### Prerequisite
+
+Crunchbase requires a **company name** to look up. If the contact has no `currentCompany`, the enrichment returns early with an error message and zero cost.
+
+### Response mapping
+
+Crunchbase wraps entity data in a `properties` key:
+
+- **Company name**: `properties.identifier.value` (0.95)
+- **Description**: `properties.short_description` (0.8)
+- **Industry**: First entry from `properties.categories[].value` (0.8)
+- **Founded**: `properties.founded_on` (0.9)
+- **Size**: `properties.num_employees_enum` (0.8)
+- **Funding**: `properties.funding_total.value_usd` (0.9)
+- **Last funding**: `properties.last_funding_type` (0.9)
+
+## Cost
+
+| Metric | Value |
+|--------|-------|
+| Cost per lookup (NetworkNav tracking) | $0.20 (20 cents) |
+| Cost on 404 (company not found) | $0.00 |
+| API access | Requires application; pricing varies |
+
+Crunchbase API pricing depends on your plan tier. The Basic API provides limited access; the Enterprise API provides full access to funding and investor data.
+
+## Provider Priority
+
+Crunchbase is seeded at priority 50, making it one of the later providers in the waterfall. This is intentional because:
+
+- It enriches companies, not persons (different data type)
+- It is more expensive than person providers
+- Company data changes less frequently than contact data
+
+## Capabilities
+
+Crunchbase is registered with capabilities: `company`, `funding`, `leadership`.
+
+The waterfall selects Crunchbase when the contact needs:
+- `current_company` or `industry` (via `company`)
+
+The `funding` and `leadership` capabilities do not map to standard contact fields in the current field mapping, so Crunchbase data primarily enriches the company record and provides context for scoring.
+
+## Use Cases
+
+### Scoring: ICP Fit
+
+Company funding and size data feed into the ICP fit scoring dimension. Contacts at well-funded companies in target industries score higher.
+
+### Scoring: Signal Boost
+
+Recent funding rounds (Series A, B, etc.) are a strong signal that a company is growing and may need services.
+
+### Outreach: Personalization
+
+Company descriptions and funding details enable Claude AI to generate more relevant outreach messages.
+
+## Best Practices
+
+- **Enable for target-rich niches**: Crunchbase is most valuable when your ICP includes funded startups or specific industries
+- **Combine with BuiltWith**: Use Crunchbase for business context and BuiltWith for technical context
+- **Cache results**: Company data changes slowly; Crunchbase enrichments have a long useful life
+- **Monitor permalink mismatches**: If enrichment frequently fails, check that company names resolve correctly to Crunchbase permalinks

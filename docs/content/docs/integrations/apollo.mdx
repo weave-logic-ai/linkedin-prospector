@@ -1,0 +1,112 @@
+---
+title: Apollo.io
+description: Apollo.io integration for email discovery, phone numbers, and company context.
+---
+
+[Apollo.io](https://www.apollo.io/) provides person matching with email discovery, phone numbers, and organizational context. It is positioned as a cost-effective alternative to PDL for email and employment data.
+
+## What Apollo Provides
+
+| Field | NetworkNav Column | Confidence |
+|-------|------------------|------------|
+| Email | email | 0.9 |
+| Phone (sanitized) | phone | 0.8 |
+| Job title | title | 0.9 |
+| Company name | current_company | 0.9 |
+| Location (city, state, country) | location | 0.8 |
+| Headline | headline | 0.9 |
+| LinkedIn URL | linkedin_url | 0.95 |
+
+## Setup
+
+1. Sign up at [apollo.io](https://www.apollo.io/)
+2. Get your API key from Settings > Integrations > API
+3. Set the environment variable:
+
+```bash
+APOLLO_API_KEY=your-api-key-here
+```
+
+4. Activate the provider:
+
+```sql
+UPDATE enrichment_providers
+SET is_active = true
+WHERE name = 'apollo';
+```
+
+## API Usage
+
+NetworkNav calls the Apollo People Match API:
+
+```
+POST https://api.apollo.io/api/v1/people/match
+Headers: x-api-key: {apiKey}, Content-Type: application/json
+Body: { linkedin_url, email, first_name, last_name, organization_name }
+```
+
+### Match parameters
+
+| Parameter | Source |
+|-----------|--------|
+| `linkedin_url` | contact.linkedinUrl |
+| `email` | contact.email |
+| `first_name` | contact.firstName |
+| `last_name` | contact.lastName |
+| `organization_name` | contact.currentCompany |
+
+### Response mapping
+
+Apollo wraps person data in a `person` key. The provider extracts:
+
+- **Email**: `person.email`
+- **Company**: `person.organization.name`
+- **Title**: `person.title`
+- **Location**: Composed from `person.city`, `person.state`, `person.country`
+- **Phone**: First entry from `person.phone_numbers[].sanitized_number`
+- **Headline**: `person.headline`
+- **LinkedIn**: `person.linkedin_url`
+
+## Cost
+
+| Metric | Value |
+|--------|-------|
+| Cost per lookup (NetworkNav tracking) | $0.08 (8 cents) |
+| Cost on 404 (no match) | $0.00 |
+| Free tier | ~50 email credits/month |
+| Basic plan | Starts at $49/month |
+
+Apollo's free tier provides limited monthly credits. The People Match endpoint consumes 1 credit per successful match.
+
+## Tier Gating
+
+Like PDL, Apollo may return boolean flags for fields gated behind higher tiers. The provider's `isRealValue` filter rejects boolean values and empty strings, ensuring only actual data is stored.
+
+## Provider Priority
+
+Apollo is seeded at priority 40 in the waterfall, behind PDL (10), Lusha (20), and TheirStack (30). This means Apollo is tried after other person-data providers unless the waterfall stops early because all target fields are already filled.
+
+To adjust priority:
+
+```sql
+UPDATE enrichment_providers
+SET priority = 15  -- Move ahead of Lusha
+WHERE name = 'apollo';
+```
+
+## Capabilities
+
+Apollo is registered with these capabilities: `email`, `phone`, `company`, `employment`.
+
+This means the waterfall will select Apollo when the contact needs any of these fields:
+- `email`
+- `phone`
+- `title`, `current_company`, `headline` (via `employment`)
+- `current_company`, `industry` (via `company`)
+
+## Best Practices
+
+- **Best combined with PDL**: Apollo fills email/phone gaps that PDL starter tier may gate
+- **Use LinkedIn URL** for highest match accuracy
+- **Monitor credit usage** through Apollo's dashboard alongside NetworkNav's budget tracking
+- **Consider for bulk operations**: Apollo's pricing is competitive for high-volume email lookups

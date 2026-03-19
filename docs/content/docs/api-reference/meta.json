@@ -1,0 +1,18 @@
+{
+  "title": "API Reference",
+  "pages": [
+    "index",
+    "contacts",
+    "scoring",
+    "enrichment",
+    "graph",
+    "import",
+    "goals-tasks",
+    "outreach",
+    "extension",
+    "admin",
+    "dashboard",
+    "discover",
+    "claude"
+  ]
+}

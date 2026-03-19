@@ -1,0 +1,125 @@
+---
+title: Scoring System Overview
+description: Architecture, pipeline flow, and key concepts of the NetworkNav scoring engine.
+---
+
+# Scoring System Overview
+
+NetworkNav assigns every contact a **composite score** $S \in [0, 1]$ and a **referral likelihood** $R \in [0, 1]$, each computed from independent sets of weighted dimensions. Scores drive tier assignment, persona classification, and task generation.
+
+## Two-Phase Pipeline
+
+Scoring runs in two sequential phases:
+
+```
+ Contact data
+      |
+      v
+ +--------------------------+
+ | Phase 1: Composite Score |    9 dimensions -> weighted sum -> S
+ |   - ICP Fit              |
+ |   - Network Hub          |
+ |   - Relationship Strength|
+ |   - Signal Boost         |
+ |   - Skills Relevance     |
+ |   - Network Proximity    |
+ |   - Behavioral (6 sub)   |
+ |   - Content Relevance    |
+ |   - Graph Centrality     |
+ +--------------------------+
+      |
+      | S, relationship_strength, behavioralPersona
+      v
+ +--------------------------+
+ | Phase 2: Referral Score  |    6 components -> weighted sum -> R
+ |   - Referral Role        |
+ |   - Client Overlap       |
+ |   - Network Reach        |
+ |   - Amplification Power  |
+ |   - Relationship Warmth  |
+ |   - Buyer Inversion      |
+ +--------------------------+
+      |
+      v
+  Tier + Persona assignment
+  Task auto-generation
+  Database persistence
+```
+
+Phase 2 depends on Phase 1 outputs: the composite score $S$ is fed into the Buyer Inversion component, and the relationship strength raw score feeds Relationship Warmth.
+
+## Key Concepts
+
+### Dimensions and Weights
+
+Each dimension scorer maps contact data to a raw score $d_i \in [0, 1]$. A **weight profile** assigns a base weight $w_i$ to each dimension such that $\sum_{i=1}^{9} w_i = 1$. The default profile is:
+
+| Dimension | Weight |
+|---|---|
+| `icp_fit` | 0.20 |
+| `relationship_strength` | 0.15 |
+| `network_hub` | 0.10 |
+| `signal_boost` | 0.10 |
+| `skills_relevance` | 0.10 |
+| `behavioral` | 0.10 |
+| `content_relevance` | 0.10 |
+| `graph_centrality` | 0.10 |
+| `network_proximity` | 0.05 |
+
+### Null-Safe Weight Redistribution
+
+When a dimension lacks data (e.g., no graph metrics exist), its weight is **proportionally redistributed** to the remaining dimensions. This ensures:
+
+1. The composite score is always comparable regardless of data completeness.
+2. Relative importance ratios between available dimensions are preserved.
+
+See [Composite Score](/docs/scoring/composite-score) for the formal proof.
+
+### Tiers
+
+Tiers are assigned from the composite score with a degree-aware multiplier:
+
+| Tier | Threshold (1st-degree) | Threshold (2nd+-degree) |
+|---|---|---|
+| Gold | $S \geq 0.55$ | $S \geq 0.647$ |
+| Silver | $S \geq 0.40$ | $S \geq 0.471$ |
+| Bronze | $S \geq 0.28$ | $S \geq 0.329$ |
+| Watch | $S < 0.28$ | $S < 0.329$ |
+
+Second-degree and beyond contacts face a higher bar because their adjusted score is $S_{\text{adj}} = 0.85 \cdot S$. See [Tier Assignment](/docs/scoring/tier-assignment).
+
+### Personas
+
+Three independent persona classifiers run after scoring:
+
+1. **Persona** (7 types): buyer, warm-lead, active-influencer, hub, advisor, passive-contact, unknown.
+2. **Behavioral Persona** (7 types): super-connector, content-creator, silent-influencer, rising-connector, engaged-professional, passive-observer, data-insufficient.
+3. **Referral Persona** (5 types): white-label-partner, warm-introducer, co-seller, amplifier, passive-referral.
+
+See [Persona Classification](/docs/scoring/persona-classification).
+
+### Fire-and-Forget Auto-Scoring
+
+Scoring is triggered automatically and **non-blocking** at four integration points: import, enrichment, extension capture, and outreach events. The caller never waits for scoring to complete. See [Auto-Scoring](/docs/scoring/auto-scoring).
+
+## Source Code Reference
+
+All scoring logic lives in `app/src/lib/scoring/`:
+
+| File | Purpose |
+|---|---|
+| `pipeline.ts` | Orchestrates Phase 1 + Phase 2 for single and batch scoring |
+| `composite.ts` | Computes composite score, assigns tier and persona |
+| `weight-manager.ts` | Loads weight profiles and performs redistribution |
+| `auto-score.ts` | Fire-and-forget triggers with concurrency control |
+| `scorers/*.ts` | 9 dimension scorer implementations |
+| `referral/*.ts` | 6 referral component implementations |
+| `types.ts` | All type definitions |
+| `score-descriptions.ts` | Human-readable descriptions for UI tooltips |
+
+## Related Documentation
+
+- [Scoring Contacts Guide](/docs/guides/scoring-contacts) -- practical guide to understanding and using scores
+- [Scoring API](/docs/api-reference/scoring) -- REST endpoints for running scores and managing weights
+- [Enrichment Guide](/docs/guides/enrichment) -- how enrichment improves scoring accuracy
+- [Configuration](/docs/guides/configuration) -- adjusting scoring weights and profiles

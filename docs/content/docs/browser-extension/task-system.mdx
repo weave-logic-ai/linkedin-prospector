@@ -1,0 +1,99 @@
+---
+title: Task System
+description: How the extension displays and manages networking tasks synced from the NetworkNav app.
+---
+
+
+# Task System
+
+The extension surfaces your networking tasks directly in the browser, so you can act on them without switching to the app. Tasks appear in both the popup (compact list) and the side panel (grouped by goal with progress tracking).
+
+## Task Types
+
+Tasks represent specific networking actions. Each type has a distinct purpose:
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `VISIT_PROFILE` | Navigate to a contact's LinkedIn profile | "Visit John Smith's profile" |
+| `CAPTURE_PAGE` | Capture a specific LinkedIn page | "Capture Acme Corp company page" |
+| `SEND_MESSAGE` | Send a message to a contact | "Send intro message to Jane Doe" |
+| `REVIEW_CONTACT` | Review a contact's details in the app | "Review enrichment data for Alex Chen" |
+| `SEARCH_QUERY` | Run a LinkedIn search with specific terms | "Search for product managers in Austin" |
+| `CHECK_COMPANY` | Visit and capture a company page | "Check Acme Corp for recent updates" |
+| `ENGAGE_POST` | Interact with a LinkedIn post | "Comment on Sarah's latest post" |
+
+## Priority System
+
+Tasks have three priority levels displayed as colored indicators:
+
+| Priority | Color | Numeric Range | Meaning |
+|----------|-------|---------------|---------|
+| `high` | Red | 1 - 3 | Time-sensitive or high-value actions |
+| `medium` | Yellow | 4 - 6 | Standard networking tasks |
+| `low` | Green | 7+ | Background or optional actions |
+
+In the popup, tasks are sorted by priority (high first). In the side panel, tasks are grouped under their parent goal and sorted within each group.
+
+## Task Display in the Popup
+
+The popup shows a compact task list under the "Pending Tasks" heading:
+
+- Up to **10 tasks** are displayed, filtered to `pending` status only
+- Each task shows a colored priority dot and the task title
+- Tasks with a `targetUrl` show a **Go** button that navigates to the target page and a **Copy** button that copies the URL to clipboard
+- Clicking a task title with a URL navigates directly to that LinkedIn page
+- The popup footer shows the total task count in the stats row
+
+Tasks are loaded from `chrome.storage.local` on popup open. The service worker refreshes the stored task list during health checks (every 30 seconds) and after each successful capture.
+
+## Task Display in the Side Panel
+
+The side panel provides a richer view organized by goals:
+
+- Tasks are grouped under their parent **Goal**, with each goal displayed as a card
+- Each goal card shows a **progress bar** indicating completion percentage (completed tasks / total tasks)
+- The progress text shows the fraction (e.g., "2/5")
+- Individual tasks within a goal have:
+  - A circular **checkbox** for toggling completion
+  - A colored priority indicator
+  - The task title (clickable for tasks with URLs -- navigates the active tab)
+
+### Completing Tasks
+
+Click the circular checkbox next to any task to toggle its status:
+
+1. The UI updates optimistically (immediate visual feedback)
+2. A `TASKS_UPDATE` message is sent to the service worker
+3. The service worker calls `PATCH /api/extension/tasks/:id` to update the server
+4. The server recalculates the goal's progress percentage
+5. On failure, the update is queued in the retry queue for later delivery
+
+### Task Auto-Completion
+
+When you capture a page, the server checks if any pending tasks have a `targetUrl` matching the captured URL. Matching tasks are automatically marked as completed. The extension refreshes its task list after every capture, so the UI reflects these automatic completions.
+
+## Real-Time Updates
+
+The side panel listens for changes to `chrome.storage.local` via `chrome.storage.onChanged`. When the service worker updates the stored task list (after a health check, capture, or WebSocket push event), the side panel immediately re-renders the goals and tasks.
+
+WebSocket push events that trigger task updates:
+
+| Event | Effect |
+|-------|--------|
+| `TASK_CREATED` | New task added, task list refreshed from server |
+| `TASK_UPDATED` | Task status changed, task list refreshed |
+| `GOAL_PROGRESS` | Goal completion percentage updated |
+
+<Callout type="info">
+WebSocket is optional and disabled by default (the default Next.js dev server does not support WebSocket upgrade). When WebSocket is unavailable, the extension falls back to HTTP polling via health checks every 30 seconds.
+</Callout>
+
+## Task Refresh Cycle
+
+Tasks are refreshed from the server in several scenarios:
+
+1. **On popup open** -- the popup calls `GET_STATUS` which returns the current task count
+2. **After each capture** -- the service worker fetches fresh tasks from the server
+3. **During health checks** -- every 30 seconds, the health check also refreshes tasks if the app is connected
+4. **On WebSocket events** -- `TASK_CREATED` and `TASK_UPDATED` events trigger an immediate refresh
+5. **Side panel polling** -- the side panel runs its own status update every 15 seconds

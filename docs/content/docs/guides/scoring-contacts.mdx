@@ -1,0 +1,223 @@
+---
+title: Scoring Contacts
+description: Understand how NetworkNav's 2-phase, 15-dimension scoring engine classifies your contacts into tiers and personas.
+---
+
+
+# Scoring Contacts
+
+**What you will learn:** How the 2-phase, 15-dimension scoring engine works, what tiers and personas mean, how to read the score popover, and how to configure scoring weights.
+
+NetworkNav evaluates every contact through a 15-dimension scoring engine that runs in two phases. The result is a comprehensive classification that tells you who in your network is most valuable, what role they play, and how likely they are to refer business your way.
+
+<Callout type="tip">
+For the full mathematical models, weight formulas, and proofs, see the [Scoring & Models](/docs/scoring/composite-score) reference. This guide focuses on practical usage.
+</Callout>
+
+## Scoring Overview
+
+The scoring engine runs in two sequential phases:
+
+| Phase | Dimensions | Output |
+|-------|-----------|--------|
+| **Phase 1: Composite Score** | 9 dimensions | Score (0-1), Tier, Persona, Behavioral Persona |
+| **Phase 2: Referral Score** | 6 components | Referral Likelihood, Referral Tier, Referral Persona |
+
+Together, these 15 dimensions produce a rich profile for every contact in your network.
+
+## Phase 1: Composite Score
+
+The composite score evaluates 9 dimensions, each producing a raw value between 0 and 1. These raw values are multiplied by configurable weights and summed to produce the final composite score.
+
+### The 9 Dimensions
+
+| Dimension | What It Measures |
+|-----------|-----------------|
+| **ICP Fit** | How well the contact matches your Ideal Customer Profile criteria (role, industry, company size, location) |
+| **Network Hub** | Connection count, mutual connections, and network position strength |
+| **Relationship Strength** | Connection recency, degree of connection, interaction history |
+| **Signal Boost** | Presence of high-value signals in headline, about section, or tags |
+| **Skills Relevance** | Overlap between contact's skills and your target skill set |
+| **Network Proximity** | How close the contact is in your graph (mutual connections, shared clusters) |
+| **Behavioral** | Posting frequency, engagement levels, content activity, super-connector traits |
+| **Content Relevance** | Alignment between their content topics and your business focus |
+| **Graph Centrality** | PageRank, betweenness centrality, degree centrality from network analysis |
+
+### Tier Assignment
+
+The composite score maps to four tiers:
+
+| Tier | Score Threshold | Meaning |
+|------|----------------|---------|
+| **Gold** | >= 0.55 | High-value contact — strong ICP fit, active network position, or strategic relationship |
+| **Silver** | >= 0.40 | Promising contact — moderate fit with growth potential |
+| **Bronze** | >= 0.28 | Low-priority contact — some relevance but limited signals |
+| **Watch** | < 0.28 | Minimal data or low relevance — may improve with enrichment |
+
+<Callout>
+Second-degree connections face a higher bar: their score is multiplied by 0.85 before tier assignment. A 2nd-degree contact needs a raw score of ~0.65 to reach Gold tier.
+</Callout>
+
+### Persona Classification
+
+Based on the relative strength of different dimensions, each contact is assigned one of seven personas:
+
+| Persona | Key Signals |
+|---------|------------|
+| **Buyer** | High ICP fit + strong relationship |
+| **Warm Lead** | Moderate ICP fit + some relationship |
+| **Active Influencer** | High behavioral activity + strong content |
+| **Hub** | Strong network position (many connections, high centrality) |
+| **Advisor** | Strong relationship + moderate ICP fit |
+| **Passive Contact** | 1st or 2nd degree contact with no other strong signals |
+| **Unknown** | 3rd+ degree with insufficient data |
+
+### Behavioral Persona
+
+A second persona classification focuses on behavioral patterns:
+
+| Behavioral Persona | Characteristics |
+|-------------------|----------------|
+| **Super Connector** | 500+ connections, high network hub score |
+| **Content Creator** | Frequent posting, high content relevance |
+| **Silent Influencer** | High graph centrality but low visible activity |
+| **Rising Connector** | Recently connected, growing network |
+| **Engaged Professional** | Moderate behavioral activity |
+| **Passive Observer** | Minimal observable activity |
+| **Data Insufficient** | Not enough behavioral data to classify |
+
+## Phase 2: Referral Score
+
+After Phase 1 completes, the referral scoring engine evaluates 6 additional components to determine how likely each contact is to generate referrals.
+
+### The 6 Referral Components
+
+| Component | What It Measures |
+|-----------|-----------------|
+| **Referral Role** | Does their job title suggest they make or influence referrals? |
+| **Client Overlap** | Do they serve similar industries or customer segments? |
+| **Network Reach** | How many connections and clusters can they reach? |
+| **Amplification Power** | Can they amplify your message through their audience? |
+| **Relationship Warmth** | How warm is your existing relationship? |
+| **Buyer Inversion** | Are they better as a referrer than as a buyer themselves? |
+
+### Referral Personas
+
+| Referral Persona | Description |
+|-----------------|-------------|
+| **White-Label Partner** | Could resell or co-brand your offering |
+| **Warm Introducer** | Likely to make personal introductions |
+| **Co-Seller** | Sells to similar audiences, natural partnership |
+| **Amplifier** | Large audience, can spread your message |
+| **Passive Referral** | May refer organically but unlikely to actively promote |
+
+## Reading the Score Popover
+
+On the Contacts page, click any contact's score badge to open the score popover. This shows:
+
+1. **Overall composite score** with tier badge
+2. **Dimension breakdown** — a bar chart showing each dimension's contribution
+3. **Persona and behavioral persona** labels
+4. **Referral score** with referral tier and referral persona
+5. **Behavioral signals** — specific traits detected (e.g., "500+ connections", "frequent poster")
+6. **Referral signals** — referral-specific indicators (e.g., "3 overlapping industries", "high amplification")
+
+<Callout>
+Screenshot: Score popover showing dimension breakdown, tier badge, and persona labels.
+</Callout>
+
+## Triggering a Manual Rescore
+
+Scores update automatically when contacts are imported or enriched. You can also trigger a manual rescore:
+
+### Rescore All Contacts
+
+1. Navigate to the **Contacts** page
+2. Click the **Rescore All** button in the toolbar
+3. Confirm the action
+4. The scoring engine processes all contacts in the background
+
+You can also trigger this via API:
+
+```bash title="Terminal"
+curl -X POST http://localhost:3000/api/scoring/rescore-all
+```
+
+Check scoring status:
+
+```bash title="Terminal"
+curl http://localhost:3000/api/scoring/status
+```
+
+Response:
+
+```json
+{
+  "id": "run-uuid",
+  "runType": "rescore-all",
+  "status": "running",
+  "totalContacts": 847,
+  "scoredContacts": 412,
+  "failedContacts": 0,
+  "startedAt": "2026-03-19T10:00:00Z",
+  "completedAt": null
+}
+```
+
+### Rescore a Single Contact
+
+Open a contact's detail page and click **Rescore**. This is useful after manually editing a contact's data or adjusting scoring weights.
+
+## Configuring Scoring Weights
+
+The weight of each dimension is fully configurable from the Admin panel.
+
+<Steps>
+
+### Open Admin settings
+
+Navigate to **Admin** in the sidebar, then click the **Scoring Weights** tab.
+
+### Adjust weights
+
+Each dimension has a weight slider (0.0 to 1.0). The weights are normalized internally, so their relative values matter more than their absolute values.
+
+Default weights emphasize ICP Fit and Relationship Strength. You might increase Network Hub weight if you are focused on finding connectors, or increase Behavioral weight if you want to prioritize active LinkedIn users.
+
+### Save and rescore
+
+After saving new weights, click **Rescore All** to apply the changes across your entire network. Scores will shift based on the new weight distribution.
+
+</Steps>
+
+<Callout>
+Weight changes do not take effect until you rescore. The scoring engine uses the saved weight profile at the time of scoring.
+</Callout>
+
+## More Data Equals Better Scores
+
+The scoring engine adapts to available data. When a dimension has no data (for example, Graph Centrality for a contact with no mutual connections), its weight is redistributed proportionally to dimensions that do have data.
+
+This means:
+
+- **Freshly imported contacts** with only name, company, and title will score based primarily on ICP Fit, Signal Boost, and Relationship Strength
+- **Enriched contacts** with full work history, email, company data, and technographics will score across all 9 dimensions for a much more accurate classification
+- **Contacts with behavioral data** captured by the browser extension will activate the Behavioral and Content Relevance dimensions
+
+The practical takeaway: enrich your most important contacts first to get the most accurate scores where it matters most.
+
+## Next Steps
+
+- **[Enrichment](/docs/guides/enrichment)** -- Add data that activates more scoring dimensions and improves accuracy.
+- **[Discover](/docs/guides/discover)** -- Segment scored contacts into niches and ICPs.
+- **[Outreach](/docs/guides/outreach)** -- Use tiers and personas to target your outreach campaigns.
+- **[Weight Management](/docs/scoring/weight-management)** -- Deep dive into weight profiles and sensitivity analysis.
+- **[RVF Training](/docs/scoring/rvf-training)** -- Validate your scoring weights with pairwise comparisons.
+
+### Scoring Math References
+
+- [Composite Score -- Mathematical Proof](/docs/scoring/composite-score) -- formal derivation and range proofs
+- [Scoring Dimensions](/docs/scoring/dimensions) -- exact formulas for all 9 dimensions
+- [Tier Assignment](/docs/scoring/tier-assignment) -- degree-aware thresholds and boundary analysis
+- [Referral Score](/docs/scoring/referral-score) -- Phase 2 referral likelihood model
+- [Auto-Scoring Triggers](/docs/scoring/auto-scoring) -- fire-and-forget mechanics

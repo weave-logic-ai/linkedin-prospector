@@ -1,0 +1,314 @@
+---
+title: Scoring Dimensions
+description: Mathematical specification of all 9 scoring dimensions with formulas, range proofs, and worked examples.
+---
+
+# Scoring Dimensions
+
+Each dimension scorer implements the interface `DimensionScorer` and maps a contact's data to a raw score $d \in [0, 1]$. This page documents the exact formula for each of the 9 dimensions.
+
+---
+
+## 1. ICP Fit (`icp_fit`)
+
+**Purpose.** Measures how well a contact matches the active Ideal Customer Profile criteria.
+
+**Inputs.** Contact fields: `title`, `headline`, `companyIndustry`, `about`, `tags`, `companySizeRange`, `location`, `connectionsCount`. ICP criteria: `roles`, `industries`, `signals`, `companySizeRanges`, `locations`, `minConnections`.
+
+**Formula.** Let $C$ be the set of ICP criteria categories that are non-empty (up to 6). For each category $c \in C$, define a match indicator $m_c$:
+
+| Category | Match condition | $m_c$ |
+|---|---|---|
+| Roles | Any role keyword found in title/headline | $\{0, 1\}$ |
+| Industries | Any industry keyword found in company industry | $\{0, 1\}$ |
+| Signals | Keyword match fraction across headline, about, tags | $\in [0, 1]$ |
+| Company Size | Exact match on size range | $\{0, 1\}$ |
+| Locations | Any location keyword found | $\{0, 1\}$ |
+| Min Connections | `connectionsCount >= minConnections` | $\{0, 1\}$ |
+
+$$d_{\text{icp}} = \frac{\sum_{c \in C} m_c}{|C|}$$
+
+<Callout type="info">
+The signal category uses fractional matching: $m_{\text{signals}} = (\text{matched keywords}) / (\text{total signal keywords})$. All other categories are binary.
+</Callout>
+
+**Range proof.** Each $m_c \in [0, 1]$ and $|C| \geq 1$ when the function is reached (if $|C| = 0$, the scorer returns 0 immediately). Therefore $d_{\text{icp}} \in [0, 1]$.
+
+**Edge case.** If no ICP criteria are defined, the scorer returns 0.
+
+**Example.** ICP has `roles: ["CTO", "VP Engineering"]`, `industries: ["SaaS"]`, `signals: ["ai", "cloud", "devops"]`. A contact with title "CTO", industry "SaaS", and headline mentioning "ai" and "cloud":
+
+- Roles: match (1). Industries: match (1). Signals: 2/3 = 0.667.
+- $d = (1 + 1 + 0.667) / 3 = 0.889$
+
+---
+
+## 2. Network Hub (`network_hub`)
+
+**Purpose.** Evaluates how connected a contact is in the network.
+
+**Inputs.** `mutualConnectionCount`, `edgeCount`, `connectionsCount`, `degreeCentrality`.
+
+**Formula.** Let $F$ be the set of non-zero factors:
+
+| Factor | Normalized value |
+|---|---|
+| Mutual connections | $\min(\text{mutuals} / 50,\; 1)$ |
+| Edge count | $\min(\text{edges} / 20,\; 1)$ |
+| Total connections | $\min(\text{connections} / 500,\; 1)$ |
+| Degree centrality | $\min(\text{degreeCentrality} / 30,\; 1)$ |
+
+$$d_{\text{hub}} = \frac{1}{|F|} \sum_{f \in F} v_f$$
+
+**Range proof.** Each $v_f \in [0, 1]$ due to the $\min$ clamping. The average of values in $[0, 1]$ is in $[0, 1]$.
+
+**Edge case.** If all factors are zero or null, returns 0.
+
+**Example.** A contact with 35 mutuals, 12 edges, 400 connections, no degree centrality:
+
+$$d = \frac{\min(35/50, 1) + \min(12/20, 1) + \min(400/500, 1)}{3} = \frac{0.7 + 0.6 + 0.8}{3} = 0.7$$
+
+---
+
+## 3. Relationship Strength (`relationship_strength`)
+
+**Purpose.** Evaluates the depth of the existing relationship.
+
+**Inputs.** `degree`, `mutualConnectionCount`, `tags`, `about`, `connectionsCount`, `location`.
+
+**Formula.** Three factors are always evaluated (some conditionally):
+
+| Factor | Score |
+|---|---|
+| Degree base | 1st: 1.0, 2nd: 0.5, 3rd+: 0.2 |
+| Mutual connections | $\min(\text{mutuals} / 30,\; 1)$ (only if mutuals > 0) |
+| Profile completeness | tags(+0.3) + about(+0.2) + connections>100(+0.3) + location(+0.2), capped at 1.0 |
+
+$$d_{\text{rel}} = \frac{1}{|F|} \sum_{f \in F} v_f$$
+
+where $|F|$ ranges from 2 (degree + profile) to 3 (if mutuals > 0).
+
+**Range proof.** Degree base $\in \{0.2, 0.5, 1.0\}$, mutuals factor $\in [0, 1]$, profile factor $\in [0, 1]$ (capped). Average is in $[0, 1]$.
+
+**Example.** 1st-degree contact with 15 mutuals, has tags, about, and 200 connections, no location:
+
+- Degree: 1.0. Mutuals: $15/30 = 0.5$. Profile: $0.3 + 0.2 + 0.3 = 0.8$.
+- $d = (1.0 + 0.5 + 0.8) / 3 = 0.767$
+
+---
+
+## 4. Signal Boost (`signal_boost`)
+
+**Purpose.** Detects technology and business signal keywords in text fields.
+
+**Inputs.** `headline`, `title`, `about`, `tags`, `contentTopics`. All five fields are concatenated and lowercased before matching.
+
+**Formula.** A fixed keyword list $K$ of 24 terms (AI, SaaS, cloud, etc.) is matched against the concatenated, lowercased text:
+
+$$d_{\text{signal}} = \min\!\left(\frac{|\{k \in K : k \subset \text{text}\}|}{5},\; 1\right)$$
+
+<Callout type="info">
+The keyword count was corrected from 28 to 24 to match the source code. Additionally, the `contentTopics` field is included in the text corpus alongside `headline`, `title`, `about`, and `tags`.
+</Callout>
+
+**Range proof.** The numerator is a non-negative integer; dividing by 5 and clamping to $[0, 1]$ gives $d \in [0, 1]$.
+
+**Edge case.** If no text fields exist, returns 0.
+
+**Example.** Headline mentions "AI", "SaaS", and "growth": $d = \min(3/5, 1) = 0.6$.
+
+---
+
+## 5. Skills Relevance (`skills_relevance`)
+
+**Purpose.** Evaluates alignment between a contact's skills and ICP signal keywords.
+
+**Inputs.** `skills`, `headline`, `title`. ICP `signals`.
+
+**Formula.**
+
+*With skills and ICP signals:*
+
+$$d_{\text{skills}} = \frac{|\{s \in \text{ICP signals} : \exists\, \text{skill} \ni s \subseteq \text{skill} \lor \text{skill} \subseteq s\}|}{|\text{ICP signals}|}$$
+
+*With skills but no ICP:* $d = \min(\text{skills.length} / 10,\; 0.5)$.
+
+*Without skills (fallback to headline/title text):*
+- With ICP: fraction of ICP signals found in text.
+- Without ICP: 0.2.
+
+**Range proof.** Fraction of matches is always in $[0, 1]$.
+
+---
+
+## 6. Network Proximity (`network_proximity`)
+
+**Purpose.** Evaluates graph distance (closeness) to the user.
+
+**Inputs.** `degree`, `mutualConnectionCount`, `edgeCount`.
+
+**Formula.** Same averaging pattern as Network Hub:
+
+| Factor | Score |
+|---|---|
+| Degree | 1st: 1.0, 2nd: 0.5, 3rd+: 0.15 |
+| Mutuals | $\min(\text{mutuals} / 20,\; 1)$ (if > 0) |
+| Edges | $\min(\text{edges} / 15,\; 1)$ (if > 0) |
+
+$$d_{\text{prox}} = \frac{1}{|F|} \sum_{f \in F} v_f$$
+
+**Range proof.** Each factor $\in [0, 1]$, average $\in [0, 1]$.
+
+**Example.** 2nd-degree, 10 mutuals, 8 edges:
+
+$$d = \frac{0.5 + \min(10/20, 1) + \min(8/15, 1)}{3} = \frac{0.5 + 0.5 + 0.533}{3} = 0.511$$
+
+---
+
+## 7. Behavioral (`behavioral`)
+
+**Purpose.** Evaluates activity, engagement, and connector traits. This is the most complex dimension with 6 internal components and its own null-safe weight redistribution.
+
+**Inputs.** `connectionsCount`, `connectionCountRaw`, `connectedAt`, `about`, `headline`, `title`, `tags`, `discoveredVia`, `mutualConnectionCount`.
+
+### Component Weights
+
+| Component | Weight $v_j$ |
+|---|---|
+| Connection Power | 0.20 |
+| About Signals | 0.25 |
+| Connection Recency | 0.15 |
+| Headline Signals | 0.15 |
+| Super Connector | 0.15 |
+| Network Amplifier | 0.10 |
+
+### Component Formulas
+
+**Connection Power.** Tiered by connection count $c$:
+
+$$\text{CP}(c) = \begin{cases} 1.0 & c \geq 500 \\ 0.7 & 300 \leq c < 500 \\ 0.4 & 100 \leq c < 300 \\ 0.1 & c < 100 \end{cases}$$
+
+If the raw connection string contains "followers", apply penalty: $\text{CP} \leftarrow 0.8 \cdot \text{CP}$. Returns `null` if connection count is unavailable.
+
+**Connection Recency.** Based on days since connection $\delta$:
+
+$$\text{CR}(\delta) = \begin{cases} 1.0 & \delta \leq 30 \\ 0.7 & 30 < \delta \leq 90 \\ 0.4 & 90 < \delta \leq 180 \\ 0.2 & 180 < \delta \leq 365 \\ 0.1 & \delta > 365 \end{cases}$$
+
+Returns `null` if `connectedAt` is not available.
+
+**About Signals.** Matches the `about` text against 8 categories (connector, speaker, mentor, builder, helper, thought-leader, community, teacher), each containing 3--5 keywords:
+
+$$\text{AS} = \min\!\left(\frac{|\text{matched categories}|}{8 \times 0.4},\; 1\right) = \min\!\left(\frac{|\text{matched}|}{3.2},\; 1\right)$$
+
+Matching 3.2+ categories (i.e., 4+) yields a score of 1.0. Returns `null` if no `about` text.
+
+**Headline Signals.** Matches the headline against 4 patterns with associated scores:
+
+| Pattern | Score |
+|---|---|
+| Multi-role (contains `\|`) | 0.7 |
+| Helping language | 0.6 |
+| Credentials (MBA, PhD, etc.) | 0.4 |
+| Creator mode | 0.8 |
+
+If one pattern matches: score = that pattern's score. If multiple match:
+
+$$\text{HS} = 0.6 \cdot \max(\text{scores}) + 0.4 \cdot \text{mean}(\text{scores})$$
+
+Returns 0 if headline exists but no pattern matches. Returns `null` if no headline.
+
+**Super Connector Index.** Counts "traits" from about categories, headline patterns, and 500+ connections:
+
+$$\text{SC} = \min\!\left(\frac{\text{traitCount}}{5},\; 1\right)$$
+
+Returns `null` if no traits and connection power is also null.
+
+**Network Amplifier.** Product of mutuals normalization and connection power:
+
+$$\text{NA} = \min\!\left(\frac{\text{mutuals}}{50} \times \text{CP},\; 1\right)$$
+
+Returns `null` if connection power is null.
+
+### Internal Redistribution
+
+The behavioral scorer applies the same redistribution logic as the composite score, but over its 6 components. Let $B \subseteq \{1, \ldots, 6\}$ be the components with non-null scores:
+
+$$d_{\text{beh}} = \sum_{j \in B} c_j \cdot \frac{v_j}{\sum_{k \in B} v_k}$$
+
+where $c_j$ is the component score and $v_j$ is the base weight. The result is clamped to $[0, 1]$.
+
+**Range proof.** Each $c_j \in [0, 1]$ and the redistributed weights sum to 1, so $d_{\text{beh}} \in [0, 1]$.
+
+---
+
+## 8. Content Relevance (`content_relevance`)
+
+**Purpose.** Evaluates how well a contact's content topics align with ICP signals.
+
+**Inputs.** `contentTopics`, `about`, `headline`. ICP `signals`.
+
+**Formula.**
+
+*With content topics and ICP signals:*
+
+$$d_{\text{content}} = \frac{|\text{matched signals}|}{|\text{ICP signals}|}$$
+
+where matching uses bidirectional substring containment.
+
+*With topics but no ICP:* $d = \min(\text{topics.length} / 8,\; 0.5)$.
+
+*Fallback (no topics, with ICP):*
+
+$$d = 0.5 \cdot \frac{|\text{signals found in about/headline}|}{|\text{ICP signals}|}$$
+
+The 0.5 multiplier discounts the fallback since about/headline text is less specific than explicit content topics.
+
+**Range proof.** In all branches the numerator $\leq$ denominator and the result is $\leq 1$.
+
+---
+
+## 9. Graph Centrality (`graph_centrality`)
+
+**Purpose.** Measures structural importance using graph-theoretic metrics.
+
+**Inputs.** `pagerank`, `betweenness`, `degreeCentrality`.
+
+**Formula.**
+
+| Factor | Normalized value |
+|---|---|
+| PageRank | $\min(\text{pagerank},\; 1)$ |
+| Betweenness | $\min(\text{betweenness},\; 1)$ |
+| Degree centrality | $\min(\text{degreeCentrality} / 25,\; 1)$ |
+
+$$d_{\text{cent}} = \frac{1}{|F|} \sum_{f \in F} v_f$$
+
+where $F$ is the set of metrics with non-null, positive values.
+
+**Range proof.** Each factor $\in [0, 1]$, average $\in [0, 1]$.
+
+**Edge case.** If no graph metrics exist, returns 0 and the dimension is excluded from the available set (its weight is redistributed).
+
+**Example.** PageRank = 0.03, betweenness = 0.15, degree centrality = 18:
+
+$$d = \frac{\min(0.03, 1) + \min(0.15, 1) + \min(18/25, 1)}{3} = \frac{0.03 + 0.15 + 0.72}{3} = 0.30$$
+
+---
+
+## Dimension Availability Rules
+
+The pipeline determines which dimensions are "available" based on contact data before scoring begins:
+
+| Dimension | Available when |
+|---|---|
+| `icp_fit` | Always |
+| `network_hub` | `mutualConnectionCount > 0` or `edgeCount > 0` or `connectionsCount > 0` |
+| `relationship_strength` | Always |
+| `signal_boost` | `headline` or `about` or `tags.length > 0` |
+| `skills_relevance` | `skills.length > 0` or `headline` or `title` |
+| `network_proximity` | Always |
+| `behavioral` | Always (handles nulls internally) |
+| `content_relevance` | `contentTopics.length > 0` or `about` |
+| `graph_centrality` | `pagerank != null` or `betweenness != null` or `degreeCentrality != null` |
+
+Dimensions not in the available set receive weight 0, and their base weight is redistributed proportionally to available dimensions.

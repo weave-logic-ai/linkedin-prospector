@@ -1,0 +1,114 @@
+---
+title: Settings
+description: Configure the extension's behavior, capture limits, and display preferences.
+---
+
+
+# Settings
+
+The extension settings panel is accessible from the popup by clicking the collapsible "Settings" section at the bottom. All settings are stored in `chrome.storage.local` and take effect immediately.
+
+## Accessing Settings
+
+1. Click the extension icon in the Chrome toolbar to open the popup
+2. Scroll to the bottom of the popup
+3. Click the **Settings** heading (with the chevron) to expand the settings panel
+
+The chevron rotates to indicate the expanded/collapsed state. Settings persist across browser sessions.
+
+## Available Settings
+
+### App URL
+
+**Default:** `http://localhost:3000`
+
+The base URL of your NetworkNav instance. All API requests (captures, tasks, health checks, templates) are sent to this URL.
+
+- Enter the full URL including protocol (e.g., `http://localhost:3000` or `https://app.example.com`)
+- Click **Save** to apply the change
+- The extension will begin using the new URL for all subsequent requests
+- If you change the app URL after registration, you may need to re-register if the new server does not have your token
+
+<Callout type="warn">
+If running the app on a remote server, ensure the Content Security Policy in the manifest is updated to allow connections to that host. The default CSP only permits connections to `localhost`.
+</Callout>
+
+### Auto-Capture
+
+**Default:** Disabled (unchecked)
+
+When enabled, the extension will automatically capture LinkedIn pages as you navigate. This is an opt-in feature that is disabled by default.
+
+- Toggle the "Auto-capture on page load" checkbox
+- The setting applies immediately
+- Auto-captures count toward your daily capture limit
+- Auto-captures are tagged with `triggerMode: 'auto'` in the capture payload, distinguishing them from manual captures in the app's analytics
+
+<Callout type="warn">
+Auto-capture should be used conservatively. Rapidly capturing many pages could appear as automated behavior to LinkedIn. The daily capture limit provides a safety net, but exercise discretion.
+</Callout>
+
+### Daily Capture Limit
+
+**Default:** 50
+
+The maximum number of pages that can be captured per day. When the limit is reached, the capture button is disabled and the extension badge shows "MAX" in red.
+
+- Enter a number between 1 and 500
+- The change applies immediately
+- The counter resets at midnight local time
+- At 80% of the limit, the badge turns yellow and the capture button shows the remaining count
+- At 100%, all capture attempts are blocked until the next day
+
+### Overlay Position
+
+**Default:** Bottom Right
+
+Controls the position of the floating overlay on LinkedIn pages. Choose from four positions:
+
+| Option | Position |
+|--------|----------|
+| Bottom Right | Lower-right corner of the viewport |
+| Bottom Left | Lower-left corner of the viewport |
+| Top Right | Upper-right corner of the viewport |
+| Top Left | Upper-left corner of the viewport |
+
+Select a position from the dropdown. The overlay repositions on the next LinkedIn page load or navigation.
+
+## Server-Side Settings
+
+Some settings are managed server-side and pushed to the extension via the `/api/extension/settings` endpoint or WebSocket `SETTINGS_UPDATED` events:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `autoCaptureEnabled` | `false` | Server-side auto-capture flag |
+| `capturePageTypes` | `['PROFILE', 'SEARCH_PEOPLE', 'COMPANY']` | Which page types to auto-capture |
+| `dailyCaptureWarningThreshold` | `100` | Server-recommended warning threshold |
+| `overlayEnabled` | `true` | Whether the overlay is shown |
+| `healthCheckIntervalMs` | `30000` | Health check frequency (milliseconds) |
+| `captureStabilityDelayMs` | `2000` | DOM stability wait time before capture |
+| `maxQueueSize` | `50` | Maximum offline queue size |
+
+These settings are fetched during registration and refreshed periodically. Local settings (App URL, local auto-capture toggle, capture limit, overlay position) take precedence over server-side defaults for the corresponding options.
+
+## Storage Schema
+
+All extension state is stored in `chrome.storage.local` with the following keys:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `extensionToken` | `string \| null` | `null` | Authentication token |
+| `extensionId` | `string \| null` | `null` | Server-assigned extension ID |
+| `appUrl` | `string` | `http://localhost:3000` | App base URL |
+| `captureQueue` | `CapturePayload[]` | `[]` | Offline capture queue |
+| `settings` | `ExtensionSettings` | (see defaults above) | Server-pushed settings |
+| `sessionId` | `string` | Random UUID | Current session identifier |
+| `dailyCaptureCount` | `number` | `0` | Legacy daily counter |
+| `dailyCaptureDate` | `string` | Today's date | Legacy counter date |
+| `pendingTasks` | `ExtensionTask[]` | `[]` | Cached pending tasks |
+| `lastHealthCheck` | `string \| null` | `null` | ISO timestamp of last health check |
+| `connectionState` | `AppConnectionState` | `disconnected` | Current app connection state |
+| `captureLimit` | `number` | `50` | Daily capture limit |
+| `autoCapture` | `boolean` | `false` | Local auto-capture toggle |
+| `overlayPosition` | `string` | `bottom-right` | Overlay corner position |
+| `retryQueue` | `RetryQueueItem[]` | `[]` | Failed requests awaiting retry |

@@ -1,0 +1,138 @@
+---
+title: Installation
+description: Build the Chrome extension from source and load it into your browser.
+---
+
+
+# Installation
+
+The extension is not published to the Chrome Web Store. You build it from source and load it as an unpacked extension in developer mode.
+
+## Prerequisites
+
+Before installing the extension, ensure you have:
+
+- **Google Chrome 120+** (required for Manifest V3 side panel API)
+- **Node.js 18+** and **npm** (for building from source)
+- **NetworkNav app running** on `http://localhost:3000` (or a custom URL you configure later)
+
+<Callout type="info">
+The extension communicates with your self-hosted NetworkNav instance over HTTP. The app must be reachable from your browser for captures to succeed. Captures made while the app is offline are queued locally and flushed automatically when the app becomes available.
+</Callout>
+
+## Building from Source
+
+<Steps>
+
+### Install dependencies
+
+From the project root, navigate to the `browser/` directory and install packages:
+
+```bash
+cd browser
+npm install
+```
+
+### Build the extension bundles
+
+Run the build command to compile TypeScript and bundle all entry points with esbuild:
+
+```bash
+npm run build
+```
+
+This produces four bundles in `browser/dist/`:
+
+| Bundle | Approximate Size | Purpose |
+|--------|-----------------|---------|
+| `service-worker.js` | ~8 KB | Background message routing, queues, alarms |
+| `content.js` | ~5 KB | Page capture, overlay, navigation detection |
+| `popup.js` | ~4 KB | Popup UI logic |
+| `sidepanel.js` | ~4 KB | Side panel UI logic |
+
+Each bundle has a corresponding `.map` source map file for debugging.
+
+### Verify the build (optional)
+
+Run the TypeScript compiler in check-only mode to confirm there are no type errors:
+
+```bash
+npx tsc --noEmit
+```
+
+This should complete with zero errors.
+
+</Steps>
+
+## Loading in Chrome
+
+<Steps>
+
+### Open the extensions page
+
+Navigate to `chrome://extensions` in your Chrome browser.
+
+### Enable Developer mode
+
+Toggle the **Developer mode** switch in the top-right corner of the extensions page.
+
+### Load the unpacked extension
+
+Click **Load unpacked** and select the `browser/` directory -- the one containing `manifest.json`. Do not select `browser/dist/` or `browser/src/`.
+
+### Verify the extension loaded
+
+The extension should appear in the list as **"LinkedIn Network Intelligence"** version `0.1.0`. Confirm:
+
+- No errors are displayed on the extension card
+- The service worker status shows as active (click "service worker" to open its DevTools console)
+
+### Pin the extension icon
+
+Click the puzzle-piece icon in the Chrome toolbar, then click the pin icon next to "LinkedIn Network Intelligence". The extension icon will now be permanently visible in your toolbar.
+
+</Steps>
+
+## Verifying the Installation
+
+After loading the extension:
+
+1. Click the extension icon in the toolbar. The popup should open showing a "Connect to App" registration form.
+2. Navigate to any `linkedin.com` page. A small dark floating overlay labeled "LNI" should appear in the bottom-right corner of the page.
+3. Open Chrome DevTools on the extension's service worker (`chrome://extensions` > click "service worker"). You should see log output including `Service worker loaded`.
+
+If all three checks pass, the extension is installed correctly. Proceed to [Authentication](/docs/browser-extension/authentication) to connect it to your NetworkNav instance.
+
+## Troubleshooting
+
+### "Manifest file is missing or unreadable"
+
+You selected the wrong directory when loading the extension. Make sure you select the `browser/` directory that directly contains `manifest.json`, not a subdirectory like `browser/dist/` or `browser/src/`.
+
+### "Service worker registration failed"
+
+The built JavaScript files may be stale or missing. Rebuild with `npm run build` from the `browser/` directory, then click the circular reload arrow on the extension card in `chrome://extensions`.
+
+### Build fails with esbuild errors
+
+Delete `node_modules/` and reinstall:
+
+```bash
+rm -rf node_modules
+npm install
+npm run build
+```
+
+Ensure you are running Node.js 18 or later.
+
+### Extension icon does not appear in toolbar
+
+The icon may be hidden behind the puzzle-piece menu. Click the puzzle-piece icon in Chrome's toolbar and pin the extension. If the extension is not listed at all, it may not have loaded -- check `chrome://extensions` for error messages.
+
+### Overlay does not appear on LinkedIn pages
+
+Open Chrome DevTools on the LinkedIn page (F12) and check the Console for `[LNI] Content script loaded`. If this message is absent:
+
+- Verify the extension is enabled in `chrome://extensions`
+- Confirm `host_permissions` in `manifest.json` includes `https://www.linkedin.com/*`
+- Reload the LinkedIn page after enabling the extension

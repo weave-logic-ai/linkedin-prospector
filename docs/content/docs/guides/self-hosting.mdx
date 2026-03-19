@@ -1,0 +1,302 @@
+---
+title: Self-Hosting
+description: Deploy NetworkNav to production with Docker Compose, configure persistent storage, set up backups, and monitor your instance.
+---
+
+
+# Self-Hosting
+
+**What you will learn:** How to deploy NetworkNav to production with Docker Compose, configure persistent storage and volumes, set up automated backups, add SSL with a reverse proxy, and monitor your instance.
+
+NetworkNav is designed to be self-hosted. All your data stays on your infrastructure -- no cloud service, no third-party storage, no data leaving your control. This guide covers production deployment, persistent storage, backups, and monitoring.
+
+## Docker Compose Deployment
+
+The simplest production deployment uses Docker Compose with two services: a PostgreSQL database and the Next.js application.
+
+<Steps>
+
+### Clone and configure
+
+```bash title="Terminal"
+git clone <repository-url> networknav
+cd networknav
+cp .env.example .env
+```
+
+Edit `.env` with your production values:
+
+```bash title=".env"
+# Required
+POSTGRES_PASSWORD=a-strong-random-password
+ANTHROPIC_API_KEY=sk-ant-your-production-key
+
+# Optional: database customization
+POSTGRES_USER=ctox
+POSTGRES_DB=ctox
+
+# Optional: enrichment providers
+PDL_API_KEY=your-pdl-key
+APOLLO_API_KEY=your-apollo-key
+LUSHA_API_KEY=your-lusha-key
+THEIRSTACK_API_KEY=your-theirstack-key
+```
+
+### Start the services
+
+```bash title="Terminal"
+docker compose up -d
+```
+
+### Verify health
+
+Wait for both services to report healthy:
+
+```bash title="Terminal"
+docker compose ps
+```
+
+Confirm the app is responding:
+
+```bash title="Terminal"
+curl http://localhost:3000/api/health
+```
+
+</Steps>
+
+## Environment Variables Reference
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `POSTGRES_PASSWORD` | Yes | — | Password for the PostgreSQL database |
+| `POSTGRES_USER` | No | `ctox` | PostgreSQL username |
+| `POSTGRES_DB` | No | `ctox` | PostgreSQL database name |
+| `ANTHROPIC_API_KEY` | No | — | Anthropic API key for Claude AI features |
+| `PDL_API_KEY` | No | — | People Data Labs API key for contact enrichment |
+| `APOLLO_API_KEY` | No | — | Apollo API key for contact enrichment |
+| `LUSHA_API_KEY` | No | — | Lusha API key for phone and email enrichment |
+| `THEIRSTACK_API_KEY` | No | — | TheirStack/BuiltWith API key for technographics |
+| `NODE_ENV` | No | `production` | Node.js environment (set automatically in Docker) |
+| `DATABASE_URL` | No | Auto-constructed | PostgreSQL connection string (constructed from other vars in Docker) |
+
+<Callout>
+The `DATABASE_URL` is automatically constructed inside the Docker Compose configuration from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`. You do not need to set it manually unless you are connecting to an external database.
+</Callout>
+
+## Persistent Storage
+
+### Volumes
+
+The Docker Compose configuration mounts two persistent volumes:
+
+| Host Path | Container Path | Purpose |
+|-----------|---------------|---------|
+| `./db/init/` | `/docker-entrypoint-initdb.d/` | SQL schema files (read-only, applied on first boot) |
+| `./data/drives/db/` | `/var/lib/postgresql/data/` | PostgreSQL data directory |
+| `./data/` | `/data/` | User data, LinkedIn exports, uploads |
+
+<Callout>
+The `data/` directory is gitignored and should never be committed. It contains user data, LinkedIn exports, and uploaded files.
+</Callout>
+
+### Database Initialization
+
+On first boot, PostgreSQL automatically executes all SQL files in `/docker-entrypoint-initdb.d/` in alphabetical order. NetworkNav includes 19 schema migration files:
+
+```
+db/init/
+  001-core-schema.sql
+  002-...
+  ...
+  018-phase45-schema.sql
+  019-referral-scoring-schema.sql
+```
+
+These files create all tables, indexes, functions, and seed data needed by the application. This only runs on the very first startup when the data directory is empty. Subsequent restarts use the existing database.
+
+## Custom Domain and Reverse Proxy
+
+For production deployments, place a reverse proxy in front of NetworkNav to handle SSL termination and custom domain routing.
+
+### Nginx Example
+
+```nginx title="/etc/nginx/sites-available/networknav"
+server {
+    listen 80;
+    server_name networknav.yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name networknav.yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/networknav.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/networknav.yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Generate an SSL certificate with Let's Encrypt:
+
+```bash title="Terminal"
+sudo certbot --nginx -d networknav.yourdomain.com
+```
+
+## Backup Strategy
+
+### Database Backup
+
+Use `pg_dump` to create consistent database backups:
+
+```bash title="Terminal"
+docker exec ctox-db pg_dump -U ctox ctox > backup-$(date +%Y%m%d).sql
+```
+
+For compressed backups:
+
+```bash title="Terminal"
+docker exec ctox-db pg_dump -U ctox -Fc ctox > backup-$(date +%Y%m%d).dump
+```
+
+### Restore from Backup
+
+```bash title="Terminal"
+docker exec -i ctox-db psql -U ctox ctox < backup-20260319.sql
+```
+
+Or for compressed dumps:
+
+```bash title="Terminal"
+docker exec -i ctox-db pg_restore -U ctox -d ctox backup-20260319.dump
+```
+
+### Volume Backup
+
+Back up the entire data directory for a complete snapshot:
+
+```bash title="Terminal"
+tar -czf networknav-data-$(date +%Y%m%d).tar.gz data/
+```
+
+### Automated Backups
+
+Add a cron job for daily backups:
+
+```bash title="crontab -e"
+0 2 * * * cd /path/to/networknav && docker exec ctox-db pg_dump -U ctox -Fc ctox > backups/backup-$(date +\%Y\%m\%d).dump
+```
+
+<Callout>
+Store backups on a separate volume or remote storage. A backup on the same disk as your data does not protect against hardware failure.
+</Callout>
+
+## Updating
+
+To update NetworkNav to the latest version:
+
+```bash title="Terminal"
+git pull origin main
+docker compose pull
+docker compose up -d --build
+```
+
+The `--build` flag ensures the app container is rebuilt with any code changes. Database migrations are applied automatically if new schema files are present (for first-time initialization only; for existing databases, manual migration may be needed — check the release notes).
+
+## Monitoring
+
+### Health Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/health` | Basic application health check (returns 200 if the app is running) |
+| `GET /api/admin/health` | Detailed health check including database connectivity and service status |
+
+### Docker Health Checks
+
+Both services include built-in health checks in the Docker Compose configuration:
+
+- **Database**: `pg_isready` every 10 seconds, 5 retries, 30-second start period
+- **App**: `wget` to `/api/health` every 15 seconds, 5 retries, 30-second start period
+
+Check health status:
+
+```bash title="Terminal"
+docker compose ps
+```
+
+### Logs
+
+View application logs:
+
+```bash title="Terminal"
+docker compose logs -f app
+```
+
+View database logs:
+
+```bash title="Terminal"
+docker compose logs -f db
+```
+
+View the last 100 lines:
+
+```bash title="Terminal"
+docker compose logs --tail 100 app
+```
+
+## Resource Requirements
+
+| Resource | Minimum | Recommended | For 10,000+ contacts |
+|----------|---------|-------------|----------------------|
+| **RAM** | 2 GB | 4 GB | 8 GB |
+| **CPU** | 1 core | 2 cores | 4 cores |
+| **Disk** | 5 GB | 20 GB | 50 GB |
+
+The database is the primary consumer of RAM and disk. PostgreSQL benefits significantly from available memory for caching. The application itself is lightweight but benefits from additional CPU during batch scoring and enrichment operations.
+
+## Troubleshooting
+
+### App cannot connect to database
+
+Check that the database is healthy and the `DATABASE_URL` is correct:
+
+```bash title="Terminal"
+docker compose logs db
+docker exec ctox-app printenv DATABASE_URL
+```
+
+### Permission errors on data directory
+
+If the app container creates files as root and you cannot remove them from the host:
+
+```bash title="Terminal"
+docker exec ctox-app rm -rf /app/.next
+```
+
+### Database runs out of disk space
+
+Check disk usage:
+
+```bash title="Terminal"
+docker exec ctox-db du -sh /var/lib/postgresql/data/
+```
+
+If needed, run a vacuum to reclaim space:
+
+```bash title="Terminal"
+docker exec ctox-db psql -U ctox -c "VACUUM FULL;"
+```
+
+## Next Steps
+
+- **[Configuration](/docs/guides/configuration)** -- Customize scoring weights, enrichment providers, and extension settings.
+- **[Quick Start](/docs/guides/quickstart)** -- Import your first contacts and see the system in action.
+- **[Enrichment](/docs/guides/enrichment)** -- Set up API keys for data providers.

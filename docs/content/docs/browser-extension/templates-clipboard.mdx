@@ -1,0 +1,102 @@
+---
+title: Templates & Clipboard
+description: Use message templates in the extension to compose and copy outreach messages.
+---
+
+
+# Templates & Clipboard
+
+The extension includes a template system for composing outreach messages. You can select a template, preview it, copy it to your clipboard, and optionally personalize it with AI for the contact you are currently viewing.
+
+## Template Sources
+
+Templates come from two sources:
+
+1. **Server templates** -- fetched from `GET /api/outreach/templates` if the app is reachable and has templates configured
+2. **Built-in defaults** -- three templates bundled in the extension as fallbacks when the server is unavailable
+
+The built-in defaults are:
+
+| Template | Category | Variables |
+|----------|----------|-----------|
+| Initial Outreach | `initial_outreach` | `first_name`, `industry` |
+| Follow-up | `follow_up` | `first_name`, `industry` |
+| Meeting Request | `meeting_request` | `first_name`, `company` |
+
+## Using Templates in the Popup
+
+<Steps>
+
+### Open the popup
+
+Click the extension icon in the toolbar. Scroll to the "Templates" section.
+
+### Select a template
+
+Choose a template from the dropdown. The preview area appears showing the full template body with merge variables like `{{first_name}}` visible in the text.
+
+### Copy to clipboard
+
+Click **Copy to Clipboard** to copy the raw template text (with unresolved variables) to your clipboard. You can then paste it into a LinkedIn message and manually replace the variables.
+
+### Personalize with AI (optional)
+
+Click **Personalize** to send the template to the `/api/claude/personalize` endpoint. The server uses the currently active tab's URL to look up the contact and replaces merge variables with real data. The preview updates with the personalized text, which you can then copy.
+
+</Steps>
+
+## Using Templates in the Side Panel
+
+The side panel provides a card-based template interface with richer interaction:
+
+- Each template appears as a **card** showing the template name, category label, and a text snippet
+- Cards have **Copy** and **Preview** buttons
+- Clicking a card (or its Preview button) opens a full preview panel with:
+  - The complete template body with merge variables highlighted in a distinct style
+  - A **Copy** button for the full text
+  - A **Personalize** button that shows the inferred contact name from the current tab's LinkedIn URL
+
+### Contact Name Detection
+
+When viewing a LinkedIn profile, the side panel extracts the contact name from the URL slug. For example, from `linkedin.com/in/john-smith`, it infers "John Smith" and displays it on the Personalize button as "Personalize for John Smith".
+
+## Merge Variables
+
+Templates use double-brace syntax for merge variables:
+
+| Variable | Description | Source |
+|----------|-------------|--------|
+| `{{first_name}}` | Contact's first name | Parsed from LinkedIn profile or contact record |
+| `{{company}}` | Contact's current company | Parsed from profile headline or experience |
+| `{{industry}}` | Contact's industry | Parsed from profile or enrichment data |
+| `{{headline}}` | Contact's LinkedIn headline | Parsed from profile |
+| `{{title}}` | Contact's job title | Parsed from current experience |
+
+When you click **Personalize**, the server resolves these variables using the contact data it has on file. If a variable cannot be resolved, it remains as `{{variable_name}}` in the output.
+
+## Personalization Flow
+
+When you click the Personalize button:
+
+1. The extension reads the active tab's URL
+2. It sends a `POST /api/claude/personalize` request with the selected `templateId` and the `contactUrl`
+3. The server looks up the contact by LinkedIn URL
+4. If the contact exists, their data populates the merge variables
+5. If AI personalization is enabled (Claude API key configured), the server may further refine the message tone and content
+6. The personalized text replaces the template preview
+
+<Callout type="info">
+Personalization requires the NetworkNav app to be running and the contact to have been previously captured or imported. If the contact is not found, the template is returned with variables unresolved.
+</Callout>
+
+## Template Categories
+
+Templates are organized by category for different stages of the outreach workflow:
+
+| Category | Use Case |
+|----------|----------|
+| `initial_outreach` | First contact with a new connection |
+| `follow_up` | Second message when no response received |
+| `meeting_request` | Requesting a call or meeting |
+
+Additional categories may be configured in the app's outreach settings. The extension loads whatever categories the server provides.

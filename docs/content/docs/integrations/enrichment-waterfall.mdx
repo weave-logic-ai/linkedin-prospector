@@ -1,0 +1,264 @@
+---
+title: Enrichment Waterfall
+description: How the field-aware provider waterfall selects, sequences, and budgets enrichment calls.
+---
+
+The enrichment waterfall is NetworkNav's orchestration layer for calling multiple data providers efficiently. It selects providers based on which fields a contact is missing, respects budget limits, and stops as soon as all target fields are filled.
+
+## How the Waterfall Works
+
+```
+enrichContact(contact, options)
+       |
+       v
+  1. Load active providers (sorted by priority ASC)
+       |
+       v
+  2. Load active budget period
+       |
+       v
+  3. Determine which fields are already filled
+       |
+       v
+  4. For each provider:
+     +-- Does it have capabilities matching needed fields?
+     |   No -> skip
+     +-- Is there budget for this lookup?
+     |   No -> halt waterfall
+     +-- Call provider.enrich(contact)
+     +-- Record enrichment_transaction
+     +-- Update budget spend
+     +-- Track newly filled fields
+     +-- Are all target fields filled?
+         Yes -> halt waterfall
+       |
+       v
+  5. Return all EnrichmentResult[]
+```
+
+## Field-Aware Selection
+
+The waterfall only calls providers that can fill fields the contact is missing. This is controlled by a capability-to-field mapping:
+
+```typescript
+const mapping: Record<string, string[]> = {
+  email:          ['email'],
+  phone:          ['phone'],
+  social:         ['linkedin_url', 'twitter', 'location'],
+  employment:     ['title', 'current_company', 'headline'],
+  education:      ['education'],
+  company:        ['current_company', 'industry'],
+  technographics: ['technographics'],
+  profile:        ['about', 'headline', 'location', 'connections_count', 'tags'],
+  skills:         ['tags'],
+  connections:    ['connections_count'],
+};
+```
+
+For example, if a contact already has an email and phone but lacks `industry`, only providers with the `company` capability (Lusha, Crunchbase) will be called.
+
+## Empty Value Detection
+
+Fields containing sentinel values are treated as empty:
+
+```typescript
+const EMPTY_SENTINELS = new Set([
+  'true', 'false', 'null', 'undefined', 'N/A', 'n/a', ''
+]);
+```
+
+This handles cases where CSV imports or lower-tier API responses store boolean flags or placeholder strings instead of actual data.
+
+## Provider Priority Order
+
+Providers are sorted by their `priority` column (ascending). Lower numbers run first:
+
+| Priority | Provider | Cost | Capabilities |
+|----------|----------|------|--------------|
+| 5 | LinkedIn (Extension) | $0.00 | profile, employment, education, skills, connections, activity |
+| 10 | People Data Labs | $0.10 | email, phone, social, employment, education |
+| 20 | Lusha | $0.15 | email, phone, company |
+| 30 | TheirStack | $0.05 | technographics, company |
+| 40 | Apollo.io | $0.08 | email, phone, company, employment |
+| 50 | Crunchbase | $0.20 | company, funding, leadership |
+| 60 | BuiltWith | $0.12 | technographics, website |
+
+Adjust priorities via SQL:
+
+```sql
+UPDATE enrichment_providers SET priority = 15 WHERE name = 'apollo';
+```
+
+## Budget Enforcement
+
+### Budget periods
+
+Budget is allocated per time period:
+
+```sql
+CREATE TABLE budget_periods (
+  period_type TEXT CHECK (period_type IN ('daily','weekly','monthly','yearly')),
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL,
+  budget_cents INTEGER NOT NULL DEFAULT 0,
+  spent_cents INTEGER DEFAULT 0,
+  lookup_count INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT TRUE
+);
+```
+
+### Enforcement rules
+
+1. Before calling each provider, the waterfall checks: `totalSpent + provider.costPerLookupCents <= budgetLimit`
+2. If insufficient budget remains, the waterfall halts (no partial overspend)
+3. Every call (success or failure) is recorded in `enrichment_transactions`
+4. Failed/404 lookups cost $0.00 (no charge for misses)
+5. Budget spend is updated atomically after each transaction
+
+### Budget status
+
+The budget manager provides real-time status:
+
+```typescript
+const status = await getBudgetStatus();
+// {
+//   budgetCents: 10000,      // $100
+//   spentCents: 3400,        // $34
+//   remainingCents: 6600,    // $66
+//   utilizationPercent: 34,
+//   isWarning: false,        // true at >= 80%
+//   isExhausted: false,
+//   lookupCount: 142
+// }
+```
+
+### Default budget
+
+If no budget period exists, `ensureBudgetPeriod()` creates one with:
+- Period: monthly (1st to last day of current month)
+- Budget: $100 (10,000 cents)
+
+## Waterfall Options
+
+```typescript
+interface WaterfallOptions {
+  targetFields?: string[];      // Specific fields to fill
+  skipFilledFields?: boolean;   // Default: true
+  budgetLimitCents?: number;    // Override budget limit
+}
+```
+
+### Target fields
+
+When `targetFields` is specified, the waterfall only calls providers that can fill at least one of the listed fields. Without target fields, the waterfall tries all providers that match any missing field.
+
+### Skip filled fields
+
+When `true` (default), the waterfall checks the contact's existing data and skips providers that can only fill already-populated fields.
+
+### Budget limit override
+
+The `budgetLimitCents` option overrides the database budget. Useful for:
+- Dry-run cost estimation (set to 0)
+- Per-operation budget caps
+- Testing
+
+## Cost Estimation
+
+Before running the waterfall, you can estimate the cost:
+
+```typescript
+const estimate = await estimateEnrichmentCost(contacts);
+// {
+//   totalCostCents: 5600,
+//   perProvider: [
+//     { providerName: "People Data Labs", contactCount: 100, costCents: 1000 },
+//     { providerName: "Lusha", contactCount: 100, costCents: 1500 },
+//     ...
+//   ],
+//   budgetRemaining: 6600,
+//   withinBudget: true
+// }
+```
+
+The estimate assumes worst case: every contact goes through every active provider. Actual costs are typically lower because the waterfall stops early when fields are filled.
+
+## Transaction Logging
+
+Every provider call is logged in `enrichment_transactions`:
+
+```sql
+CREATE TABLE enrichment_transactions (
+  provider_id UUID REFERENCES enrichment_providers(id),
+  contact_id UUID REFERENCES contacts(id),
+  budget_period_id UUID REFERENCES budget_periods(id),
+  cost_cents INTEGER NOT NULL DEFAULT 0,
+  status TEXT CHECK (status IN ('success','failed','cached','rate_limited')),
+  fields_returned TEXT[] DEFAULT '{}'
+);
+```
+
+This enables:
+- Per-provider cost analysis
+- Success rate monitoring
+- Fields-per-dollar efficiency metrics
+- Budget audit trail
+
+## Auto-Rescore Trigger
+
+After enrichment fields are applied to a contact, the scoring pipeline automatically re-runs. This ensures that newly enriched data (email, phone, company details) is reflected in the contact's composite score and tier assignment.
+
+The trigger chain:
+1. Waterfall returns enriched fields
+2. `/api/enrichment/apply` updates the contact record
+3. `triggerAutoScore(contactId)` fires asynchronously
+4. New score, tier, and persona are computed and stored
+
+## Dry-Run Mode
+
+To estimate costs without making API calls, use the cost estimation endpoint or set `budgetLimitCents: 0` in the waterfall options. The waterfall will evaluate which providers would be called and return immediately without executing any API requests.
+
+## Example: Full Waterfall Run
+
+```
+Contact: Jane Smith (has: name, linkedin_url, headline)
+Target fields: email, phone, industry
+Budget remaining: $5.00 (500 cents)
+
+1. PDL (priority 10, $0.10)
+   - Can fill: email, phone (via 'email','phone' capabilities)
+   - Budget check: 10 <= 500 -> OK
+   - Result: email found (0.9), phone gated (boolean)
+   - Filled: {email}
+   - Spent: $0.10
+
+2. Lusha (priority 20, $0.15)
+   - Can fill: phone (via 'phone' capability)
+   - Budget check: 15 <= 490 -> OK
+   - Result: phone found (0.9)
+   - Filled: {email, phone}
+   - Spent: $0.25
+
+3. TheirStack (priority 30, $0.05)
+   - Can fill: industry (via 'company' capability)? No -> skip
+
+4. Apollo (priority 40, $0.08)
+   - Can fill: industry? Not via current mapping -> skip
+
+5. Crunchbase (priority 50, $0.20)
+   - Can fill: industry (via 'company' capability)
+   - Budget check: 20 <= 475 -> OK
+   - Result: industry found (0.8)
+   - Filled: {email, phone, industry}
+   - All target fields filled -> STOP
+
+Total cost: $0.45
+Providers called: 3 (PDL, Lusha, Crunchbase)
+Providers skipped: 2 (TheirStack, Apollo)
+```
+
+## Related Documentation
+
+- [Enrichment Guide](/docs/guides/enrichment) -- practical guide to enriching contacts
+- [Enrichment API](/docs/api-reference/enrichment) -- REST endpoints for enrichment operations
+- [Data Flow](/docs/architecture/data-flow) -- how the enrichment pipeline fits into the system

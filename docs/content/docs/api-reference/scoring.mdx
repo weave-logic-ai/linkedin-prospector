@@ -1,0 +1,317 @@
+---
+title: Scoring API
+description: Run contact scoring, manage weight profiles, and preview changes.
+---
+
+# Scoring API
+
+The scoring system computes composite scores for contacts using a weighted combination
+of dimensions (ICP fit, network hub, relationship strength, signal boost, skills relevance,
+network proximity, behavioral, content relevance, graph centrality).
+
+---
+
+## Run Scoring
+
+```
+POST /api/scoring/run
+```
+
+Trigger a scoring run for a single contact or a batch of contacts.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "contactId": "uuid",
+  "profileName": "default"
+}
+```
+
+Or for batch scoring:
+
+```json
+{
+  "contactIds": ["uuid1", "uuid2", "uuid3"],
+  "profileName": "aggressive"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contactId` | string | No | Single contact UUID. If provided, scores only this contact. |
+| `contactIds` | string[] | No | Batch of contact UUIDs. Used when `contactId` is omitted. |
+| `profileName` | string | No | Weight profile name (default: active profile) |
+
+Provide either `contactId` (single mode) or `contactIds` (batch mode). If neither is
+provided, the batch scorer runs with no IDs and returns an empty result set.
+
+**Response (single):**
+
+```json
+{
+  "data": {
+    "contactId": "uuid",
+    "compositeScore": 0.78,
+    "tier": "gold",
+    "dimensions": { ... }
+  }
+}
+```
+
+**Response (batch):**
+
+```json
+{
+  "data": {
+    "scored": 25,
+    "results": [
+      { "contactId": "uuid", "compositeScore": 0.78, "tier": "gold", ... }
+    ]
+  }
+}
+```
+
+Batch results are capped at 100 entries in the response.
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/scoring/run \
+  -H "Content-Type: application/json" \
+  -d '{"contactId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890"}'
+```
+
+**Error Codes:** `500`
+
+---
+
+## Get Weight Profiles
+
+```
+GET /api/scoring/weights
+```
+
+Returns all saved weight profiles.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "default",
+      "weights": {
+        "icp_fit": 0.2,
+        "network_hub": 0.15,
+        "relationship_strength": 0.15,
+        "signal_boost": 0.1,
+        "skills_relevance": 0.1,
+        "network_proximity": 0.1,
+        "behavioral": 0.05,
+        "content_relevance": 0.05,
+        "graph_centrality": 0.1
+      },
+      "description": "Balanced default weights",
+      "isDefault": true,
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/scoring/weights
+```
+
+**Error Codes:** `500`
+
+---
+
+## Update Weight Profile
+
+```
+PUT /api/scoring/weights
+```
+
+Create or update a weight profile. Weights must sum to 1.0 (within 0.01 tolerance).
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "name": "aggressive",
+  "weights": {
+    "icp_fit": 0.3,
+    "network_hub": 0.2,
+    "relationship_strength": 0.15,
+    "signal_boost": 0.1,
+    "skills_relevance": 0.05,
+    "network_proximity": 0.05,
+    "behavioral": 0.05,
+    "content_relevance": 0.05,
+    "graph_centrality": 0.05
+  },
+  "description": "Heavy ICP and network focus",
+  "isDefault": false
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Profile name |
+| `weights` | `Record<string, number>` | Yes | Dimension weights (must sum to 1.0) |
+| `description` | string | No | Profile description |
+| `isDefault` | boolean | No | Set as default profile |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "name": "aggressive",
+    "weights": { ... },
+    ...
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl -X PUT http://localhost:3000/api/scoring/weights \
+  -H "Content-Type: application/json" \
+  -d '{"name":"balanced","weights":{"icp_fit":0.2,"network_hub":0.15,"relationship_strength":0.15,"signal_boost":0.1,"skills_relevance":0.1,"network_proximity":0.1,"behavioral":0.05,"content_relevance":0.05,"graph_centrality":0.1}}'
+```
+
+**Error Codes:** `400` (missing fields, weights don't sum to 1.0), `500`
+
+---
+
+## Preview Weight Changes
+
+```
+GET /api/scoring/preview
+```
+
+Preview how changing weights would affect contact scores without persisting.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `weights` | string | Yes | JSON-encoded weight object |
+| `limit` | integer | No | Sample contacts to preview (default 10, max 20) |
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "contactId": "uuid",
+      "current": { "score": 0.65, "tier": "silver" },
+      "preview": { "score": 0.78, "tier": "gold" },
+      "change": 0.13
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl "http://localhost:3000/api/scoring/preview?weights=%7B%22icp_fit%22%3A0.3%7D&limit=5"
+```
+
+**Error Codes:** `400` (missing/invalid weights JSON), `500`
+
+---
+
+## Rescore All Contacts
+
+```
+POST /api/scoring/rescore-all
+```
+
+Triggers a background rescore of all contacts. Returns a run ID that can be
+polled via the status endpoint.
+
+**Auth:** None
+
+**Request Body:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "runId": "uuid",
+    "status": "running",
+    "message": "Rescore started. Poll /api/scoring/status?runId= for progress."
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/scoring/rescore-all
+```
+
+**Error Codes:** `500`
+
+---
+
+## Get Scoring Status
+
+```
+GET /api/scoring/status
+```
+
+Returns the status of a scoring run. Omit `runId` to get the latest run.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `runId` | string | No | Specific run ID (omit for latest) |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "runId": "uuid",
+    "status": "completed",
+    "totalContacts": 142,
+    "scoredContacts": 142,
+    "startedAt": "2025-01-15T10:00:00.000Z",
+    "completedAt": "2025-01-15T10:02:30.000Z"
+  }
+}
+```
+
+Returns `{ "data": null }` if no scoring runs exist.
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/scoring/status?runId=UUID
+```
+
+**Error Codes:** `500`

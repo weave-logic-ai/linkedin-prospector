@@ -1,0 +1,68 @@
+---
+title: Introduction
+description: Welcome to NetworkNav — the self-hosted LinkedIn network intelligence platform.
+---
+
+# NetworkNav
+
+NetworkNav is a self-hosted LinkedIn network intelligence platform that helps professionals **find, enrich, score, and engage** their network using AI-powered insights.
+
+## What NetworkNav Does
+
+<Cards>
+  <Card title="Import & Enrich" href="/docs/guides/quickstart">
+    Import your LinkedIn connections via CSV export, then enrich profiles with verified emails, company data, and technographics from 5+ licensed data providers.
+  </Card>
+  <Card title="Score & Classify" href="/docs/scoring/composite-score">
+    A 15-dimension scoring engine automatically classifies every contact by value tier (Gold/Silver/Bronze), persona type, behavioral profile, and referral likelihood.
+  </Card>
+  <Card title="Discover & Analyze" href="/docs/guides/discover">
+    AI-powered niche and ICP discovery, network graph visualization, and community detection help you find patterns invisible to the naked eye.
+  </Card>
+  <Card title="Engage & Track" href="/docs/guides/outreach">
+    Claude-powered outreach templates, campaign management, and a full pipeline Kanban board turn insights into action.
+  </Card>
+</Cards>
+
+## The Game Loop
+
+NetworkNav operates as a continuous intelligence loop:
+
+```
+Import -> Score -> Discover -> Enrich -> Capture -> Analyze -> Act -> Track -> Re-score
+```
+
+Every action feeds back into the system. When you enrich a contact, they are automatically re-scored. When you receive an outreach reply, it updates their behavioral profile. When a contact reaches Gold tier, the system auto-generates tasks. The more you use it, the smarter it gets. See the [Game Loop guide](/docs/guides/game-loop) for details.
+
+## Architecture
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| **App** | Next.js 15, React 19, shadcn/ui | Dashboard, contacts, scoring, outreach UI |
+| **Database** | PostgreSQL + ruvector | Relational + vector + graph in one DB |
+| **Chrome Extension** | Chrome MV3 | Capture LinkedIn page data compliantly |
+| **Agent** | Claude API | Goal generation, template personalization, analysis |
+| **Enrichment** | People Data Labs (PDL), Apollo, Lusha, Crunchbase, BuiltWith | Licensed data provider integrations |
+
+## Documentation Sections
+
+<Cards>
+  <Card title="Guides" href="/docs/guides/quickstart">
+    Step-by-step guides covering quick start, importing contacts, enrichment, scoring, discovery, outreach, goals and tasks, the game loop, self-hosting, and configuration.
+  </Card>
+  <Card title="Architecture" href="/docs/architecture">
+    System architecture, database schema, data flow pipelines, the CSS selector-based parser engine, security model, and deployment configuration.
+  </Card>
+  <Card title="Scoring & Models" href="/docs/scoring">
+    Mathematical foundations of the 15-dimension scoring engine including composite score proofs, dimension formulas, tier assignment, persona classification, referral scoring, weight management, auto-scoring, and RVF training.
+  </Card>
+  <Card title="Integrations" href="/docs/integrations">
+    Data provider integrations (People Data Labs, Apollo, Lusha, Crunchbase, BuiltWith), Claude AI, and the enrichment waterfall orchestration system.
+  </Card>
+  <Card title="Browser Extension" href="/docs/browser-extension">
+    Chrome extension installation, authentication, page capture, task system, outreach templates, settings, offline mode, and extension architecture.
+  </Card>
+  <Card title="API Reference" href="/docs/api-reference">
+    Complete REST API reference covering 80+ endpoints across contacts, scoring, enrichment, graph, import, goals and tasks, outreach, extension, admin, dashboard, discover, and Claude AI.
+  </Card>
+</Cards>

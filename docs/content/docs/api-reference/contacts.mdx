@@ -1,0 +1,543 @@
+---
+title: Contacts API
+description: Create, read, update, delete, and search contacts.
+---
+
+# Contacts API
+
+Manage your contact database. Contacts represent LinkedIn profiles imported or captured
+through the browser extension.
+
+---
+
+## List Contacts
+
+```
+GET /api/contacts
+```
+
+Returns a paginated list of contacts with optional filtering and sorting.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | integer | `1` | Page number |
+| `limit` | integer | `20` | Items per page (max 100) |
+| `sort` | string | `created_at` | Sort field |
+| `order` | `asc` \| `desc` | `desc` | Sort direction |
+| `tier` | string | — | Filter by tier (`gold`, `silver`, `bronze`, `watch`) |
+| `company` | string | — | Filter by company name |
+| `search` | string | — | Full-text search across name, headline, company |
+| `tags` | string | — | Comma-separated tag filter |
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "linkedinUrl": "https://linkedin.com/in/username",
+      "firstName": "Jane",
+      "lastName": "Doe",
+      "fullName": "Jane Doe",
+      "headline": "VP Engineering at Acme",
+      "title": "VP Engineering",
+      "currentCompany": "Acme Corp",
+      "currentCompanyId": "uuid | null",
+      "location": "San Francisco, CA",
+      "about": "...",
+      "email": "jane@example.com",
+      "phone": "+1-555-0100",
+      "connectionsCount": 500,
+      "degree": 1,
+      "profileImageUrl": "https://...",
+      "tags": ["prospect", "tech"],
+      "notes": "Met at conference",
+      "isArchived": false,
+      "dedupHash": "abc123",
+      "createdAt": "2025-01-15T10:00:00.000Z",
+      "updatedAt": "2025-01-20T14:30:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 142,
+    "totalPages": 8
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/contacts?page=1&limit=10&tier=gold
+```
+
+**Error Codes:** `500`
+
+---
+
+## Create Contact
+
+```
+POST /api/contacts
+```
+
+Creates a new contact. The `linkedin_url` field is required and must be unique.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "linkedin_url": "https://linkedin.com/in/username",
+  "first_name": "Jane",
+  "last_name": "Doe",
+  "full_name": "Jane Doe",
+  "headline": "VP Engineering at Acme",
+  "title": "VP Engineering",
+  "current_company": "Acme Corp",
+  "current_company_id": "uuid",
+  "location": "San Francisco, CA",
+  "about": "Experienced engineering leader...",
+  "email": "jane@example.com",
+  "phone": "+1-555-0100",
+  "tags": ["prospect"]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `linkedin_url` | string | Yes | LinkedIn profile URL |
+| `first_name` | string | No | First name |
+| `last_name` | string | No | Last name |
+| `full_name` | string | No | Full display name |
+| `headline` | string | No | LinkedIn headline |
+| `title` | string | No | Job title |
+| `current_company` | string | No | Company name |
+| `current_company_id` | string | No | Company UUID |
+| `location` | string | No | Location string |
+| `about` | string | No | LinkedIn about section |
+| `email` | string | No | Email address |
+| `phone` | string | No | Phone number |
+| `tags` | string[] | No | Tag array |
+
+**Response (201):**
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "linkedin_url": "https://linkedin.com/in/username",
+    ...
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/contacts \
+  -H "Content-Type: application/json" \
+  -d '{"linkedin_url":"https://linkedin.com/in/jdoe","first_name":"Jane","last_name":"Doe"}'
+```
+
+**Error Codes:** `400` (missing linkedin_url), `409` (duplicate URL), `500`
+
+---
+
+## Get Contact
+
+```
+GET /api/contacts/:id
+```
+
+Returns a single contact by UUID.
+
+**Auth:** None
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | UUID | Contact ID |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "linkedinUrl": "https://linkedin.com/in/username",
+    "firstName": "Jane",
+    "lastName": "Doe",
+    ...
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/contacts/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+```
+
+**Error Codes:** `400` (invalid UUID), `404` (not found), `500`
+
+---
+
+## Update Contact
+
+```
+PATCH /api/contacts/:id
+```
+
+Updates one or more fields on an existing contact.
+
+**Auth:** None
+
+**Request Body (any subset):**
+
+```json
+{
+  "first_name": "Janet",
+  "tags": ["prospect", "priority"],
+  "notes": "Follow up next week",
+  "is_archived": false
+}
+```
+
+Allowed fields: `first_name`, `last_name`, `full_name`, `headline`, `title`,
+`current_company`, `current_company_id`, `location`, `about`, `email`, `phone`,
+`tags`, `notes`, `is_archived`.
+
+**Response:**
+
+```json
+{
+  "data": { ... }
+}
+```
+
+**curl:**
+
+```bash
+curl -X PATCH http://localhost:3000/api/contacts/UUID \
+  -H "Content-Type: application/json" \
+  -d '{"tags":["gold-prospect"]}'
+```
+
+**Error Codes:** `400` (invalid UUID), `404` (not found), `500`
+
+---
+
+## Delete Contact
+
+```
+DELETE /api/contacts/:id
+```
+
+Permanently deletes a contact.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "success": true
+}
+```
+
+**curl:**
+
+```bash
+curl -X DELETE http://localhost:3000/api/contacts/UUID
+```
+
+**Error Codes:** `400` (invalid UUID), `404` (not found), `500`
+
+---
+
+## Keyword Search
+
+```
+GET /api/contacts/search
+```
+
+Full-text search across contact name, headline, title, and company using
+PostgreSQL trigram matching.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `q` | string | Yes | Search query (max 200 characters) |
+| `page` | integer | No | Page number (default 1) |
+| `limit` | integer | No | Items per page (default 20, max 100) |
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Jane Doe",
+      "company": "Acme Corp",
+      "tier": "gold",
+      "fullName": "Jane Doe",
+      "headline": "VP Engineering",
+      ...
+    }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 5, "totalPages": 1 }
+}
+```
+
+**curl:**
+
+```bash
+curl "http://localhost:3000/api/contacts/search?q=engineering&limit=5"
+```
+
+**Error Codes:** `400` (missing/long query), `500`
+
+---
+
+## Hybrid Search
+
+```
+GET /api/contacts/hybrid-search
+```
+
+Combined keyword (trigram) and vector similarity search. Falls back to keyword-only
+if the vector embedding function is unavailable.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `q` | string | Yes | Search query (max 200 characters) |
+| `limit` | integer | No | Max results (default 20, max 100) |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "results": [
+      {
+        "contact": {
+          "id": "uuid",
+          "linkedinUrl": "https://...",
+          "fullName": "Jane Doe",
+          "headline": "VP Engineering",
+          ...
+        },
+        "keywordScore": 0.65,
+        "vectorScore": 0.82,
+        "fusionScore": 0.75
+      }
+    ]
+  }
+}
+```
+
+The fusion score is `0.4 * keywordScore + 0.6 * vectorScore`. When running in
+keyword-only fallback mode, `vectorScore` is `0` and `fusionScore` equals
+`0.4 * keywordScore`.
+
+**curl:**
+
+```bash
+curl "http://localhost:3000/api/contacts/hybrid-search?q=machine+learning&limit=10"
+```
+
+**Error Codes:** `400` (missing/long query), `500`
+
+---
+
+## Get Contact Scores
+
+```
+GET /api/contacts/:id/scores
+```
+
+Returns the full score breakdown for a contact including composite score, tier,
+persona, and individual dimension scores.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "compositeScore": 0.78,
+    "tier": "gold",
+    "persona": "decision_maker",
+    "behavioralPersona": "active_engager",
+    "dimensions": [
+      { "dimension": "icp_fit", "rawValue": 0.85, "weightedValue": 0.17, "weight": 0.2 },
+      { "dimension": "network_hub", "rawValue": 0.6, "weightedValue": 0.09, "weight": 0.15 }
+    ]
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/contacts/UUID/scores
+```
+
+**Error Codes:** `400` (missing ID), `404` (no scores), `500`
+
+---
+
+## Get Contact Activity
+
+```
+GET /api/contacts/:id/activity
+```
+
+Returns behavioral observations and action log entries for a contact.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "observations": [
+      {
+        "id": "uuid",
+        "type": "post",
+        "content": "Just published an article on...",
+        "url": "https://linkedin.com/...",
+        "observedAt": "2025-01-10T09:00:00.000Z",
+        "source": "extension"
+      }
+    ],
+    "actions": [
+      {
+        "id": "uuid",
+        "type": "enrichment",
+        "actor": "system",
+        "date": "2025-01-12T14:00:00.000Z",
+        "summary": "Enriched Jane Doe",
+        "metadata": {}
+      }
+    ]
+  }
+}
+```
+
+Each list is limited to the 50 most recent entries.
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/contacts/UUID/activity
+```
+
+**Error Codes:** `400` (invalid UUID), `500`
+
+---
+
+## Get Contact Network
+
+```
+GET /api/contacts/:id/network
+```
+
+Returns network neighborhood data: mutual connections, same-company contacts, and edge count.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "mutualConnections": [
+      {
+        "id": "uuid",
+        "fullName": "John Smith",
+        "headline": "CTO at Beta Inc",
+        "currentCompany": "Beta Inc",
+        "profileImageUrl": "https://...",
+        "linkedinUrl": "https://linkedin.com/in/jsmith"
+      }
+    ],
+    "sameCompany": [
+      { "id": "uuid", "fullName": "Alice Wong", ... }
+    ],
+    "edgeCount": 23
+  }
+}
+```
+
+Each list is limited to 20 entries.
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/contacts/UUID/network
+```
+
+**Error Codes:** `400` (invalid UUID), `500`
+
+---
+
+## Get Contact Enrichment History
+
+```
+GET /api/contacts/:id/enrichment-history
+```
+
+Returns the enrichment transaction history for a contact, showing which providers
+returned which fields and at what cost.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "history": [
+      {
+        "id": "uuid",
+        "provider": "apollo",
+        "providerDisplayName": "Apollo.io",
+        "date": "2025-01-15T10:00:00.000Z",
+        "fieldsReturned": ["email", "phone", "title"],
+        "costCents": 5,
+        "status": "success",
+        "confidence": 0.92
+      }
+    ]
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/contacts/UUID/enrichment-history
+```
+
+**Error Codes:** `400` (invalid UUID), `500`

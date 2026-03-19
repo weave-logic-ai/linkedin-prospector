@@ -1,0 +1,257 @@
+---
+title: Parser Engine
+description: Architecture of the CSS selector-based LinkedIn page parsing system.
+---
+
+The parser engine extracts structured contact data from captured LinkedIn page HTML. It uses a registry of page-type parsers, database-driven selector configurations, and a confidence-based field extraction system.
+
+## Architecture Overview
+
+```
+page_cache (HTML)
+       |
+       v
+  Parse Engine (parse-engine.ts)
+    +-- Load cached page by ID
+    +-- Determine page type
+    +-- Load selector config from DB
+    +-- Dispatch to registered parser
+       |
+       v
+  Page Parser (e.g. ProfileParser)
+    +-- Iterate over field definitions in selector config
+    +-- For each field, call Selector Extractor
+    +-- Apply heuristic rules to derived fields
+    +-- Return ParseResult with typed data
+       |
+       v
+  Selector Extractor (selector-extractor.ts)
+    +-- Try each CSS selector in the chain (priority order)
+    +-- Extract text or attribute value
+    +-- Apply transform (trim, parseInt, parseConnectionCount)
+    +-- Assign confidence based on selector position
+    +-- Return ExtractedField
+       |
+       v
+  Contact Upsert (contact-upsert.ts)
+    +-- Match contact by LinkedIn URL
+    +-- Merge fields using confidence comparison
+    +-- Upsert work history and education
+    +-- Trigger auto-score
+```
+
+## Core Components
+
+### Parse Engine (`parse-engine.ts`)
+
+The orchestrator. Exposes two main functions:
+
+- **`parseCachedPage(cacheId)`**: Loads HTML from `page_cache`, determines page type, loads the active selector config, dispatches to the appropriate parser, and marks the cache entry as parsed.
+- **`parseHtml(html, pageType, config, url, captureId)`**: Parses raw HTML directly without loading from the cache. Used for testing and inline processing.
+
+Both functions use Cheerio to load HTML into a DOM-like structure for CSS selector querying.
+
+### Parser Registry (`parser-registry.ts`)
+
+A simple Map-based registry that associates page types with parser instances.
+
+```typescript
+class ParserRegistry {
+  private parsers: Map<LinkedInPageType, PageParser> = new Map();
+  register(parser: PageParser): void;
+  get(pageType: LinkedInPageType): PageParser | undefined;
+  has(pageType: LinkedInPageType): boolean;
+  getRegisteredTypes(): LinkedInPageType[];
+}
+```
+
+Six parsers are registered at module load time:
+
+| Parser | Page Type | Primary Output |
+|--------|-----------|----------------|
+| ProfileParser | PROFILE | Name, headline, experience, education, skills |
+| SearchParser | SEARCH_PEOPLE | Search result entries with profile URLs |
+| FeedParser | FEED | Post entries with author info and engagement |
+| CompanyParser | COMPANY | Company details, industry, size, specialties |
+| ConnectionsParser | CONNECTIONS | Connection list with names and URLs |
+| MessagesParser | MESSAGES | Conversation list with previews |
+
+### Selector Extractor (`selector-extractor.ts`)
+
+The core extraction engine. For each field, it tries a chain of CSS selectors in order:
+
+```typescript
+function extractField(
+  $: CheerioAPI,
+  chain: SelectorChain,
+  fieldName: string
+): ExtractedField
+```
+
+**Selector chain behavior:**
+
+1. Iterate through `chain.selectors` array (index 0 = highest priority)
+2. For each selector, query the DOM with Cheerio
+3. If elements found, extract text content or a specified attribute
+4. Apply the configured transform function
+5. Assign confidence: `Math.max(0.5, 1.0 - index * 0.15)`
+6. Return immediately on first successful match
+
+**Confidence scoring:**
+
+| Selector Position | Confidence |
+|-------------------|------------|
+| 1st (index 0) | 1.00 |
+| 2nd (index 1) | 0.85 |
+| 3rd (index 2) | 0.70 |
+| 4th (index 3) | 0.55 |
+| 5th+ (index 4+) | 0.50 (floor) |
+
+**Transforms available:**
+
+| Transform | Behavior |
+|-----------|----------|
+| `trim` | Whitespace trimming |
+| `parseInt` | Strip non-numeric chars, parse as integer |
+| `parseConnectionCount` | Handle "500+" and comma-formatted connection counts |
+| `joinArray` | Trim whitespace for array items |
+
+### Heuristic Rules
+
+After selector-based extraction, heuristic rules derive additional fields from already-extracted values:
+
+```typescript
+function applyHeuristics(
+  fields: ExtractedField[],
+  heuristics: HeuristicRule[]
+): ExtractedField[]
+```
+
+Each heuristic rule specifies:
+- `sourceField`: The already-extracted field to read from
+- `pattern`: A regex pattern to match
+- `flags`: Regex flags (e.g., `"i"` for case-insensitive)
+- `captureGroup`: Which capture group to extract
+- `field`: The new field name to create
+
+Heuristic-derived fields receive a fixed confidence of 0.7.
+
+Example: Extract connection count from text like "523 connections":
+```json
+{
+  "field": "connectionsCount",
+  "pattern": "([\\d,]+)\\+?\\s*connections?",
+  "flags": "i",
+  "captureGroup": 1,
+  "sourceField": "connectionsCount"
+}
+```
+
+## Selector Configuration
+
+Selector configs are stored in the `selector_configs` database table. Each config contains a `selectors_json` JSONB column with the full selector chain definition for a page type.
+
+### Structure
+
+```json
+{
+  "name": {
+    "name": "Full Name",
+    "selectors": [
+      "h1.text-heading-xlarge",
+      ".pv-text-details__left-panel h1",
+      "[data-anonymize='person-name']"
+    ],
+    "transform": "trim"
+  },
+  "headline": {
+    "name": "Headline",
+    "selectors": [
+      ".text-body-medium.break-words",
+      ".pv-text-details__left-panel .text-body-medium"
+    ],
+    "transform": "trim"
+  }
+}
+```
+
+Each field entry contains:
+- `name`: Human-readable field name
+- `selectors`: Ordered array of CSS selectors (first = preferred)
+- `transform`: Optional transform to apply to extracted text
+- `multiple`: Boolean; if true, extract all matching elements as an array
+- `attribute`: Optional; extract an HTML attribute instead of text content
+
+### Version management
+
+- Each config has a `version` integer
+- A trigger (`trg_selector_config_activate`) deactivates previous configs when a new active config is inserted for the same page type
+- The parser always loads the highest-version active config
+
+### Seeded configurations
+
+The system ships with v1 selector configs for all 6 page types, seeded in `017-extension-schema.sql`. These cover LinkedIn's current DOM structure with 3-4 fallback selectors per field.
+
+## Contact Upsert
+
+The `upsertContactFromProfile` function merges parsed profile data into the contacts table.
+
+### Matching
+
+Contacts are matched by normalized LinkedIn URL (query params and trailing slashes stripped). The match uses a LIKE query to handle protocol variations.
+
+### Update rules
+
+For existing contacts:
+- Fields are updated when the parsed data has confidence > 0.7
+- Empty fields are always filled regardless of confidence
+- Work history entries are upserted by `(contact_id, company_name, title)` composite key
+- Education entries are upserted by `(contact_id, school)` composite key
+
+For new contacts:
+- Inserted with `source = 'extension_capture'` and `connection_degree = '2nd'`
+- Current job extracted from the first experience entry where `isCurrent = true`
+
+### Post-upsert
+
+After a successful upsert, `triggerAutoScore(contactId)` fires asynchronously to recompute the contact's score with the new data.
+
+## Re-Parse Capability
+
+The page cache retains up to 5 versions of captured HTML per URL (enforced by the `rotate_page_cache` trigger). This enables:
+
+1. **Re-parsing** with updated selector configs when LinkedIn changes its DOM
+2. **Historical comparison** of profile changes over time
+3. **Debugging** extraction issues by examining the original HTML
+
+To re-parse, update the selector config version and query `page_cache` for unparsed entries:
+
+```sql
+SELECT id FROM page_cache
+WHERE page_type = 'PROFILE' AND parsed = false
+ORDER BY created_at DESC;
+```
+
+## Parse Result Structure
+
+Every parse operation returns a `ParseResult`:
+
+```typescript
+interface ParseResult {
+  success: boolean;
+  pageType: LinkedInPageType;
+  url: string;
+  captureId: string;
+  fields: ExtractedField[];
+  data: PageParseData | null;      // Typed data (ProfileParseData, etc.)
+  fieldsExtracted: number;
+  fieldsAttempted: number;
+  overallConfidence: number;        // Average confidence across fields
+  parseTimeMs: number;
+  parserVersion: string;
+  selectorConfigVersion: number;
+  errors: string[];
+}
+```
+
+The `data` field contains page-type-specific structured data (e.g., `ProfileParseData` with experience entries, education entries, and skills arrays).

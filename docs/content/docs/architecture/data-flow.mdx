@@ -1,0 +1,293 @@
+---
+title: Data Flow
+description: How data moves through NetworkNav's five primary pipelines.
+---
+
+NetworkNav processes contact data through five primary pipelines: Import, Capture, Enrich, Score, and Outreach. Each pipeline has distinct inputs, processing steps, and outputs.
+
+## Import Flow
+
+The import pipeline processes LinkedIn CSV data exports into structured contacts.
+
+```
+LinkedIn CSV Export
+       |
+       v
+  POST /api/import/from-directory
+       |
+       v
+  Create import_session (status: processing)
+       |
+       v
+  For each CSV file:
+    +-- Parse CSV rows
+    +-- Resolve company (find or create in companies table)
+    +-- Upsert contact (match by linkedin_url)
+    +-- Create edges (contact -> company, contact -> contact)
+    +-- Log changes in import_change_log
+       |
+       v
+  Update import_session (status: completed)
+       |
+       v
+  Trigger auto-score for each imported contact
+```
+
+### Key behaviors
+
+- **Company resolution**: Company names are slugified and matched against existing records. New companies are created automatically.
+- **Edge construction**: `WORKS_AT` edges link contacts to companies. Mutual connection edges link contacts to each other.
+- **Dedup hash**: A hash of key fields prevents duplicate imports of the same contact.
+- **Change tracking**: Every field change is logged with old/new values in `import_change_log`.
+
+## Capture Flow
+
+The browser extension captures LinkedIn page HTML and sends it for server-side parsing.
+
+```
+Extension detects LinkedIn page
+       |
+       v
+  Capture HTML + metadata
+  (url, pageType, scrollDepth, viewportHeight)
+       |
+       v
+  POST /api/extension/capture
+       |
+  +----+----+
+  |         |
+  v         v
+Auth      Rate
+check     limit
+  |         |
+  +----+----+
+       |
+       v
+  Store in page_cache (5-version rotation)
+       |
+       v
+  Parse engine processes cached page:
+    +-- Load selector_config for page_type
+    +-- Dispatch to registered parser
+    +-- Selector extractor tries CSS chains
+    +-- Apply heuristic rules
+    +-- Return ExtractedField[] with confidence
+       |
+       v
+  Contact upsert (for PROFILE pages):
+    +-- Match by normalized LinkedIn URL
+    +-- Existing: update fields where confidence > 0.7
+    +-- New: insert with source = 'extension_capture'
+    +-- Upsert work_history and education
+       |
+       v
+  Auto-score fires in background
+```
+
+### Page types processed
+
+| Page Type | Parser | Data Extracted |
+|-----------|--------|----------------|
+| PROFILE | ProfileParser | Name, headline, location, about, experience, education, skills, connections |
+| SEARCH_PEOPLE | SearchParser | Result names, headlines, profile URLs, locations |
+| FEED | FeedParser | Author info, post content, engagement counts |
+| COMPANY | CompanyParser | Company name, industry, size, HQ, about, website |
+| CONNECTIONS | ConnectionsParser | Connection names, headlines, URLs, connected dates |
+| MESSAGES | MessagesParser | Participant names, message previews, timestamps |
+
+### Confidence-based merging
+
+When updating existing contacts, the parser uses a confidence hierarchy:
+
+- **1.0**: Direct CSS selector match (first in chain)
+- **0.85**: Second selector in chain
+- **0.70**: Third selector / heuristic match
+- **0.50**: Last-resort fallback selectors
+
+Fields with confidence > 0.7 overwrite existing values. Fields that are currently empty are always filled regardless of confidence.
+
+## Enrichment Flow
+
+The enrichment waterfall fills missing contact data from external providers.
+
+```
+Select contacts to enrich
+       |
+       v
+  POST /api/enrichment/enrich
+       |
+       v
+  Load active providers (sorted by priority)
+       |
+       v
+  Check budget (budget_periods.spent_cents vs budget_cents)
+       |
+       v
+  Determine missing fields per contact
+       |
+       v
+  For each provider (in priority order):
+    +-- Can this provider fill needed fields?
+    +-- Is there budget remaining?
+    +-- Call provider API
+    +-- Record enrichment_transaction
+    +-- Update budget_periods.spent_cents
+    +-- Track which fields are now filled
+    +-- If all target fields filled, stop early
+       |
+       v
+  POST /api/enrichment/apply
+    +-- Map enrichment fields to contacts columns
+    +-- Update contacts table
+    +-- Store person_enrichments provenance record
+       |
+       v
+  Trigger auto-score for enriched contacts
+```
+
+### Provider priority (default)
+
+| Priority | Provider | Cost | Capabilities |
+|----------|----------|------|--------------|
+| 5 | LinkedIn (Extension) | $0.00 | Profile, employment, education, skills |
+| 10 | People Data Labs | $0.10 | Email, phone, social, employment, education |
+| 20 | Lusha | $0.15 | Email, phone, company |
+| 30 | TheirStack | $0.05 | Technographics, company |
+| 40 | Apollo.io | $0.08 | Email, phone, company, employment |
+| 50 | Crunchbase | $0.20 | Company, funding, leadership |
+| 60 | BuiltWith | $0.12 | Technographics, website |
+
+### Field-aware selection
+
+The waterfall uses a capability-to-field mapping to skip providers that cannot fill needed fields:
+
+```
+email       -> ['email']
+phone       -> ['phone']
+social      -> ['linkedin_url', 'twitter', 'location']
+employment  -> ['title', 'current_company', 'headline']
+education   -> ['education']
+company     -> ['current_company', 'industry']
+technographics -> ['technographics']
+```
+
+### Budget enforcement
+
+- Budgets are defined per period (daily/weekly/monthly/yearly)
+- Each lookup cost is tracked in `enrichment_transactions`
+- The waterfall halts when remaining budget is insufficient for the next provider
+- Default budget: $100/month (10,000 cents)
+
+## Scoring Flow
+
+The scoring pipeline computes a composite score from 9 weighted dimensions.
+
+```
+Contact data loaded
+       |
+       v
+  Compute 9 scoring dimensions:
+    +-- icp_fit (0.20)
+    +-- relationship_strength (0.15)
+    +-- network_hub (0.10)
+    +-- signal_boost (0.10)
+    +-- skills_relevance (0.10)
+    +-- behavioral (0.10)
+    +-- content_relevance (0.10)
+    +-- graph_centrality (0.10)
+    +-- network_proximity (0.05)
+       |
+       v
+  Weighted sum -> composite_score (0.0 to 1.0)
+       |
+       v
+  Tier assignment (degree-aware thresholds):
+    +-- 1st-degree: Gold >= 0.55, Silver >= 0.40, Bronze >= 0.28, Watch < 0.28
+    +-- 2nd-degree: score * 0.85, so Gold >= 0.647, Silver >= 0.471, Bronze >= 0.329
+       |
+       v
+  Persona classification
+       |
+       v
+  Referral likelihood scoring
+       |
+       v
+  Store in contact_scores + score_dimensions
+       |
+       v
+  Generate tasks for high-scoring contacts
+```
+
+### Scoring triggers
+
+Auto-scoring fires after:
+- CSV import (per contact)
+- Extension capture (after contact upsert)
+- Enrichment apply (after fields updated)
+- Manual rescore-all operation
+
+## Outreach Flow
+
+The outreach pipeline manages template-based message personalization.
+
+```
+Select template
+       |
+       v
+  Load contact data + score
+       |
+       v
+  Claude AI personalizes template:
+    +-- Fill merge variables ({{first_name}}, {{company}}, etc.)
+    +-- Adjust tone based on context
+    +-- Return personalizedContent + mergeFields map
+       |
+       v
+  User reviews and copies message
+       |
+       v
+  Manual send (LinkedIn, email, etc.)
+       |
+       v
+  Track outreach events:
+    +-- sent, opened, replied, accepted, declined
+       |
+       v
+  Update outreach_states
+       |
+       v
+  Aggregate in template_performance
+       |
+       v
+  Feedback loop: response data feeds back into scoring
+  (relationship_strength and signal_boost dimensions)
+```
+
+### Template categories
+
+| Category | Use Case |
+|----------|----------|
+| initial_outreach | First contact with a new connection |
+| follow_up | Second/third touch after initial message |
+| meeting_request | Request for a call or meeting |
+| referral_ask | Ask for an introduction |
+| content_share | Share relevant content |
+| custom | User-defined templates |
+
+## Cross-Pipeline Data Dependencies
+
+```
+Import --------+
+               |
+Capture -------+--> Contact Record --+--> Score --+--> Tasks
+               |                     |            |
+Enrich --------+                     |            +--> Outreach
+                                     |
+                           Enrichment provenance
+                           Work history
+                           Education
+                           Behavioral data
+                           Graph metrics
+```
+
+All pipelines converge on the contact record. Scoring reads from all data sources. Tasks and outreach are driven by scoring results.

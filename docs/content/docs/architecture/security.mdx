@@ -1,0 +1,236 @@
+---
+title: Security Model
+description: Authentication, authorization, rate limiting, and data protection in NetworkNav.
+---
+
+
+NetworkNav implements security at multiple layers: extension authentication, rate limiting, CORS enforcement, input validation, and data protection controls.
+
+## Extension Authentication
+
+The browser extension authenticates to the app via token-based authentication using SHA-256 hashing.
+
+### Token flow
+
+1. Extension registers with `POST /api/extension/register`
+2. Server generates a random token and stores its SHA-256 hash in `extension_tokens`
+3. The plaintext token is returned to the extension (stored locally, never sent to server again)
+4. On each request, the extension sends the token in `X-Extension-Token` header
+5. Server hashes the received token and looks up the hash in `extension_tokens`
+
+### Token storage
+
+```sql
+CREATE TABLE extension_tokens (
+  id UUID PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,    -- SHA-256 hash
+  extension_id TEXT NOT NULL UNIQUE,  -- Chrome extension ID
+  display_prefix TEXT NOT NULL,       -- First 12 chars for UI display
+  user_agent TEXT,
+  is_revoked BOOLEAN DEFAULT FALSE,
+  last_used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ
+);
+```
+
+### Validation sequence
+
+The `withExtensionAuth` middleware validates every extension request in order:
+
+```
+1. Validate Origin header
+   - Allow: chrome-extension://*
+   - Allow: http://localhost:* (dev only)
+   - Reject: all other origins -> 401
+
+2. Extract X-Extension-Token header
+   - Missing -> 401 MISSING_TOKEN
+
+3. Validate token
+   - Hash token with SHA-256
+   - Look up hash in extension_tokens
+   - Check is_revoked = false
+   - Invalid -> 401 INVALID_TOKEN
+   - Revoked -> 401 REVOKED_TOKEN
+
+4. Check rate limit
+   - Per extensionId per endpoint
+   - Exceeded -> 429 with Retry-After header
+
+5. Execute handler with extensionId context
+```
+
+### Token revocation
+
+Tokens can be revoked via the admin API. Revoked tokens are kept in the database (not deleted) so that attempts to use them return a specific `REVOKED_TOKEN` error rather than a generic invalid token error.
+
+## Rate Limiting
+
+An in-memory sliding window rate limiter protects all extension endpoints.
+
+### Configuration
+
+| Endpoint | Limit (per minute) |
+|----------|-------------------|
+| `/api/extension/capture` | 60 |
+| `/api/extension/tasks` | 30 |
+| `/api/extension/contact` | 30 |
+| `/api/extension/message-render` | 20 |
+| `/api/extension/health` | 10 |
+| `/api/extension/settings` | 10 |
+| `/api/extension/register` | 5 |
+| All other `/api/extension/*` | 30 (default) |
+
+### Implementation
+
+- **Window**: 1 minute sliding window
+- **Key**: `{extensionId}:{endpointPath}`
+- **Cleanup**: Stale entries purged every 5 minutes
+- **Response**: 429 status with `Retry-After` header (seconds until window resets)
+
+```typescript
+interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  retryAfterSeconds: number;
+}
+```
+
+## CORS Policy
+
+The `validateOrigin` function enforces origin restrictions:
+
+```typescript
+function validateOrigin(origin: string | null): boolean {
+  // No origin (server-to-server, curl): allowed
+  if (!origin) return true;
+
+  // Chrome extension origins: allowed
+  if (origin.startsWith('chrome-extension://')) return true;
+
+  // Localhost in non-production, OR when ALLOW_DEV_ORIGIN is set
+  if (
+    process.env.NODE_ENV !== 'production' ||
+    process.env.ALLOW_DEV_ORIGIN === 'true'
+  ) {
+    if (
+      origin.startsWith('http://localhost:') ||
+      origin === 'http://localhost'
+    ) {
+      return true;
+    }
+  }
+
+  // Everything else: rejected
+  return false;
+}
+```
+
+<Callout type="warn">
+Setting `ALLOW_DEV_ORIGIN=true` in production permits localhost origins, which may allow
+local network attackers to forge requests. Only enable this for time-limited debugging
+sessions and remove it immediately afterward.
+</Callout>
+
+## Input Validation
+
+All extension API endpoints validate request bodies using Zod schemas. Invalid requests receive a 400 response with detailed validation error messages.
+
+Validated fields include:
+- URL format and length
+- Page type enum membership
+- HTML content presence and reasonable size
+- Extension version format
+- Metadata structure
+
+## Data Protection
+
+### GDPR: Right to Erasure
+
+The `/api/admin/erasure` endpoint supports cascading deletion of all data associated with a contact:
+
+- Contact record and all FK-linked data
+- Work history, education, enrichment records
+- Behavioral observations, content profiles
+- Outreach states and events
+- Messages and message stats
+- Score dimensions and contact scores
+- Vector embeddings
+- Page cache entries
+- Import change log entries
+
+The cascading delete is handled by PostgreSQL's `ON DELETE CASCADE` foreign key constraints.
+
+### Data Purge
+
+The `/api/admin/purge` endpoint supports filter-based bulk deletion with a confirmation token. The caller must include `confirmToken: "CONFIRM_PURGE"` in the request body. Omitting or mismatching the token returns a 400 error.
+
+<Callout type="warn">
+The purge operation executes immediately when the correct confirmation token is provided.
+There is no dry-run or estimate mode. Always verify your filters and scope before sending
+the request. The owner contact (degree 0) is protected and will never be purged.
+</Callout>
+
+### No PII in Source Code
+
+All user data resides exclusively in the PostgreSQL database. The `data/` directory (which holds Docker volume mounts and LinkedIn exports) is gitignored. No contact names, emails, or other PII appear in application source code.
+
+### Extension Security
+
+The Chrome extension follows Manifest V3 security constraints:
+
+- **No remote code execution**: All code is bundled at build time
+- **Service worker isolation**: Background logic runs in a service worker, not a persistent background page
+- **Content Security Policy**: Enforced by Manifest V3 defaults
+- **Minimal permissions**: Only `activeTab`, `storage`, `sidePanel`, and specific LinkedIn URL patterns
+- **Local token storage**: Extension token stored in `chrome.storage.local`, never in cookies or localStorage
+
+## Environment Variables
+
+Security-sensitive configuration is managed through environment variables, never hardcoded:
+
+| Variable | Purpose | Required |
+|----------|---------|----------|
+| `POSTGRES_PASSWORD` | Database password | Yes (compose fails without it) |
+| `POSTGRES_USER` | Database user | No (default: ctox) |
+| `POSTGRES_DB` | Database name | No (default: ctox) |
+| `PDL_API_KEY` | People Data Labs API key | No |
+| `APOLLO_API_KEY` | Apollo.io API key | No |
+| `LUSHA_API_KEY` | Lusha API key | No |
+| `THEIRSTACK_API_KEY` | TheirStack API key | No |
+| `ANTHROPIC_API_KEY` | Claude AI API key | No |
+| `ALLOW_DEV_ORIGIN` | Allow localhost CORS in prod | No |
+
+All API keys default to empty strings when not set. Features that depend on missing keys fail gracefully with descriptive error messages rather than crashing.
+
+## Unauthenticated Endpoints
+
+<Callout type="warn">
+The following endpoint groups have **no server-side authentication**. They rely on
+network-level access control (reverse proxy rules, firewall) to prevent unauthorized use.
+</Callout>
+
+| Endpoint group | Risk | Mitigation |
+|----------------|------|------------|
+| `/api/admin/*` | Data purge, GDPR erasure, CSV export of PII | Restrict to internal network or admin IP allowlist |
+| `/api/extension/tokens` (POST) | Generates extension credentials | Restrict to admin-only access |
+| `/api/contacts` (POST, PATCH, DELETE) | Create, modify, or delete contacts | Restrict write operations if exposed publicly |
+| `/api/scoring/*` | Trigger rescoring, modify weight profiles | Restrict to internal network |
+| `/api/outreach/*` | Create campaigns, record events | Restrict to internal network |
+
+All other `/api/extension/*` endpoints (except `/register` and `/health-internal`) are
+protected by the `X-Extension-Token` header.
+
+## Security Checklist
+
+When deploying to production:
+
+- [ ] Set strong `POSTGRES_PASSWORD` (not the default)
+- [ ] Remove or do not set `ALLOW_DEV_ORIGIN`
+- [ ] Configure a reverse proxy (nginx, Caddy) for SSL/TLS termination
+- [ ] Restrict `/api/admin/*` and `/api/extension/tokens` to trusted IPs
+- [ ] Restrict database port (5432) to internal network only
+- [ ] Review and rotate extension tokens periodically
+- [ ] Set up budget limits to prevent runaway enrichment costs
+- [ ] Enable PostgreSQL connection encryption (`sslmode=require`)
+- [ ] Back up the database regularly (see [Deployment](/docs/architecture/deployment))

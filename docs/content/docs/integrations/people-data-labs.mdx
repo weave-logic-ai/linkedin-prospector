@@ -1,0 +1,152 @@
+---
+title: People Data Labs
+description: PDL integration for comprehensive person enrichment including email, phone, employment, and education.
+---
+
+[People Data Labs](https://www.peopledatalabs.com/) (PDL) is the primary person enrichment provider in NetworkNav. It provides the broadest coverage of contact fields including email, phone, work history, education, and skills.
+
+## What PDL Provides
+
+| Field | NetworkNav Column | Confidence | Tier Required |
+|-------|------------------|------------|---------------|
+| Work email | email | 0.9 | Person (full) |
+| Personal email | email | 0.7-0.8 | Person (full) |
+| Mobile phone | phone | 0.8 | Person (full) |
+| Job title | title | 0.9 | Starter |
+| Company name | current_company | 0.9 | Starter |
+| Location | location | 0.7-0.8 | Person (full) |
+| Industry | industry | 0.7-0.8 | Starter |
+| Headline | headline | 0.9 | Starter |
+| Bio/Summary | about | 0.8 | Starter |
+| LinkedIn URL | linkedin_url | 0.95 | Starter |
+| Skills | tags | 0.7 | Starter |
+| Connection count | connections_count | 0.9 | Starter |
+
+## PDL Tier System
+
+PDL has two API tiers that affect what data you receive:
+
+### Person Starter (base)
+
+- Returns actual text values for: job title, company, industry, headline, summary, skills
+- Returns **boolean flags** (`true`/`false`) for premium fields: email, phone, location details
+- 5 free lookups per month
+- The boolean flag indicates data exists but is not included at your tier
+
+### Person (full)
+
+- Returns actual values for ALL fields including email, phone, and location
+- $110/month for 200 lookups (~$0.55/lookup at that tier)
+- Pay-as-you-go pricing varies
+
+NetworkNav's PDL provider automatically detects and filters boolean flags, ensuring only real data values are stored.
+
+## Setup
+
+1. Sign up at [peopledatalabs.com](https://www.peopledatalabs.com/)
+2. Get your API key from the dashboard
+3. Set the environment variable:
+
+```bash
+PDL_API_KEY=your-api-key-here
+```
+
+4. Activate the provider in the database (it is seeded but inactive by default):
+
+```sql
+UPDATE enrichment_providers
+SET is_active = true
+WHERE name = 'pdl';
+```
+
+## API Usage
+
+NetworkNav calls the PDL Person Enrich API:
+
+```
+GET https://api.peopledatalabs.com/v5/person/enrich
+Headers: X-Api-Key: {apiKey}
+Params: profile={linkedinUrl}&email={email}&name={fullName}&company={company}
+```
+
+### Match parameters
+
+The provider sends all available identifiers to maximize match rate:
+
+| Parameter | Source | Priority |
+|-----------|--------|----------|
+| `profile` | contact.linkedinUrl | Highest match rate |
+| `email` | contact.email | High match rate |
+| `name` | contact.fullName | Used with company |
+| `company` | contact.currentCompany | Used with name |
+
+### Response mapping
+
+PDL wraps person data in a `data` key: `{ status: 200, data: { ... } }`.
+
+The provider maps PDL fields to NetworkNav fields with the following priority:
+
+**Email**: `work_email` (0.9) > `recommended_personal_email` (0.8) > first `personal_emails[]` (0.7)
+
+**Phone**: `mobile_phone` (0.8) > first `phone_numbers[]` (0.7)
+
+**Location**: `location_name` (0.8) > composed from `location_locality`, `location_region`, `location_country` (0.7)
+
+**Industry**: `industry` (0.8) > `job_company_industry` (0.7)
+
+## Premium Field Detection
+
+PDL returns `true` (boolean) for fields where data exists but is gated behind the Person tier. The provider tracks these gated fields and stores them in the raw response under `_gatedFields`.
+
+Fields checked for boolean gating:
+
+```
+work_email, personal_emails, recommended_personal_email,
+mobile_phone, phone_numbers, emails,
+location_name, location_locality, location_region,
+location_metro, location_country, location_continent,
+location_street_address, location_address_line_2,
+location_postal_code, location_geo, location_names,
+birth_year, birth_date
+```
+
+The `isRealValue` filter rejects:
+- Boolean values (`true`/`false`)
+- Null or undefined
+- Empty strings
+- String representations of booleans (`"true"`, `"false"`)
+
+## Cost
+
+| Metric | Value |
+|--------|-------|
+| Cost per lookup (NetworkNav tracking) | $0.10 (10 cents) |
+| Cost on 404 (no match) | $0.00 |
+| PDL Starter tier | Free (5 lookups/month) |
+| PDL Person tier | ~$0.55/lookup at base plan |
+| Match rate on LinkedIn URLs | ~95% |
+
+The NetworkNav tracking cost ($0.10) is an internal budget value used for waterfall budget enforcement. Actual PDL billing depends on your subscription plan.
+
+## Rate Limits
+
+PDL rate limits vary by plan. The default provider configuration does not set a `rate_limit_per_minute`, so rate limiting is handled by PDL's own response headers. If you receive 429 responses, configure the rate limit:
+
+```sql
+UPDATE enrichment_providers
+SET rate_limit_per_minute = 100
+WHERE name = 'pdl';
+```
+
+## Best Practices
+
+- **Always provide LinkedIn URL** when available for the highest match rate
+- **Check gated fields** in the enrichment history to understand what data PDL has but your tier cannot access
+- **Upgrade to Person tier** if you consistently see gated email/phone fields
+- **Combine with Lusha** for verified phone numbers that PDL may not have
+
+## Related Documentation
+
+- [Enrichment Guide](/docs/guides/enrichment) -- practical guide to enriching contacts
+- [Enrichment Waterfall](/docs/integrations/enrichment-waterfall) -- how PDL fits into the provider waterfall
+- [Enrichment API](/docs/api-reference/enrichment) -- REST endpoints for enrichment operations

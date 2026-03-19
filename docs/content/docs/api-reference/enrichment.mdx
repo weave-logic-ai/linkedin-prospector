@@ -1,0 +1,376 @@
+---
+title: Enrichment API
+description: Enrich contacts with third-party data, manage providers, and track budget.
+---
+
+# Enrichment API
+
+The enrichment system uses a waterfall strategy across configured providers (e.g., Apollo.io,
+People Data Labs) to fill in missing contact data. Enrichment can run in dry-run mode
+(returning a delta for user review) or auto-apply mode.
+
+---
+
+## Enrich Contact(s)
+
+```
+POST /api/enrichment/enrich
+```
+
+Enrich one or more contacts. By default runs in dry-run mode, returning a field-by-field
+delta for the user to review before applying.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "contactId": "uuid",
+  "targetFields": ["email", "phone", "title"],
+  "budgetLimitCents": 50,
+  "dryRun": true
+}
+```
+
+Or batch:
+
+```json
+{
+  "contactIds": ["uuid1", "uuid2"],
+  "fields": ["email", "title"],
+  "dryRun": false
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contactId` | string | One of | Single contact UUID |
+| `contactIds` | string[] | One of | Batch of contact UUIDs |
+| `targetFields` / `fields` | string[] | No | Specific fields to enrich |
+| `budgetLimitCents` | number | No | Max spend for this request |
+| `dryRun` | boolean | No | Return delta without writing (default `true`) |
+
+**Response (dry-run):**
+
+```json
+{
+  "data": [
+    {
+      "contactId": "uuid",
+      "delta": [
+        {
+          "field": "email",
+          "label": "Email",
+          "oldValue": null,
+          "newValue": "jane@acme.com",
+          "confidence": 0.95,
+          "provider": "apollo",
+          "selected": true
+        },
+        {
+          "field": "title",
+          "label": "Job Title",
+          "oldValue": "Engineer",
+          "newValue": "Senior Engineer",
+          "confidence": 0.8,
+          "provider": "apollo",
+          "selected": false
+        }
+      ],
+      "gatedFields": [],
+      "totalCostCents": 5,
+      "results": [ ... ]
+    }
+  ]
+}
+```
+
+The `selected` flag indicates whether the field would be auto-applied: `true` if the
+contact's current value is empty, `false` if it would overwrite existing data.
+
+**Response (auto-apply, dryRun=false):**
+
+```json
+{
+  "data": [
+    {
+      "contactId": "uuid",
+      "fieldsUpdated": 2,
+      "updatedFields": ["email", "phone"],
+      "delta": [ ... ],
+      "results": [ ... ],
+      "scoringTriggered": true
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/enrichment/enrich \
+  -H "Content-Type: application/json" \
+  -d '{"contactId":"UUID","dryRun":true}'
+```
+
+**Error Codes:** `400` (missing contactId/contactIds), `500`
+
+---
+
+## Apply Enrichment
+
+```
+POST /api/enrichment/apply
+```
+
+Apply user-reviewed enrichment fields to a contact. Typically called after reviewing
+the delta from a dry-run enrichment.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "contactId": "uuid",
+  "fields": [
+    { "field": "email", "value": "jane@acme.com" },
+    { "field": "title", "value": "Senior Engineer" }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contactId` | string | Yes | Contact UUID |
+| `fields` | `Array<{field, value}>` | Yes | Fields to apply |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "contactId": "uuid",
+    "fieldsApplied": 2,
+    "appliedFields": ["email", "title"],
+    "scoringTriggered": true
+  }
+}
+```
+
+Auto-scoring is triggered after applying enrichment data.
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/enrichment/apply \
+  -H "Content-Type: application/json" \
+  -d '{"contactId":"UUID","fields":[{"field":"email","value":"jane@acme.com"}]}'
+```
+
+**Error Codes:** `400` (missing fields), `404` (contact not found), `500`
+
+---
+
+## Get Budget Status
+
+```
+GET /api/enrichment/budget
+```
+
+Returns the current enrichment budget period status.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "budgetCents": 5000,
+    "spentCents": 1250,
+    "remainingCents": 3750,
+    "lookupCount": 45,
+    "periodStart": "2025-01-01T00:00:00.000Z",
+    "periodEnd": "2025-02-01T00:00:00.000Z"
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/enrichment/budget
+```
+
+**Error Codes:** `500`
+
+---
+
+## Estimate Cost
+
+```
+POST /api/enrichment/estimate
+```
+
+Estimate the enrichment cost for a batch of contacts before running.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "contactIds": ["uuid1", "uuid2", "uuid3"]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contactIds` | string[] | Yes | Contact UUIDs to estimate |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "totalEstimatedCents": 25,
+    "contactCount": 3,
+    "perContactCents": 8
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/enrichment/estimate \
+  -H "Content-Type: application/json" \
+  -d '{"contactIds":["uuid1","uuid2"]}'
+```
+
+**Error Codes:** `400` (missing contactIds), `500`
+
+---
+
+## Transaction History
+
+```
+GET /api/enrichment/history
+```
+
+Returns paginated enrichment transaction history.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | integer | `1` | Page number |
+| `limit` | integer | `50` | Items per page (max 100) |
+
+**Response:**
+
+```json
+{
+  "data": [ ... ],
+  "pagination": { "page": 1, "limit": 50, "total": 200, "totalPages": 4 }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/enrichment/history?page=1&limit=20
+```
+
+**Error Codes:** `500`
+
+---
+
+## List Providers
+
+```
+GET /api/enrichment/providers
+```
+
+Returns all configured enrichment providers with their status.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "apollo",
+      "displayName": "Apollo.io",
+      "isActive": true,
+      "priority": 1,
+      "costPerLookupCents": 5,
+      "rateLimitPerMinute": 60,
+      "supportedFields": ["email", "phone", "title", "company"]
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/enrichment/providers
+```
+
+**Error Codes:** `500`
+
+---
+
+## Update Provider
+
+```
+PUT /api/enrichment/providers/:id
+```
+
+Update provider configuration.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "apiBaseUrl": "https://api.apollo.io",
+  "isActive": true,
+  "config": { "apiTier": "starter" },
+  "rateLimitPerMinute": 30
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `apiBaseUrl` | string | No | API base URL |
+| `isActive` | boolean | No | Enable/disable provider |
+| `config` | object | No | Provider-specific config |
+| `rateLimitPerMinute` | number | No | Rate limit |
+
+**Response:**
+
+```json
+{
+  "data": { ... }
+}
+```
+
+**curl:**
+
+```bash
+curl -X PUT http://localhost:3000/api/enrichment/providers/UUID \
+  -H "Content-Type: application/json" \
+  -d '{"isActive":false}'
+```
+
+**Error Codes:** `404` (provider not found), `500`

@@ -1,0 +1,175 @@
+---
+title: Quick Start
+description: Get NetworkNav running in under 5 minutes with Docker and import your first LinkedIn contacts.
+---
+
+
+# Quick Start
+
+**What you will learn:** How to install NetworkNav with Docker, import your LinkedIn connections, and see your first scored contacts with tier and persona labels in under 5 minutes.
+
+This guide walks you through getting NetworkNav up and running from scratch. By the end, you will have a working instance with your LinkedIn contacts imported, scored, and classified into tiers.
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **Docker** and **Docker Compose** installed ([Get Docker](https://docs.docker.com/get-docker/))
+- **Google Chrome** (for the browser extension)
+- A **LinkedIn CSV export** of your connections (instructions below)
+- An **Anthropic API key** for Claude AI features (optional but recommended)
+
+### Exporting Your LinkedIn Data
+
+If you do not already have a LinkedIn export:
+
+1. Go to [LinkedIn Settings — Get a copy of your data](https://www.linkedin.com/mypreferences/d/download-my-data)
+2. Select **Connections** (and optionally Messages, Invitations, etc.)
+3. Request the archive and wait for the email
+4. Download and unzip the archive — you need the `Connections.csv` file
+
+## Setup
+
+<Steps>
+
+### Clone the repository and configure environment
+
+```bash title="Terminal"
+git clone <repository-url> networknav
+cd networknav
+cp .env.example .env
+```
+
+Open `.env` in your editor and set the required variables:
+
+```bash title=".env"
+POSTGRES_PASSWORD=your-secure-password-here
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+```
+
+These two variables are the minimum needed to get started. Enrichment provider keys (PDL, Apollo, Lusha) are optional and can be added later.
+
+### Start the services
+
+```bash title="Terminal"
+docker compose up -d
+```
+
+Docker will pull the `ruvnet/ruvector-postgres` image for the database and build the Next.js application. The database initializes with 19 schema migration files automatically on first boot.
+
+Wait for both services to pass their health checks:
+
+```bash title="Terminal"
+docker compose ps
+```
+
+You should see both `ctox-db` and `ctox-app` with status `healthy`. You can also verify with a direct health check:
+
+```bash title="Terminal"
+curl http://localhost:3000/api/health
+```
+
+<Callout>
+If the app container is not yet healthy, wait 30 seconds and try again. The database must finish initializing before the app can connect.
+</Callout>
+
+### Open the dashboard
+
+Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
+
+<Callout>
+Screenshot: Dashboard before any data is imported — empty state with import prompt.
+</Callout>
+
+### Import your LinkedIn connections
+
+1. Click **Import** in the sidebar navigation
+2. Click **Upload CSV** and select your `Connections.csv` file
+3. The import pipeline will process the file, resolving companies with fuzzy matching and deduplicating contacts
+
+<Callout>
+Screenshot: Import page showing upload progress and parsed contact count.
+</Callout>
+
+You can also import via the API:
+
+```bash title="Terminal"
+curl -X POST http://localhost:3000/api/import/csv \
+  -F "file=@/path/to/Connections.csv"
+```
+
+### Watch auto-scoring classify your contacts
+
+After import completes, the scoring engine runs automatically. Every contact is evaluated across 9 dimensions and assigned:
+
+- A **composite score** (0.0 to 1.0)
+- A **tier**: Gold, Silver, Bronze, or Watch
+- A **persona**: Buyer, Warm Lead, Hub, Advisor, Active Influencer, or Passive Contact
+- A **behavioral persona**: Super Connector, Content Creator, Silent Influencer, and more
+
+Navigate to the **Contacts** page to see your scored and classified network.
+
+<Callout type="tip">
+Contacts are assigned Gold, Silver, Bronze, or Watch tiers automatically. Gold-tier contacts are your highest-value connections -- start there when exploring your results.
+</Callout>
+
+<Callout>
+Screenshot: Contacts table showing tier badges, scores, and persona labels after first import.
+</Callout>
+
+### Install the Chrome extension
+
+The browser extension lets you capture LinkedIn profile data and manage outreach tasks directly from LinkedIn.
+
+1. Open Chrome and go to `chrome://extensions`
+2. Enable **Developer mode** (toggle in the top right)
+3. Click **Load unpacked**
+4. Select the `browser/` directory from the project root
+5. Pin the NetworkNav extension icon in your toolbar
+
+</Steps>
+
+## What to Do Next
+
+Now that NetworkNav is running with your contacts imported:
+
+| Goal | Guide |
+|------|-------|
+| Understand the import pipeline in depth | [Importing Contacts](/docs/guides/importing-contacts) |
+| Add verified emails and company data | [Enrichment](/docs/guides/enrichment) |
+| Learn how scoring works | [Scoring Contacts](/docs/guides/scoring-contacts) |
+| Discover niches and ICPs in your network | [Discover](/docs/guides/discover) |
+| Start outreach campaigns | [Outreach](/docs/guides/outreach) |
+| Set up for production | [Self-Hosting](/docs/guides/self-hosting) |
+
+## Troubleshooting
+
+### Database connection refused
+
+If the app cannot connect to the database, ensure the `db` service is healthy:
+
+```bash title="Terminal"
+docker compose logs db
+```
+
+The database needs up to 30 seconds for initial schema setup on first boot.
+
+### Port 3000 already in use
+
+If another service is using port 3000, update the port mapping in `docker-compose.yml`:
+
+```yaml
+ports:
+  - "3001:3000"
+```
+
+### Import shows zero contacts
+
+LinkedIn CSV exports include a 2-line preamble (notes from LinkedIn). The parser automatically detects and skips this. If you see zero contacts, verify your file is a valid LinkedIn `Connections.csv` export and not a different CSV format.
+
+## Next Steps
+
+- **[Importing Contacts](/docs/guides/importing-contacts)** -- Learn about all supported CSV formats and the deduplication pipeline.
+- **[Enrichment](/docs/guides/enrichment)** -- Add verified emails, phone numbers, and company data to your contacts.
+- **[Scoring Contacts](/docs/guides/scoring-contacts)** -- Understand how the 15-dimension scoring engine classifies your network.
+- **[The Game Loop](/docs/guides/game-loop)** -- See how import, score, discover, enrich, and outreach form a continuous cycle.

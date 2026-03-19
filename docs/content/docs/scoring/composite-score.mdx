@@ -1,0 +1,150 @@
+---
+title: Composite Score — Mathematical Proof
+description: Formal derivation of the weighted composite score with null-safe weight redistribution, range proof, and monotonicity analysis.
+---
+
+# Composite Score — Mathematical Proof
+
+The composite score is the central quantity in NetworkNav's scoring engine. This page provides a complete mathematical treatment: definitions, the redistribution formula, and proofs of its key properties.
+
+## 1. Definitions
+
+Let $n = 9$ be the number of scoring dimensions. For a given contact:
+
+- $d_i \in [0, 1]$ is the raw score produced by dimension scorer $i$.
+- $W = \{w_1, w_2, \ldots, w_n\}$ is the base weight profile with $w_i \geq 0$ and $\sum_{i=1}^{n} w_i = 1$.
+- $A \subseteq \{1, 2, \ldots, n\}$ is the set of **available** dimensions (those for which the contact has sufficient data).
+- $A^c = \{1, \ldots, n\} \setminus A$ is the set of unavailable dimensions.
+
+## 2. Weight Redistribution Formula
+
+When some dimensions lack data, the WeightManager computes redistributed weights $w_i'$ as follows.
+
+**Case 1: All dimensions available** ($A^c = \emptyset$).
+
+$$w_i' = w_i \quad \forall\, i$$
+
+**Case 2: Some dimensions unavailable** ($A^c \neq \emptyset$).
+
+Define:
+
+$$W_A = \sum_{j \in A} w_j, \qquad W_{A^c} = \sum_{k \in A^c} w_k = 1 - W_A$$
+
+For each available dimension $i \in A$:
+
+$$w_i' = w_i + W_{A^c} \cdot \frac{w_i}{W_A} = w_i \left(1 + \frac{W_{A^c}}{W_A}\right) = \frac{w_i}{W_A}$$
+
+For each unavailable dimension $k \in A^c$:
+
+$$w_k' = 0$$
+
+**Case 3: No active weights** ($W_A = 0$).
+
+This edge case (all available dimensions have zero base weight) falls back to equal weighting:
+
+$$w_i' = \frac{1}{|A|} \quad \forall\, i \in A$$
+
+## 3. The Composite Score
+
+$$S = \sum_{i \in A} d_i \cdot w_i'$$
+
+In the implementation, `computeCompositeScore` iterates over all scorers, computes $d_i \cdot w_i$ for each (where $w_i$ has already been redistributed by the WeightManager), and sums.
+
+## 4. Proof: Redistributed Weights Sum to 1
+
+**Theorem.** For any non-empty $A$ with $W_A > 0$:
+
+$$\sum_{i \in A} w_i' = 1$$
+
+**Proof.**
+
+$$\sum_{i \in A} w_i' = \sum_{i \in A} \frac{w_i}{W_A} = \frac{1}{W_A} \sum_{i \in A} w_i = \frac{W_A}{W_A} = 1 \qquad \blacksquare$$
+
+## 5. Proof: Relative Ratios Preserved
+
+**Theorem.** For any $i, j \in A$:
+
+$$\frac{w_i'}{w_j'} = \frac{w_i}{w_j}$$
+
+**Proof.**
+
+$$\frac{w_i'}{w_j'} = \frac{w_i / W_A}{w_j / W_A} = \frac{w_i}{w_j} \qquad \blacksquare$$
+
+This property ensures that the user's intended relative importance between dimensions is not distorted by missing data. If `icp_fit` was intended to be four times as important as `network_proximity`, that 4:1 ratio ($0.20 : 0.05$) is maintained regardless of which other dimensions are absent.
+
+## 6. Proof: Score Range $S \in [0, 1]$
+
+**Theorem.** If $d_i \in [0, 1]$ for all $i \in A$ and $\sum_{i \in A} w_i' = 1$ with $w_i' \geq 0$, then $S \in [0, 1]$.
+
+**Proof.**
+
+*Lower bound:*
+
+$$S = \sum_{i \in A} d_i \cdot w_i' \geq \sum_{i \in A} 0 \cdot w_i' = 0$$
+
+*Upper bound:*
+
+$$S = \sum_{i \in A} d_i \cdot w_i' \leq \sum_{i \in A} 1 \cdot w_i' = \sum_{i \in A} w_i' = 1$$
+
+Therefore $0 \leq S \leq 1$. $\blacksquare$
+
+## 7. Monotonicity Property
+
+**Claim.** Adding data for a previously unavailable dimension can only increase or maintain the composite score, assuming the new dimension scores at or above the current weighted average.
+
+More precisely, let $S_A$ be the composite score with available set $A$, and let $S_{A \cup \{k\}}$ be the composite score after dimension $k$ becomes available with raw score $d_k$. Then:
+
+$$S_{A \cup \{k\}} \geq S_A \iff d_k \geq S_A$$
+
+**Proof sketch.** When dimension $k$ is added, all existing weights shrink proportionally to make room for $w_k'$. The new score is:
+
+$$S_{A \cup \{k\}} = \sum_{i \in A} d_i \cdot \frac{w_i}{W_A + w_k} + d_k \cdot \frac{w_k}{W_A + w_k}$$
+
+$$= \frac{W_A}{W_A + w_k} \cdot S_A + \frac{w_k}{W_A + w_k} \cdot d_k$$
+
+This is a weighted average of $S_A$ and $d_k$. Therefore $S_{A \cup \{k\}} \geq S_A$ iff $d_k \geq S_A$.
+
+<Callout type="info">
+This means enrichment can never **lower** a contact's composite score as long as the new dimension scores at least as well as the contact's current average. In practice, dimensions like `graph_centrality` or `content_relevance` tend to activate only when meaningful data exists, producing scores well above zero.
+</Callout>
+
+## 8. Worked Example
+
+Consider a contact with available dimensions $A = \{\text{icp\_fit}, \text{relationship\_strength}, \text{behavioral}\}$.
+
+**Base weights:**
+
+| Dimension | $w_i$ |
+|---|---|
+| icp_fit | 0.20 |
+| relationship_strength | 0.15 |
+| behavioral | 0.10 |
+
+$$W_A = 0.20 + 0.15 + 0.10 = 0.45$$
+$$W_{A^c} = 1 - 0.45 = 0.55$$
+
+**Redistributed weights:**
+
+$$w_{\text{icp\_fit}}' = \frac{0.20}{0.45} \approx 0.4444$$
+
+$$w_{\text{rel}}' = \frac{0.15}{0.45} \approx 0.3333$$
+
+$$w_{\text{beh}}' = \frac{0.10}{0.45} \approx 0.2222$$
+
+**Verification:** $0.4444 + 0.3333 + 0.2222 \approx 1.0$ and $0.4444 / 0.3333 = 1.333 = 0.20 / 0.15$.
+
+Suppose the raw scores are $d_{\text{icp}} = 0.8$, $d_{\text{rel}} = 0.6$, $d_{\text{beh}} = 0.5$.
+
+$$S = 0.8 \times 0.4444 + 0.6 \times 0.3333 + 0.5 \times 0.2222$$
+
+$$S = 0.3556 + 0.2000 + 0.1111 = 0.6667$$
+
+This contact would be assigned the **Gold** tier (since $0.6667 \geq 0.55$ for a 1st-degree contact).
+
+## 9. Implementation Reference
+
+The composite score is computed in `app/src/lib/scoring/composite.ts`:
+
+- `computeCompositeScore()` iterates over all scorers, multiplies raw score by the (already redistributed) weight, and sums.
+- Weight redistribution happens in `WeightManager.redistributeWeights()` in `weight-manager.ts`.
+- Dimension availability is determined by `getAvailableDimensions()` in `pipeline.ts`, which checks contact data fields for non-null/non-empty values.
