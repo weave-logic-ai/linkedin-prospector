@@ -1,0 +1,394 @@
+---
+title: Outreach API
+description: Message templates, campaigns, pipeline tracking, and outreach events.
+---
+
+# Outreach API
+
+Manage outreach workflows including message templates, campaigns, a Kanban-style pipeline,
+and event tracking that feeds back into contact scoring.
+
+---
+
+## List Templates
+
+```
+GET /api/outreach/templates
+```
+
+Returns all outreach message templates.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Initial Outreach",
+      "category": "initial_outreach",
+      "subjectTemplate": "Quick intro",
+      "bodyTemplate": "Hi {{name}}, I noticed...",
+      "mergeVariables": ["name", "company", "headline"],
+      "tone": "professional",
+      "isActive": true,
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/outreach/templates
+```
+
+**Error Codes:** `500`
+
+---
+
+## Create Template
+
+```
+POST /api/outreach/templates
+```
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "name": "Follow Up",
+  "category": "follow_up",
+  "subject_template": "Following up",
+  "body_template": "Hi {{name}}, I wanted to follow up...",
+  "merge_variables": ["name", "company"],
+  "tone": "casual"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Template name |
+| `body_template` | string | Yes | Message body with `{{variable}}` placeholders |
+| `category` | string | No | One of: `initial_outreach`, `follow_up`, `meeting_request`, `referral_ask`, `content_share`, `custom` |
+| `subject_template` | string | No | Subject line template |
+| `merge_variables` | string[] | No | Available merge variables |
+| `tone` | string | No | Tone label |
+
+**Response (201):**
+
+```json
+{
+  "data": { "id": "uuid", "name": "Follow Up", ... }
+}
+```
+
+**Error Codes:** `400` (missing name/body, invalid category), `500`
+
+---
+
+## Get / Update / Delete Template
+
+```
+GET    /api/outreach/templates/:id
+PUT    /api/outreach/templates/:id
+DELETE /api/outreach/templates/:id
+```
+
+Standard CRUD operations. PUT accepts any template fields for update.
+
+**Error Codes:** `400` (invalid UUID), `404`, `500`
+
+---
+
+## List Campaigns
+
+```
+GET /api/outreach/campaigns
+```
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Q1 Outreach",
+      "description": "Reach out to gold contacts",
+      "status": "active",
+      "targetCount": 50,
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/outreach/campaigns
+```
+
+**Error Codes:** `500`
+
+---
+
+## Create Campaign
+
+```
+POST /api/outreach/campaigns
+```
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "name": "Q1 Outreach",
+  "description": "Reach out to gold contacts",
+  "status": "draft",
+  "target_count": 50
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Campaign name |
+| `description` | string | No | Description |
+| `status` | string | No | Initial status |
+| `target_count` | number | No | Target outreach count |
+
+**Response (201):**
+
+```json
+{
+  "data": { "id": "uuid", "name": "Q1 Outreach", ... }
+}
+```
+
+**Error Codes:** `400` (missing name), `500`
+
+---
+
+## Get / Update Campaign
+
+```
+GET /api/outreach/campaigns/:id
+PUT /api/outreach/campaigns/:id
+```
+
+Standard GET and PUT operations.
+
+**Error Codes:** `400` (invalid UUID), `404`, `500`
+
+---
+
+## Populate Campaign
+
+```
+POST /api/outreach/campaigns/:id/populate
+```
+
+Auto-populate a campaign with contacts matching specified filters. Only adds contacts
+not already in any campaign.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "filters": {
+    "tiers": ["gold", "silver"],
+    "personas": ["decision_maker"],
+    "referralPersonas": ["connector"],
+    "nicheId": "uuid",
+    "icpId": "uuid",
+    "minScore": 0.5
+  },
+  "limit": 100
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `filters.tiers` | string[] | No | Filter by tier |
+| `filters.personas` | string[] | No | Filter by persona type |
+| `filters.referralPersonas` | string[] | No | Filter by referral persona |
+| `filters.nicheId` | UUID | No | Filter by niche |
+| `filters.icpId` | UUID | No | Filter by ICP profile |
+| `filters.minScore` | number | No | Minimum composite score |
+| `limit` | number | No | Max contacts to add (default 100, max 500) |
+
+**Response:**
+
+```json
+{
+  "added": 23,
+  "skipped": 2,
+  "contacts": [
+    { "id": "uuid", "name": "Jane Doe", "tier": "gold" }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/outreach/campaigns/UUID/populate \
+  -H "Content-Type: application/json" \
+  -d '{"filters":{"tiers":["gold"]},"limit":50}'
+```
+
+**Error Codes:** `400` (invalid campaign ID), `404` (campaign not found), `500`
+
+---
+
+## Get Pipeline
+
+```
+GET /api/outreach/pipeline
+```
+
+Returns contacts grouped by outreach pipeline stage for Kanban display.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `campaign_id` | UUID | No | Filter by campaign |
+
+**Response:**
+
+```json
+{
+  "stages": {
+    "not_started": [
+      { "contactId": "uuid", "name": "Jane Doe", "tier": "gold", "state": "queued", ... }
+    ],
+    "contacted": [ ... ],
+    "replied": [ ... ],
+    "meeting_booked": [ ... ],
+    "won": [ ... ],
+    "lost": [ ... ]
+  }
+}
+```
+
+Pipeline stages: `not_started`, `contacted`, `replied`, `meeting_booked`, `won`, `lost`.
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/outreach/pipeline?campaign_id=UUID
+```
+
+**Error Codes:** `500`
+
+---
+
+## Record Outreach Event
+
+```
+POST /api/outreach/events
+```
+
+Record an outreach event (sent, opened, replied, etc.) and automatically transition
+the outreach state. Events feed back into contact scoring.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "contact_id": "uuid",
+  "event_type": "replied",
+  "campaign_id": "uuid",
+  "event_data": { "channel": "linkedin" }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contact_id` | UUID | Yes | Contact UUID |
+| `event_type` | string | Yes | One of: `sent`, `opened`, `replied`, `meeting_booked`, `accepted`, `declined`, `bounced`, `opted_out` |
+| `campaign_id` | UUID | No | Campaign UUID |
+| `event_data` | object | No | Additional event metadata |
+
+**Response (201):**
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "outreachStateId": "uuid",
+    "eventType": "replied",
+    "eventData": { "channel": "linkedin" },
+    "createdAt": "2025-01-15T10:00:00.000Z"
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/outreach/events \
+  -H "Content-Type: application/json" \
+  -d '{"contact_id":"UUID","event_type":"sent"}'
+```
+
+**Error Codes:** `400` (invalid contact_id, invalid event_type), `500`
+
+---
+
+## Recommend Template
+
+```
+GET /api/outreach/recommend
+```
+
+Recommend the best outreach template for a contact based on their tier, persona,
+and referral persona.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `contactId` | UUID | Yes | Contact UUID |
+
+**Response:**
+
+```json
+{
+  "template": {
+    "id": "uuid",
+    "name": "Initial Outreach"
+  },
+  "reason": "Gold-tier decision maker — use direct value proposition"
+}
+```
+
+Returns `{ "template": null, "reason": "No active templates found." }` if no
+templates match.
+
+**curl:**
+
+```bash
+curl "http://localhost:3000/api/outreach/recommend?contactId=UUID"
+```
+
+**Error Codes:** `400` (missing/invalid contactId), `404` (no scores), `500`

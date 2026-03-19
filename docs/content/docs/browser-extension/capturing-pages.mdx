@@ -1,0 +1,147 @@
+---
+title: Capturing Pages
+description: How the extension captures LinkedIn page HTML and sends it to the app for parsing.
+---
+
+
+# Capturing Pages
+
+Page capture is the primary function of the extension. It reads the full HTML of a LinkedIn page you are viewing and sends it to the NetworkNav app, which parses it into structured contact and company data.
+
+## How Capture Works
+
+<Steps>
+
+### Navigate to a LinkedIn page
+
+Open any supported LinkedIn page in your browser. The content script detects the page type from the URL pattern automatically.
+
+### Click the Capture button
+
+You can trigger a capture from three places:
+- The **overlay** "Capture" button floating on the LinkedIn page
+- The **popup** "Capture This Page" button
+- The **side panel** capture button
+
+### Content script prepares the page
+
+Before capturing, the content script:
+1. Scrolls the page to the bottom and back in viewport-sized increments (triggering lazy-loaded content)
+2. Waits for DOM stability using a `MutationObserver` (default 1-second quiet period)
+3. Hides the LNI overlay element so it is excluded from the captured HTML
+4. Reads `document.documentElement.outerHTML` for the full page content
+5. Restores the overlay
+
+### Service worker submits to the app
+
+The content script sends the captured payload to the service worker via `chrome.runtime.sendMessage`. The service worker then POSTs it to `/api/extension/capture` with the authentication token.
+
+### App stores and queues for parsing
+
+The server stores the raw HTML in the `page_cache` table (with 5-version rotation per URL), then queues the page for parsing.
+
+### Parser extracts structured data
+
+The parse engine loads the appropriate parser for the page type, extracts fields using CSS selectors and heuristics, and upserts contacts with confidence-based field merging. New contacts are auto-scored after creation.
+
+### Extension refreshes tasks
+
+After a successful capture, the service worker re-fetches pending tasks from the app. The server may have auto-completed tasks that match the captured URL (e.g., a "Visit John Smith's profile" task).
+
+</Steps>
+
+## Supported Page Types
+
+The content script detects page types from URL patterns:
+
+| Page Type | URL Pattern | What Gets Parsed |
+|-----------|-------------|------------------|
+| `PROFILE` | `linkedin.com/in/[slug]/` | Name, headline, location, about, experience, education, skills |
+| `PROFILE_ACTIVITY` | `linkedin.com/in/[slug]/recent-activity` | Post history and engagement data |
+| `SEARCH_PEOPLE` | `linkedin.com/search/results/people` | Search result list with names, headlines, profile URLs |
+| `SEARCH_CONTENT` | `linkedin.com/search/results/content` | Content search results |
+| `FEED` | `linkedin.com/feed/` | Feed posts with author info and engagement counts |
+| `COMPANY` | `linkedin.com/company/[slug]/` | Company info, size, specialties, description |
+| `CONNECTIONS` | `linkedin.com/mynetwork/invite-connect/connections` | Connection list with names and profile URLs |
+| `MESSAGES` | `linkedin.com/messaging` | Conversation list metadata |
+
+Pages that do not match any pattern are classified as `OTHER`. The capture button is disabled for `OTHER` pages.
+
+## Capture Metadata
+
+Each capture payload includes metadata beyond the raw HTML:
+
+```typescript
+interface CapturePayload {
+  captureId: string;        // Unique UUID for this capture
+  url: string;              // Full URL of the captured page
+  pageType: LinkedInPageType; // Detected page type
+  html: string;             // Full document outerHTML
+  scrollDepth: number;      // Maximum scroll depth reached (0.0 - 1.0)
+  viewportHeight: number;   // Browser viewport height in pixels
+  documentHeight: number;   // Total document height in pixels
+  capturedAt: string;       // ISO 8601 timestamp
+  extensionVersion: string; // Extension version (e.g., "0.1.0")
+  sessionId: string;        // Session identifier
+  triggerMode: 'manual' | 'auto'; // How the capture was initiated
+}
+```
+
+The `scrollDepth` value indicates how much of the page was visible. A value of `1.0` means the user (or the pre-capture scroll) reached the bottom of the page, ensuring lazy-loaded content was triggered.
+
+## DOM Stability Detection
+
+LinkedIn is a single-page application that renders content asynchronously. The extension uses a `MutationObserver` to detect when the DOM has settled before capturing:
+
+1. The observer watches for `childList` mutations in `document.body`
+2. Each mutation resets a timer (default: 1000 ms)
+3. When no mutations occur for the configured delay, the DOM is considered stable
+4. A hard timeout of 30 seconds prevents infinite waiting on pages that never stop mutating
+5. Even if stability detection fails, the capture proceeds with whatever content is available
+
+## SPA Navigation Detection
+
+LinkedIn uses client-side routing, so traditional page load events do not fire on navigation. The content script monitors URL changes using a `MutationObserver` on `document.body`:
+
+- On each DOM mutation, the script checks if `window.location.href` has changed
+- When a URL change is detected, the scroll depth tracker resets and the new page type is computed
+- The service worker is notified via a `PAGE_INFO` message, which it forwards over WebSocket to the app
+
+This ensures the popup and side panel always show the correct page type for the currently visible LinkedIn page.
+
+## Daily Capture Limit
+
+<Callout type="warn">
+The extension enforces a daily capture limit (default: 50 pages per day) to encourage responsible usage. When the limit is reached, the capture button is disabled and the badge shows "MAX" in red.
+</Callout>
+
+The limit operates as follows:
+
+- Each successful capture increments a daily counter stored in `chrome.storage.local` with a date-keyed storage key (`captures_YYYY-MM-DD`)
+- At **80% of the limit**, the capture button text changes to show remaining captures (e.g., "Capture (10 left)")
+- At **100% of the limit**, the button is disabled and the badge shows "MAX" in red
+- The counter resets automatically at midnight (local time)
+- The limit is configurable in the extension settings (default: 50, max: 500)
+
+## Capture Response
+
+On successful submission, the server returns:
+
+```json
+{
+  "success": true,
+  "captureId": "uuid-here",
+  "storedBytes": 245000,
+  "compressionRatio": 0,
+  "queuedForParsing": true,
+  "pageType": "PROFILE"
+}
+```
+
+If the app is unreachable, the capture is automatically added to the [offline queue](/docs/browser-extension/offline-mode).
+
+## Related Documentation
+
+- [Extension API -- Capture](/docs/api-reference/extension) -- the `/api/extension/capture` endpoint reference
+- [Parser Engine](/docs/architecture/parser-engine) -- how captured HTML is parsed server-side
+- [Auto-Scoring](/docs/scoring/auto-scoring) -- how captures trigger automatic re-scoring

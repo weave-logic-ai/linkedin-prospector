@@ -1,0 +1,108 @@
+---
+title: Lusha
+description: Lusha integration for verified email addresses and phone numbers.
+---
+
+[Lusha](https://www.lusha.com/) specializes in verified business contact information. It returns high-confidence email addresses and phone numbers, making it valuable for outreach-focused workflows.
+
+## What Lusha Provides
+
+| Field | NetworkNav Column | Confidence |
+|-------|------------------|------------|
+| Email (verified) | email | 0.95 |
+| Phone (international) | phone | 0.9 |
+| Company name | current_company | 0.9 |
+
+Lusha's key differentiator is the **high confidence** of its contact data. Email addresses receive 0.95 confidence (the highest among person providers), and phone numbers receive 0.9.
+
+## Setup
+
+1. Sign up at [lusha.com](https://www.lusha.com/)
+2. Get your API key from Settings > API
+3. Set the environment variable:
+
+```bash
+LUSHA_API_KEY=your-api-key-here
+```
+
+4. Activate the provider:
+
+```sql
+UPDATE enrichment_providers
+SET is_active = true
+WHERE name = 'lusha';
+```
+
+## API Usage
+
+NetworkNav calls the Lusha Person API:
+
+```
+POST https://api.lusha.com/person
+Headers: api_key: {apiKey}, Content-Type: application/json
+Body: { firstName, lastName, company, linkedinUrl }
+```
+
+### Match parameters
+
+| Parameter | Source |
+|-----------|--------|
+| `firstName` | contact.firstName |
+| `lastName` | contact.lastName |
+| `company` | contact.currentCompany |
+| `linkedinUrl` | contact.linkedinUrl |
+
+### Response mapping
+
+Lusha returns structured contact data:
+
+- **Email**: First entry from `emailAddresses[].email` (confidence 0.95)
+- **Phone**: First entry from `phoneNumbers[].internationalNumber` (confidence 0.9)
+- **Company**: `company.name` (confidence 0.9)
+
+## Cost
+
+| Metric | Value |
+|--------|-------|
+| Cost per lookup (NetworkNav tracking) | $0.15 (15 cents) |
+| Cost on 404 (no match) | $0.00 |
+| Free tier | 40 credits/month |
+| Pro plan | Starts at $36/month |
+
+The free tier provides 40 credits per month, which is sufficient for small-scale enrichment. Each successful person lookup consumes 1 credit.
+
+## Provider Priority
+
+Lusha is seeded at priority 20, making it the second provider tried after PDL in the default waterfall.
+
+Lusha is particularly valuable when:
+- PDL returns boolean-gated email/phone fields (Starter tier)
+- You need verified phone numbers for direct outreach
+- Email deliverability is critical (Lusha's verification is strong)
+
+## Capabilities
+
+Lusha is registered with capabilities: `email`, `phone`, `company`.
+
+The waterfall selects Lusha when the contact needs:
+- `email`
+- `phone`
+- `current_company` or `industry` (via `company`)
+
+## When to Use Lusha vs PDL
+
+| Scenario | Recommended Provider |
+|----------|---------------------|
+| Need comprehensive profile data | PDL |
+| Need verified email for outreach | Lusha |
+| Need verified phone number | Lusha |
+| Need work history / education | PDL |
+| Need skills data | PDL |
+| Budget-conscious, need email only | Apollo ($0.08) |
+
+## Best Practices
+
+- **Pair with PDL**: Use PDL for broad profile data, Lusha for verified contact details
+- **Prioritize for outreach targets**: Enable Lusha specifically for contacts you plan to reach out to
+- **Monitor free tier usage**: 40 credits goes quickly; budget accordingly
+- **Name + company matching**: Lusha works best when both first/last name and company are available

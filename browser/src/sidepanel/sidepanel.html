@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkedIn Network Intelligence - Side Panel</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div id="sidepanel-root">
+    <header class="panel-header">
+      <h1>Network Intelligence</h1>
+      <span id="sp-connection-status" class="status-indicator disconnected">
+        Disconnected
+      </span>
+    </header>
+
+    <!-- Current Page Section -->
+    <section class="panel-section" id="current-page-section">
+      <h2>Current Page</h2>
+      <div class="page-info">
+        <span id="sp-page-type" class="page-type-badge">--</span>
+        <span id="sp-scroll-depth" class="scroll-depth">0%</span>
+      </div>
+      <div id="sp-contact-info" class="contact-info" style="display: none;">
+        <div class="contact-name" id="sp-contact-name"></div>
+        <div class="contact-details" id="sp-contact-details"></div>
+      </div>
+      <button id="sp-capture-btn" class="btn btn-primary btn-full">Capture This Page</button>
+    </section>
+
+    <!-- Goals & Tasks Section -->
+    <section class="panel-section">
+      <h2>Goals & Tasks</h2>
+      <div id="sp-goals-list" class="goals-list">
+        <p class="placeholder-text">No active goals</p>
+      </div>
+    </section>
+
+    <!-- Templates Section (Phase 5) -->
+    <section class="panel-section">
+      <h2>Outreach Templates</h2>
+      <div id="sp-templates-list" class="templates-list">
+        <p class="placeholder-text">Loading templates...</p>
+      </div>
+      <div id="sp-template-preview-panel" class="template-preview-panel" style="display: none;">
+        <div class="template-preview-header">
+          <span id="sp-preview-template-name" class="template-preview-name"></span>
+          <button id="sp-close-preview-btn" class="btn-icon" title="Close preview">&times;</button>
+        </div>
+        <div id="sp-template-full-preview" class="template-full-preview"></div>
+        <div class="template-preview-actions">
+          <button id="sp-copy-template-btn" class="btn btn-secondary">Copy</button>
+          <button id="sp-personalize-btn" class="btn btn-primary">Personalize for <span id="sp-personalize-contact-name">contact</span></button>
+        </div>
+        <p id="sp-template-status" class="template-status" style="display: none;"></p>
+      </div>
+    </section>
+
+    <!-- Recent Captures -->
+    <section class="panel-section">
+      <h2>Today's Activity</h2>
+      <div class="activity-stats">
+        <div class="activity-stat">
+          <span class="activity-value" id="sp-capture-count">0</span>
+          <span class="activity-label">Captures</span>
+        </div>
+        <div class="activity-stat">
+          <span class="activity-value" id="sp-queue-depth">0</span>
+          <span class="activity-label">Queued</span>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script src="/dist/sidepanel.js"></script>
+</body>
+</html>

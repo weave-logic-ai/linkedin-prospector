@@ -1,0 +1,485 @@
+---
+title: Discover API
+description: ICPs, niches, offerings, ICP discovery, and wedge visualization data.
+---
+
+# Discover API
+
+Manage Ideal Customer Profiles (ICPs), niches, offerings, and access data-driven
+discovery features including auto-ICP detection and visualization data.
+
+---
+
+## ICPs
+
+### List ICPs
+
+```
+GET /api/icps
+```
+
+Returns all ICP definitions.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Enterprise Decision Makers",
+      "description": "VP+ at companies with 500+ employees",
+      "criteria": {
+        "titles": ["VP", "Director", "CTO"],
+        "companySizes": ["500+"],
+        "industries": ["SaaS", "Fintech"]
+      },
+      "isActive": true,
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/icps
+```
+
+**Error Codes:** `500`
+
+### Create ICP
+
+```
+POST /api/icps
+```
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "name": "Enterprise Decision Makers",
+  "description": "VP+ at large companies",
+  "criteria": {
+    "titles": ["VP", "Director", "CTO"],
+    "companySizes": ["500+"]
+  },
+  "is_active": true
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | ICP name |
+| `criteria` | object | Yes | Matching criteria |
+| `description` | string | No | Description |
+| `is_active` | boolean | No | Active status |
+
+**Response (201):** `{ "data": { ... } }`
+
+**Error Codes:** `400` (missing name/criteria), `500`
+
+### Get / Update / Delete ICP
+
+```
+GET    /api/icps/:id
+PUT    /api/icps/:id
+DELETE /api/icps/:id
+```
+
+Standard CRUD. PUT accepts any ICP fields for update.
+
+**Error Codes:** `400` (invalid UUID), `404`, `500`
+
+---
+
+## Niches
+
+### List Niches
+
+```
+GET /api/niches
+```
+
+Returns all niche profiles.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "SaaS Founders",
+      "description": "Early-stage SaaS founders and co-founders",
+      "industry": "SaaS",
+      "keywords": ["saas", "startup", "founder"],
+      "affordability": 7,
+      "fitability": 8,
+      "buildability": 6,
+      "nicheScore": 0.82,
+      "memberCount": 25,
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/niches
+```
+
+**Error Codes:** `500`
+
+### Create Niche
+
+```
+POST /api/niches
+```
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "name": "SaaS Founders",
+  "description": "Early-stage SaaS founders",
+  "industry": "SaaS",
+  "keywords": ["saas", "startup"],
+  "affordability": 7,
+  "fitability": 8,
+  "buildability": 6
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Niche name |
+| `description` | string | No | Description |
+| `industry` | string | No | Industry classification |
+| `keywords` | string[] | No | Matching keywords |
+| `affordability` | number | No | 1-10 affordability score |
+| `fitability` | number | No | 1-10 fit score |
+| `buildability` | number | No | 1-10 buildability score |
+
+**Response (201):** `{ "data": { ... } }`
+
+**Error Codes:** `400` (missing name), `500`
+
+### Get / Update / Delete Niche
+
+```
+GET    /api/niches/:id
+PUT    /api/niches/:id
+DELETE /api/niches/:id
+```
+
+Standard CRUD. PUT accepts any niche fields for update.
+
+**Error Codes:** `400` (invalid UUID), `404`, `500`
+
+---
+
+## Offerings
+
+### List Offerings
+
+```
+GET /api/offerings
+```
+
+Returns all offerings (products/services you provide).
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Consulting Retainer",
+      "description": "Monthly advisory engagement",
+      "isActive": true,
+      "sortOrder": 1,
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/offerings
+```
+
+**Error Codes:** `500`
+
+### Create Offering
+
+```
+POST /api/offerings
+```
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "name": "Consulting Retainer",
+  "description": "Monthly advisory engagement"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Offering name |
+| `description` | string | No | Description |
+
+**Response (201):** `{ "data": { ... } }`
+
+**Error Codes:** `400` (missing name), `500`
+
+### Update Offering
+
+```
+PUT /api/offerings/:id
+```
+
+**Auth:** None
+
+**Request Body (any subset):**
+
+```json
+{
+  "name": "Premium Retainer",
+  "is_active": true,
+  "sort_order": 2
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Offering name |
+| `description` | string | Description |
+| `is_active` | boolean | Active status |
+| `sort_order` | number | Display order |
+
+**Error Codes:** `400` (no valid fields), `404`, `500`
+
+### Delete Offering
+
+```
+DELETE /api/offerings/:id
+```
+
+**Response:** `{ "success": true }`
+
+**Error Codes:** `404`, `500`
+
+---
+
+## ICP Discovery
+
+### Discover ICPs
+
+```
+GET /api/icp/discover
+```
+
+Automatically discover ICPs from your contact data using clustering and pattern analysis.
+High-confidence discoveries are auto-saved as ICP profiles.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `minSize` | integer | `3` | Minimum cluster size for discovery |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "discoveries": [
+      {
+        "name": "SaaS Technical Leaders",
+        "confidence": 0.85,
+        "contactCount": 12,
+        "criteria": { "titles": ["CTO", "VP Engineering"], ... },
+        "sampleContacts": [ ... ]
+      }
+    ],
+    "savedProfiles": [
+      { "id": "uuid", "name": "SaaS Technical Leaders" }
+    ],
+    "totalDiscovered": 5,
+    "totalSaved": 3
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl "http://localhost:3000/api/icp/discover?minSize=5"
+```
+
+**Error Codes:** `500`
+
+### List ICP Profiles (Scoring)
+
+```
+GET /api/icp/profiles
+```
+
+Returns ICP profiles used by the scoring system.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Default ICP",
+      "description": "Primary ICP for scoring",
+      "criteria": { ... },
+      "weightOverrides": { "icp_fit": 0.3 },
+      "isActive": true
+    }
+  ]
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/icp/profiles
+```
+
+**Error Codes:** `500`
+
+### Create ICP Profile (Scoring)
+
+```
+POST /api/icp/profiles
+```
+
+Create an ICP profile for use in the scoring pipeline.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "name": "Enterprise Buyers",
+  "description": "Decision makers at enterprise companies",
+  "criteria": {
+    "titles": ["VP", "Director", "Head of"],
+    "industries": ["Enterprise Software"],
+    "companySizes": ["1000+"]
+  },
+  "weightOverrides": {
+    "icp_fit": 0.3,
+    "network_hub": 0.2
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Profile name |
+| `criteria` | object | Yes | ICP matching criteria |
+| `description` | string | No | Description |
+| `weightOverrides` | `Record<string, number>` | No | Scoring weight overrides |
+
+**Response (201):** `{ "data": { ... } }`
+
+**Error Codes:** `400` (missing name/criteria), `500`
+
+---
+
+## Wedge Data
+
+```
+GET /api/discover/wedge-data
+```
+
+Aggregated data for wedge/treemap visualizations on the Discover page. Groups contacts
+by title-based niches and returns ICP match counts.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "niches": [
+      {
+        "name": "Executive/Founder",
+        "contactCount": 45,
+        "avgScore": 0.72,
+        "tierBreakdown": {
+          "gold": 12,
+          "silver": 15,
+          "bronze": 10,
+          "watch": 5,
+          "unscored": 3
+        },
+        "topContacts": [
+          { "id": "uuid", "name": "Jane Doe", "score": 0.92, "tier": "gold" }
+        ]
+      },
+      {
+        "name": "VP/Director",
+        "contactCount": 60,
+        "avgScore": 0.58,
+        ...
+      }
+    ],
+    "icps": [
+      {
+        "id": "uuid",
+        "name": "Enterprise Decision Makers",
+        "matchCount": 35,
+        "firstDegreeCount": 20,
+        "secondDegreeCount": 15,
+        "criteria": { ... }
+      }
+    ],
+    "totalContacts": 1234
+  }
+}
+```
+
+Niche categories are derived from contact titles: `Executive/Founder`, `VP/Director`,
+`Manager/Lead`, `Engineer/Developer`, `Sales/Account`, `Marketing/Growth`,
+`Consultant/Advisor`, `Design/Creative`, `Other`.
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/discover/wedge-data
+```
+
+**Error Codes:** `500`

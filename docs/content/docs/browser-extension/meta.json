@@ -1,0 +1,14 @@
+{
+  "title": "Browser Extension",
+  "pages": [
+    "index",
+    "installation",
+    "authentication",
+    "capturing-pages",
+    "task-system",
+    "templates-clipboard",
+    "settings",
+    "offline-mode",
+    "architecture"
+  ]
+}

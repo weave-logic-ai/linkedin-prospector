@@ -1,0 +1,219 @@
+---
+title: Referral Score — Mathematical Proof
+description: Formal derivation of the 6-component referral likelihood score with weight redistribution and buyer inversion analysis.
+---
+
+# Referral Score — Mathematical Proof
+
+The referral score quantifies a contact's likelihood and ability to **refer business** rather than become a buyer themselves. It runs as Phase 2 of the scoring pipeline, after the composite score is computed.
+
+## 1. Definitions
+
+Let $m = 6$ be the number of referral components. For a given contact:
+
+- $r_j$ is the raw score from component $j$, where $r_j \in [0, 1]$ or $r_j = \text{null}$.
+- $v_j$ is the base weight for component $j$.
+- $B \subseteq \{1, \ldots, m\}$ is the set of components with non-null scores.
+
+### Base Weights
+
+| Component | Name | $v_j$ |
+|---|---|---|
+| 1 | Referral Role | 0.25 |
+| 2 | Client Overlap | 0.20 |
+| 3 | Network Reach | 0.20 |
+| 4 | Amplification Power | 0.15 |
+| 5 | Relationship Warmth | 0.10 |
+| 6 | Buyer Inversion | 0.10 |
+
+$$\sum_{j=1}^{6} v_j = 1.00$$
+
+## 2. Null-Weight Redistribution
+
+The referral pipeline applies the same redistribution logic as the composite score. Define:
+
+$$V_B = \sum_{j \in B} v_j, \qquad V_{B^c} = 1 - V_B$$
+
+For each active component $j \in B$:
+
+$$v_j' = v_j + V_{B^c} \cdot \frac{v_j}{V_B} = \frac{v_j}{V_B}$$
+
+For each null component $k \in B^c$:
+
+$$v_k' = 0$$
+
+**Proof that $\sum_{j \in B} v_j' = 1$:** Identical to the composite score proof. See [Composite Score, Section 4](/docs/scoring/composite-score#4-proof-redistributed-weights-sum-to-1).
+
+## 3. Referral Likelihood
+
+$$R = \sum_{j \in B} r_j \cdot v_j'$$
+
+Since each $r_j \in [0, 1]$ and $\sum v_j' = 1$, we have $R \in [0, 1]$.
+
+## 4. Component Specifications
+
+### 4.1 Referral Role (weight: 0.25)
+
+**Purpose.** Identifies contacts whose job title or headline indicates a referral-oriented role.
+
+**Formula.** Keyword matching against three tiers of role keywords:
+
+| Tier | Score | Example keywords |
+|---|---|---|
+| High | 1.0 | agency, consultancy, partner, fractional, advisor, reseller, alliance |
+| Medium | 0.7 | consultant, freelance, broker, business development, community manager |
+| Low | 0.3 | manager, director, founder, CEO, CTO, VP, lead |
+
+The scorer checks `title` and `headline`, taking the **maximum** tier score found across both fields.
+
+$$r_{\text{role}} = \max_{f \in \{\text{title}, \text{headline}\}} \text{matchTier}(f)$$
+
+Returns `null` if no keywords match in any field. This is the only referral component that can return null.
+
+### 4.2 Client Overlap (weight: 0.20)
+
+**Purpose.** Measures overlap in target markets and service provider signals.
+
+**Inputs.** `title`, `headline`, `about`, `companyIndustry`.
+
+**Formula.** Two sub-scores are combined:
+
+$$r_{\text{overlap}} = 0.6 \cdot \min\!\left(\frac{\text{industryMatches}}{3},\; 1\right) + 0.4 \cdot \min\!\left(\frac{\text{serviceMatches}}{2},\; 1\right)$$
+
+- **Industry matches**: count of 15 industry keywords (ecommerce, SaaS, software, etc.) found in text.
+- **Service matches**: count of 10 service provider signals (agency, consultancy, solutions provider, etc.) found in text.
+
+**Range proof.** Each term is in $[0, 0.6]$ and $[0, 0.4]$ respectively, so $r_{\text{overlap}} \in [0, 1]$.
+
+### 4.3 Network Reach (weight: 0.20)
+
+**Purpose.** Evaluates breadth of the contact's network for referral potential.
+
+**Inputs.** `connectionsCount`, `clusterIds`, `edgeCount`. Context: `totalClusters`, `p90Edges`.
+
+**Formula.**
+
+$$r_{\text{reach}} = 0.30 \cdot \underbrace{\min\!\left(\frac{\text{connections}}{500},\; 1\right)}_{\text{connection score}} + 0.40 \cdot \underbrace{\min\!\left(\frac{|\text{clusterIds}|}{0.3 \cdot \text{totalClusters}},\; 1\right)}_{\text{cluster diversity}} + 0.30 \cdot \underbrace{\min\!\left(\frac{\text{edgeCount}}{\text{p90Edges}},\; 1\right)}_{\text{edge score}}$$
+
+**Range proof.** Each sub-score $\in [0, 1]$, and $0.30 + 0.40 + 0.30 = 1.0$, so $r_{\text{reach}} \in [0, 1]$.
+
+<Callout type="info">
+The `p90Edges` and `totalClusters` values are network baselines computed once per scoring batch from the database. They represent the 90th percentile of edge counts and the total number of detected clusters, ensuring normalization is relative to the user's actual network.
+</Callout>
+
+### 4.4 Amplification Power (weight: 0.15)
+
+**Purpose.** Measures ability to broadcast messages and make introductions.
+
+**Inputs.** `title`, `headline`, `about`, `tags`, `discoveredVia`, `connectionsCount`.
+
+**Formula.** Three boost scores are summed:
+
+$$r_{\text{amp}} = \min\!\left(\text{SC} + \text{HB} + \text{CC},\; 1\right)$$
+
+**Super-connector boost (SC):** Count traits from tags, discoveredVia, text, and 500+ connections:
+
+$$\text{SC} = \begin{cases} 0.4 & \text{traits} \geq 3 \\ \text{traits} \times 0.12 & 0 < \text{traits} < 3 \\ 0 & \text{traits} = 0 \end{cases}$$
+
+**Helping boost (HB):** Count of 6 helping/connecting keywords in text:
+
+$$\text{HB} = \begin{cases} 0.30 & \text{matches} \geq 2 \\ 0.15 & \text{matches} = 1 \\ 0 & \text{matches} = 0 \end{cases}$$
+
+**Content creation boost (CC):** Presence of any of 8 content creation signals (speaker, author, podcast, etc.):
+
+$$\text{CC} = \begin{cases} 0.30 & \text{matches} \geq 1 \\ 0 & \text{matches} = 0 \end{cases}$$
+
+**Range proof.** Maximum: $0.4 + 0.30 + 0.30 = 1.0$. The $\min$ ensures clamping. Therefore $r_{\text{amp}} \in [0, 1]$.
+
+### 4.5 Relationship Warmth (weight: 0.10)
+
+**Purpose.** Evaluates existing relationship depth relevant to making referrals.
+
+**Inputs.** `mutualConnectionCount`, `connectedAt`. Context: `p90Mutuals`, `existingRelationshipStrength`.
+
+**Formula.**
+
+$$r_{\text{warmth}} = 0.35 \cdot \underbrace{\min\!\left(\frac{\text{mutuals}}{\text{p90Mutuals}},\; 1\right)}_{\text{mutual score}} + 0.35 \cdot \underbrace{d_{\text{rel}}}_{\text{Phase 1 relationship}} + 0.30 \cdot \underbrace{\rho(\text{connectedAt})}_{\text{recency score}}$$
+
+where $\rho$ is the recency function:
+
+$$\rho(\delta) = \begin{cases} 1.0 & \delta \leq 90 \text{ days} \\ 0.7 & 90 < \delta \leq 180 \\ 0.4 & 180 < \delta \leq 365 \\ 0.2 & \delta > 365 \\ 0.1 & \text{unknown date} \end{cases}$$
+
+**Range proof.** Each sub-score $\in [0, 1]$ and $0.35 + 0.35 + 0.30 = 1.0$.
+
+### 4.6 Buyer Inversion (weight: 0.10)
+
+**Purpose.** Creates complementary scoring: contacts who are strong buyers should score low as referrers, and vice versa.
+
+**Inputs.** `title`, `headline`, `about`, `companyIndustry`. Context: `existingGoldScore` (the composite score $S$ from Phase 1).
+
+**Formula.**
+
+$$r_{\text{inv}} = 0.5 \cdot (1 - S) + 0.5 \cdot \min\!\left(\frac{\text{ecosystemMatches}}{3},\; 1\right)$$
+
+where $S$ is the composite score from Phase 1, and ecosystem matches count 13 keywords (ecosystem, partner, community, marketplace, etc.).
+
+### Buyer Inversion Complementarity Proof
+
+**Theorem.** For two contacts $A$ (strong buyer) and $B$ (strong referrer) with identical ecosystem keyword presence, the buyer inversion score is higher for $B$.
+
+**Proof.** Let $S_A > S_B$ (A is the better buyer). Let $E$ be the shared ecosystem score. Then:
+
+$$r_{\text{inv}}^A = 0.5(1 - S_A) + 0.5E$$
+$$r_{\text{inv}}^B = 0.5(1 - S_B) + 0.5E$$
+
+$$r_{\text{inv}}^B - r_{\text{inv}}^A = 0.5(S_A - S_B) > 0 \qquad \blacksquare$$
+
+The inverted ICP term $(1 - S)$ ensures that contacts who are poor ICP fits (low composite score) receive a boost in referral scoring. Combined with ecosystem keyword matching, this identifies contacts who operate in complementary roles -- they know buyers but are not buyers themselves.
+
+**Range proof.** $(1 - S) \in [0, 1]$, ecosystem score $\in [0, 1]$, so $r_{\text{inv}} \in [0, 1]$.
+
+## 5. Referral Tier Thresholds
+
+| Tier | Threshold |
+|---|---|
+| Gold Referral | $R \geq 0.65$ |
+| Silver Referral | $R \geq 0.45$ |
+| Bronze Referral | $R \geq 0.30$ |
+| (no tier) | $R < 0.30$ |
+
+## 6. Worked Example
+
+Consider a contact with the following data:
+
+- Title: "Managing Partner at Digital Agency"
+- Headline: "Helping SaaS companies scale through partnerships"
+- 400 connections, 3 cluster memberships, 8 edges
+- Connected 60 days ago, 25 mutual connections
+- Phase 1 composite score $S = 0.35$, relationship strength $d_{\text{rel}} = 0.55$
+- Network baselines: p90Mutuals = 40, p90Edges = 15, totalClusters = 10
+
+**Component scores:**
+
+1. **Referral Role:** "managing partner" matches high tier. $r_1 = 1.0$.
+2. **Client Overlap:** "digital agency" = 1 service match, "SaaS" = 1 industry match.
+   $r_2 = 0.6 \times \min(1/3, 1) + 0.4 \times \min(1/2, 1) = 0.6 \times 0.333 + 0.4 \times 0.5 = 0.40$.
+3. **Network Reach:**
+   $r_3 = 0.30 \times \min(400/500, 1) + 0.40 \times \min(3/3, 1) + 0.30 \times \min(8/15, 1)$
+   $= 0.30 \times 0.8 + 0.40 \times 1.0 + 0.30 \times 0.533 = 0.24 + 0.40 + 0.16 = 0.80$.
+4. **Amplification Power:** "helping" keyword (1 match = HB 0.15). No super-connector traits from tags. No content creation signals.
+   $r_4 = \min(0 + 0.15 + 0, 1) = 0.15$.
+5. **Relationship Warmth:**
+   $r_5 = 0.35 \times \min(25/40, 1) + 0.35 \times 0.55 + 0.30 \times 1.0$
+   $= 0.35 \times 0.625 + 0.1925 + 0.30 = 0.219 + 0.1925 + 0.30 = 0.711$.
+6. **Buyer Inversion:**
+   $r_6 = 0.5 \times (1 - 0.35) + 0.5 \times \min(2/3, 1) = 0.5 \times 0.65 + 0.5 \times 0.667 = 0.325 + 0.333 = 0.658$.
+
+**All components returned non-null**, so no redistribution is needed ($v_j' = v_j$).
+
+$$R = 1.0 \times 0.25 + 0.40 \times 0.20 + 0.80 \times 0.20 + 0.15 \times 0.15 + 0.711 \times 0.10 + 0.658 \times 0.10$$
+
+$$R = 0.250 + 0.080 + 0.160 + 0.0225 + 0.0711 + 0.0658 = 0.6494$$
+
+<Callout type="info">
+The original worked example incorrectly claimed this score qualified for Gold Referral. Since $0.6494 < 0.65$, the correct tier is Silver Referral.
+</Callout>
+
+**Tier:** $0.6494 < 0.65$, so this contact falls just short of Gold and is assigned **Silver Referral** tier.
+
+**Referral Persona:** Agency role + high referral role (1.0) + client overlap (0.40) = "white-label-partner".

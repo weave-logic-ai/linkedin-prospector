@@ -1,0 +1,648 @@
+---
+title: Extension API
+description: Browser extension endpoints for capture, tasks, health checks, and contact lookup.
+---
+
+# Extension API
+
+These endpoints power the NetworkNav Chrome extension. Most require authentication via
+the `X-Extension-Token` header obtained through the registration flow.
+
+<Callout type="info">
+All endpoints under `/api/extension/` require the `X-Extension-Token` header except
+`/api/extension/register` and `/api/extension/health-internal`.
+</Callout>
+
+---
+
+## Register Extension
+
+```
+POST /api/extension/register
+```
+
+Token exchange endpoint. The extension sends a display token (shown in the app UI)
+and receives authentication credentials and settings.
+
+**Auth:** None (this IS the auth bootstrap)
+
+**Request Body:**
+
+```json
+{
+  "displayToken": "ABC-123-XYZ"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `displayToken` | string | Yes | Display token from app UI |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "extensionId": "uuid",
+  "settings": {
+    "captureMode": "auto",
+    "captureDelay": 2000,
+    "maxCapturePerSession": 50,
+    "enableSidePanel": true,
+    "enablePopup": true
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/extension/register \
+  -H "Content-Type: application/json" \
+  -d '{"displayToken":"ABC-123-XYZ"}'
+```
+
+**Error Codes:** `400` (missing displayToken), `401` (invalid token), `500`
+
+---
+
+## Capture Page
+
+```
+POST /api/extension/capture
+```
+
+Submit captured HTML from a LinkedIn page for storage and parsing.
+
+**Auth:** `X-Extension-Token`
+
+**Request Body:**
+
+```json
+{
+  "url": "https://linkedin.com/in/jdoe",
+  "pageType": "PROFILE",
+  "html": "<html>...</html>",
+  "captureId": "uuid",
+  "extensionVersion": "1.0.0",
+  "sessionId": "uuid",
+  "scrollDepth": 80,
+  "viewportHeight": 900,
+  "documentHeight": 4500,
+  "triggerMode": "auto"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | Page URL |
+| `pageType` | string | Yes | `PROFILE`, `SEARCH`, `FEED`, etc. |
+| `html` | string | Yes | Page HTML content |
+| `captureId` | string | Yes | Client-generated capture ID |
+| `extensionVersion` | string | No | Extension version |
+| `sessionId` | string | No | Browsing session ID |
+| `scrollDepth` | number | No | Scroll depth percentage |
+| `viewportHeight` | number | No | Viewport height in pixels |
+| `documentHeight` | number | No | Document height in pixels |
+| `triggerMode` | string | No | `auto` or `manual` |
+
+Side effects:
+- Stores HTML in `page_cache` (compressed)
+- Auto-completes matching pending tasks by URL
+- Triggers auto-scoring for profile captures
+- Sends WebSocket confirmation
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "captureId": "uuid",
+  "storedBytes": 45000,
+  "compressionRatio": 0.65,
+  "queuedForParsing": true,
+  "pageType": "PROFILE"
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/extension/capture \
+  -H "Content-Type: application/json" \
+  -H "X-Extension-Token: your-token" \
+  -d '{"url":"https://linkedin.com/in/jdoe","pageType":"PROFILE","html":"<html>...</html>","captureId":"uuid"}'
+```
+
+**Error Codes:** `400` (validation error), `401` (unauthorized), `500`
+
+---
+
+## List Captures
+
+```
+GET /api/extension/captures
+```
+
+Returns a paginated list of captured pages.
+
+**Auth:** None (app-facing endpoint)
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | integer | `1` | Page number |
+| `limit` | integer | `20` | Items per page (max 100) |
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "url": "https://linkedin.com/in/jdoe",
+      "pageType": "PROFILE",
+      "contentLength": 125000,
+      "parsed": true,
+      "parsedAt": "2025-01-15T10:01:00.000Z",
+      "parseVersion": 2,
+      "triggerMode": "auto",
+      "scrollDepth": 80,
+      "extensionVersion": "1.0.0",
+      "createdAt": "2025-01-15T10:00:00.000Z"
+    }
+  ],
+  "pagination": { "page": 1, "limit": 20, "total": 50, "totalPages": 3 }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/extension/captures?limit=10
+```
+
+**Error Codes:** `500`
+
+---
+
+## Trigger Parse
+
+```
+POST /api/extension/captures
+```
+
+Trigger parsing on a previously captured page.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "captureId": "uuid"
+}
+```
+
+**Response:**
+
+```json
+{
+  "data": { ... }
+}
+```
+
+**Error Codes:** `400` (missing captureId), `500`
+
+---
+
+## Delete Capture
+
+```
+DELETE /api/extension/captures/:id
+```
+
+Delete a captured page from the cache.
+
+**Auth:** None
+
+**Response:** `{ "success": true }`
+
+**Error Codes:** `400` (invalid UUID), `404`, `500`
+
+---
+
+## Health Check (Authenticated)
+
+```
+GET /api/extension/health
+```
+
+Extension health check. Called every 30 seconds by the extension.
+
+**Auth:** `X-Extension-Token`
+
+**Response:**
+
+```json
+{
+  "status": "healthy",
+  "version": "2.0.0",
+  "dbConnected": true,
+  "wsConnected": true,
+  "pendingParseJobs": 3,
+  "uptime": 86400,
+  "timestamp": "2025-01-15T10:00:00.000Z"
+}
+```
+
+Status values: `healthy`, `degraded` (WebSocket down), `unhealthy` (DB down).
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/extension/health \
+  -H "X-Extension-Token: your-token"
+```
+
+**Error Codes:** `401` (unauthorized), `503` (unhealthy)
+
+---
+
+## Health Check (Internal)
+
+```
+GET /api/extension/health-internal
+```
+
+Unauthenticated health check for the app UI. Unlike the authenticated health check,
+this endpoint always reports `wsConnected: false` because it does not verify the
+WebSocket connection.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "status": "healthy",
+  "dbConnected": true,
+  "wsConnected": false,
+  "pendingParseJobs": 0,
+  "uptime": 86400
+}
+```
+
+Status is `healthy` when the database is reachable, `unhealthy` otherwise. There is
+no `degraded` state on this endpoint.
+
+**Error Codes:** `503`
+
+---
+
+## Get Extension Settings
+
+```
+GET /api/extension/settings
+```
+
+Returns settings for the authenticated extension.
+
+**Auth:** `X-Extension-Token`
+
+**Response:**
+
+```json
+{
+  "settings": {
+    "captureMode": "auto",
+    "captureDelay": 2000,
+    "maxCapturePerSession": 50,
+    "enableSidePanel": true,
+    "enablePopup": true
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/extension/settings \
+  -H "X-Extension-Token: your-token"
+```
+
+**Error Codes:** `401`, `500`
+
+---
+
+## List Extension Tasks
+
+```
+GET /api/extension/tasks
+```
+
+Returns tasks grouped by goal for the extension sidebar and popup.
+
+**Auth:** `X-Extension-Token`
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `status` | string | No | Filter by status |
+| `goalId` | UUID | No | Filter by goal |
+| `limit` | integer | No | Max tasks (default 50) |
+
+**Response:**
+
+```json
+{
+  "goals": [
+    {
+      "id": "uuid",
+      "title": "Connect with gold contacts",
+      "progress": 0.4,
+      "totalTasks": 10,
+      "completedTasks": 4,
+      "tasks": [
+        {
+          "id": "uuid",
+          "goalId": "uuid",
+          "goalTitle": "Connect with gold contacts",
+          "type": "visit_profile",
+          "title": "Visit Jane Doe",
+          "description": "",
+          "priority": "high",
+          "status": "pending",
+          "targetUrl": "https://linkedin.com/in/jdoe",
+          "searchQuery": null,
+          "contactName": "Jane Doe",
+          "appUrl": "/contacts/uuid",
+          "dueDate": null,
+          "completedAt": null,
+          "createdAt": "2025-01-15T10:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "totalPending": 6,
+  "totalCompleted": 4
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/extension/tasks?status=pending \
+  -H "X-Extension-Token: your-token"
+```
+
+**Error Codes:** `401`, `500`
+
+---
+
+## Update Task Status (Extension)
+
+```
+PATCH /api/extension/tasks/:id
+```
+
+Update a task's status from the extension. Sends WebSocket notifications for
+real-time UI updates and recalculates goal progress.
+
+**Auth:** `X-Extension-Token`
+
+**Request Body:**
+
+```json
+{
+  "status": "completed",
+  "completionNote": "Profile reviewed and enrichment triggered"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `status` | string | Yes | `completed`, `skipped`, or `in_progress` |
+| `completionNote` | string | No | Optional note about completion |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "taskId": "uuid",
+  "status": "completed",
+  "completedAt": "2025-01-15T10:05:00.000Z"
+}
+```
+
+**curl:**
+
+```bash
+curl -X PATCH http://localhost:3000/api/extension/tasks/UUID \
+  -H "Content-Type: application/json" \
+  -H "X-Extension-Token: your-token" \
+  -d '{"status":"completed"}'
+```
+
+**Error Codes:** `400` (invalid status), `401`, `404`, `500`
+
+---
+
+## List Extension Tokens
+
+```
+GET /api/extension/tokens
+```
+
+Returns all extension tokens (masked for security).
+
+**Auth:** None (admin-facing)
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "token": "ext_my-to...",
+      "extensionId": "uuid",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "lastUsedAt": "2025-01-15T10:00:00.000Z",
+      "userAgent": "Mozilla/5.0 ...",
+      "isRevoked": false
+    }
+  ]
+}
+```
+
+The `token` field is the display prefix followed by `...` -- the full token is never returned
+after initial generation.
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/extension/tokens
+```
+
+**Error Codes:** `500`
+
+---
+
+## Generate Token
+
+```
+POST /api/extension/tokens
+```
+
+Generate a new extension token.
+
+<Callout type="warn">
+This endpoint has no authentication and creates credentials that grant full extension API
+access. In production, restrict `/api/extension/tokens` at the reverse proxy layer to
+prevent unauthorized token generation.
+</Callout>
+
+**Auth:** None (admin-facing)
+
+**Request Body:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "token": "ext_full_token_here",
+    "displayToken": "ABC-123-XYZ",
+    "extensionId": "uuid"
+  }
+}
+```
+
+<Callout type="info">
+The full `token` is only returned once. Store it securely. The `displayToken`
+is the short code shown in the app UI for the extension registration flow.
+</Callout>
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/extension/tokens
+```
+
+**Error Codes:** `500`
+
+---
+
+## Lookup Contact by URL
+
+```
+GET /api/extension/contact/:url
+```
+
+Look up a contact by their LinkedIn profile URL. The URL is passed as a catch-all
+path parameter.
+
+**Auth:** `X-Extension-Token`
+
+**Example Path:**
+
+```
+/api/extension/contact/https/www.linkedin.com/in/jdoe
+```
+
+**Response (found):**
+
+```json
+{
+  "found": true,
+  "contact": {
+    "id": "uuid",
+    "name": "Jane Doe",
+    "headline": "VP Engineering at Acme",
+    "tier": "gold",
+    "goldScore": 0.78,
+    "lastCapturedAt": "2025-01-15T10:00:00.000Z",
+    "lastEnrichedAt": null,
+    "tasksPending": 2
+  }
+}
+```
+
+**Response (not found):**
+
+```json
+{
+  "found": false,
+  "contact": null
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/extension/contact/https/www.linkedin.com/in/jdoe \
+  -H "X-Extension-Token: your-token"
+```
+
+**Error Codes:** `400` (missing URL), `401`, `500`
+
+---
+
+## Render Message
+
+```
+POST /api/extension/message-render
+```
+
+Render a message template with contact data for clipboard copy in the extension.
+
+**Auth:** `X-Extension-Token`
+
+**Request Body:**
+
+```json
+{
+  "contactUrl": "https://linkedin.com/in/jdoe",
+  "templateId": "uuid",
+  "templateType": "initial"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contactUrl` | string | Yes | LinkedIn URL |
+| `templateId` | UUID | No | Specific template ID |
+| `templateType` | string | No | `initial`, `followup`, `meeting_request` (default `initial`) |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Hi Jane, I noticed your work as VP Engineering and would love to connect.",
+  "templateId": "default-initial",
+  "templateName": "Initial Outreach",
+  "variables": {
+    "name": "Jane",
+    "fullName": "Jane Doe",
+    "headline": "VP Engineering at Acme",
+    "company": "Acme Corp"
+  },
+  "nextTemplateId": "default-followup"
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/extension/message-render \
+  -H "Content-Type: application/json" \
+  -H "X-Extension-Token: your-token" \
+  -d '{"contactUrl":"https://linkedin.com/in/jdoe","templateType":"initial"}'
+```
+
+**Error Codes:** `400` (missing contactUrl), `401`, `404` (contact not found), `500`

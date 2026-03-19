@@ -1,0 +1,108 @@
+---
+title: Tier Assignment — Formal Specification
+description: Degree-aware tier thresholds with proofs of 1st-degree advantage and referral tier mapping.
+---
+
+# Tier Assignment — Formal Specification
+
+Tiers are categorical labels derived from the continuous composite score $S$ and referral likelihood $R$. They drive UI presentation, task generation, and outreach prioritization.
+
+## 1. Composite Tier Thresholds
+
+The tier assignment function maps $(S, d) \to \text{Tier}$ where $d$ is the contact's degree (1, 2, or 3+).
+
+### Degree Multiplier
+
+$$m(d) = \begin{cases} 1.0 & d = 1 \\ 0.85 & d > 1 \end{cases}$$
+
+### Adjusted Score
+
+$$S_{\text{adj}} = S \cdot m(d)$$
+
+<Callout type="warn">
+Note: the implementation applies the multiplier **before** comparing against thresholds, which means 2nd-degree contacts need a **higher** raw composite score to reach the same tier. This is intentional: closer connections are more actionable.
+</Callout>
+
+### Tier Assignment Rule
+
+$$\text{tier}(S_{\text{adj}}) = \begin{cases} \text{gold} & S_{\text{adj}} \geq 0.55 \\ \text{silver} & S_{\text{adj}} \geq 0.40 \\ \text{bronze} & S_{\text{adj}} \geq 0.28 \\ \text{watch} & S_{\text{adj}} < 0.28 \end{cases}$$
+
+### Effective Thresholds by Degree
+
+For a contact to achieve a given tier, their raw composite score $S$ must satisfy:
+
+| Tier | 1st-degree ($m=1.0$) | 2nd+-degree ($m=0.85$) |
+|---|---|---|
+| Gold | $S \geq 0.550$ | $S \geq 0.550 / 0.85 = 0.647$ |
+| Silver | $S \geq 0.400$ | $S \geq 0.400 / 0.85 = 0.471$ |
+| Bronze | $S \geq 0.280$ | $S \geq 0.280 / 0.85 = 0.329$ |
+| Watch | $S < 0.280$ | $S < 0.329$ |
+
+## 2. Proof: 1st-Degree Advantage
+
+**Theorem.** For any composite score $S > 0$, a 1st-degree contact with score $S$ is assigned a tier at least as high as a 2nd-degree contact with the same score $S$.
+
+**Proof.** Let $S > 0$. The adjusted scores are:
+
+$$S_{\text{adj}}^{(1)} = 1.0 \cdot S = S$$
+$$S_{\text{adj}}^{(2)} = 0.85 \cdot S$$
+
+Since $0.85 < 1.0$:
+
+$$S_{\text{adj}}^{(2)} = 0.85 S < S = S_{\text{adj}}^{(1)}$$
+
+The tier function is monotonically non-decreasing in $S_{\text{adj}}$ (higher adjusted score maps to the same or higher tier). Therefore:
+
+$$\text{tier}(S_{\text{adj}}^{(1)}) \geq \text{tier}(S_{\text{adj}}^{(2)}) \qquad \blacksquare$$
+
+**Corollary.** There exist score values where a 1st-degree and 2nd-degree contact receive **different** tiers despite identical raw scores. For example, at $S = 0.55$:
+
+- 1st-degree: $S_{\text{adj}} = 0.55 \geq 0.55$ -- **Gold**.
+- 2nd-degree: $S_{\text{adj}} = 0.4675 \geq 0.40$ -- **Silver**.
+
+## 3. Tier Boundary Analysis
+
+The multiplier creates a "gray zone" at each boundary where degree determines the outcome:
+
+| Boundary | Gray zone (raw $S$) |
+|---|---|
+| Gold/Silver | $[0.550, 0.647)$ |
+| Silver/Bronze | $[0.400, 0.471)$ |
+| Bronze/Watch | $[0.280, 0.329)$ |
+
+Contacts with raw scores in these ranges will be assigned one tier higher if 1st-degree, and one tier lower if 2nd-degree or beyond.
+
+## 4. Referral Tier Thresholds
+
+Referral tiers use a simpler model with no degree adjustment:
+
+$$\text{referralTier}(R) = \begin{cases} \text{gold-referral} & R \geq 0.65 \\ \text{silver-referral} & R \geq 0.45 \\ \text{bronze-referral} & R \geq 0.30 \\ \text{null} & R < 0.30 \end{cases}$$
+
+Contacts with $R < 0.30$ receive no referral tier (null), indicating insufficient referral signals.
+
+<Callout type="info">
+Referral tiers do not apply a degree multiplier. This is by design: a 2nd-degree contact who is a strong referrer (e.g., an agency partner) is equally valuable regardless of graph distance, since referral partnerships often operate outside direct connection chains.
+</Callout>
+
+## 5. Distribution Analysis
+
+For a network with uniformly random scores $S \sim U(0, 1)$, the expected tier distribution for 1st-degree contacts is:
+
+| Tier | Range | Expected fraction |
+|---|---|---|
+| Gold | $[0.55, 1.0]$ | 45% |
+| Silver | $[0.40, 0.55)$ | 15% |
+| Bronze | $[0.28, 0.40)$ | 12% |
+| Watch | $[0, 0.28)$ | 28% |
+
+In practice, scores are **not** uniformly distributed. Contacts with sparse data tend to cluster around $S \in [0.2, 0.5]$ because many dimensions default to moderate values when present (e.g., degree-based scores for 1st-degree contacts start at 1.0). Enriched contacts with strong ICP fit skew toward $S > 0.6$.
+
+## 6. Tier Stability Under Enrichment
+
+**Claim.** Enrichment (adding data for previously unavailable dimensions) can only change a contact's tier **upward** if the new dimension scores at or above the contact's current composite score.
+
+This follows directly from the monotonicity property of the composite score (see [Composite Score, Section 7](/docs/scoring/composite-score#7-monotonicity-property)). Since tier assignment is monotonically non-decreasing in $S_{\text{adj}}$, an increase in $S$ can only increase or maintain the tier.
+
+## 7. Special Value: `unscored`
+
+The `unscored` tier is assigned by the type system but never by the `assignTier` function. It represents contacts that have not yet been through the scoring pipeline. The scoring pipeline always produces one of `{gold, silver, bronze, watch}`.

@@ -1,0 +1,192 @@
+---
+title: System Architecture Overview
+description: High-level architecture, deployment model, and request flow for NetworkNav.
+---
+
+NetworkNav is a three-stream system that combines a Next.js web application, a PostgreSQL database with vector extensions, and a Chrome browser extension to build and manage a professional network graph.
+
+## High-Level Architecture
+
+```
++-------------------------------+
+|       Browser Extension       |
+|  (Chrome Manifest V3)        |
+|  - Page capture              |
+|  - Side panel UI             |
+|  - Auto/manual triggers      |
++---------|---------------------+
+          | HTTPS (token auth)
+          v
++-------------------------------+       +-------------------------------+
+|       Next.js App (app/)     |       |    External Providers         |
+|  Port 3000                   |       |                               |
+|  - API routes (/api/*)       |<----->|  - People Data Labs           |
+|  - React UI (App Router)     |       |  - Apollo.io                  |
+|  - Scoring engine            |       |  - Lusha                      |
+|  - Parse engine (cheerio)    |       |  - Crunchbase                 |
+|  - Enrichment waterfall      |       |  - BuiltWith                  |
+|  - Claude AI analysis        |       |  - Anthropic (Claude)         |
++---------|---------------------+       +-------------------------------+
+          | DATABASE_URL
+          v
++-------------------------------+
+|   PostgreSQL (ruvector)      |
+|  Port 5432                   |
+|  - 30+ tables                |
+|  - HNSW vector indexes       |
+|  - Graph sync triggers       |
+|  - Materialized views        |
+|  - 5-version page cache      |
++-------------------------------+
+```
+
+## Three-Stream Architecture
+
+### Stream 1: Web Application
+
+The Next.js application serves both the React frontend and all API routes. It runs inside a Docker container built from `app/Dockerfile` with a multi-stage build targeting the `runner` stage for production.
+
+Key modules within the app:
+
+| Module | Path | Purpose |
+|--------|------|---------|
+| Scoring | `lib/scoring/` | 9-dimension composite scoring with tier assignment |
+| Enrichment | `lib/enrichment/` | Waterfall provider selection with budget enforcement |
+| Parser | `lib/parser/` | CSS selector-based LinkedIn page parsing |
+| Claude AI | `lib/claude/` | Network analysis, goal generation, template personalization |
+| Middleware | `lib/middleware/` | Extension auth and rate limiting |
+
+### Stream 2: Database
+
+PostgreSQL with the `ruvector-postgres` image provides standard relational storage plus vector similarity search via the `RUVECTOR` data type and HNSW indexes. The database initializes from 19 ordered SQL migration scripts in `db/init/`.
+
+Features beyond standard PostgreSQL:
+
+- **RUVECTOR(384)** columns for 384-dimensional embeddings
+- **HNSW indexes** with cosine similarity operators for semantic search
+- **Graph sync triggers** that mirror contacts and edges into a native graph structure
+- **5-version page cache rotation** that automatically prunes old captures
+- **Materialized view** (`enriched_contacts`) joining contacts with scores, messages, and enrichment status
+
+### Stream 3: Browser Extension
+
+A Chrome Manifest V3 extension captures LinkedIn page HTML and sends it to the app for parsing. It authenticates via SHA-256 token hashing and communicates through dedicated `/api/extension/*` endpoints.
+
+## Docker Compose Deployment
+
+The system deploys as two services via `docker-compose.yml`:
+
+```yaml
+services:
+  db:
+    image: ruvnet/ruvector-postgres:latest
+    container_name: ctox-db
+    ports: ["5432:5432"]
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d
+      - ./data/drives/db:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U ctox -d ctox
+      interval: 10s
+
+  app:
+    build: { context: ./app, target: runner }
+    container_name: ctox-app
+    ports: ["3000:3000"]
+    depends_on:
+      db: { condition: service_healthy }
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: wget -qO- http://127.0.0.1:3000/api/health
+      interval: 15s
+```
+
+The `app` service waits for `db` to pass its health check before starting. Both services use `restart: unless-stopped` for automatic recovery.
+
+## Request Flow
+
+A typical request from the browser extension follows this path:
+
+```
+1. Extension captures LinkedIn page HTML
+2. POST /api/extension/capture
+   - Auth middleware validates X-Extension-Token (SHA-256)
+   - Rate limiter checks per-extensionId per-endpoint limits
+   - HTML stored in page_cache with version rotation
+3. Parse engine processes cached page
+   - Loads selector config from DB (page-type specific)
+   - Dispatches to registered parser (profile, search, feed, etc.)
+   - Selector extractor tries CSS chains in priority order
+   - Returns fields with confidence scores
+4. Contact upsert merges parsed data
+   - Matches by LinkedIn URL
+   - Higher confidence overwrites lower confidence
+   - Work history and education upserted via ON CONFLICT
+5. Auto-score triggers in background
+   - 9 scoring dimensions computed
+   - Composite score and tier assigned
+   - Referral likelihood calculated
+```
+
+## Primary Data Flow
+
+The system processes contact data through five major pipelines:
+
+| Pipeline | Input | Output | Trigger |
+|----------|-------|--------|---------|
+| **Import** | LinkedIn CSV export | Contacts, companies, edges | Manual upload |
+| **Capture** | Extension HTML capture | Parsed profile data, contact upsert | Auto/manual browse |
+| **Enrich** | Contact record | Email, phone, work history, company data | Manual or post-import |
+| **Score** | Contact + all related data | Composite score, tier, persona | Auto after import/enrich/capture |
+| **Outreach** | Template + contact | Personalized message, event tracking | Manual with AI assist |
+
+Each pipeline is documented in detail in the [Data Flow](/docs/architecture/data-flow) section.
+
+## Technology Stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Frontend | React + Next.js (App Router) | 14.x |
+| UI Components | shadcn/ui + Tailwind CSS | - |
+| Backend | Next.js API Routes (Node.js) | - |
+| Database | PostgreSQL + ruvector-postgres | 16.x |
+| Vector Search | RUVECTOR with HNSW indexes | 384-dim |
+| HTML Parsing | Cheerio | - |
+| AI | Anthropic Claude (claude-sonnet-4-20250514) | - |
+| Extension | Chrome Manifest V3 | - |
+| Deployment | Docker Compose | - |
+
+## Directory Structure
+
+```
+networknav/
+  app/                     # Next.js application
+    src/
+      app/                 # App Router pages and API routes
+      components/          # React components
+      lib/                 # Core business logic
+        claude/            # Claude AI integration
+        db/                # Database client and queries
+        enrichment/        # Provider waterfall engine
+        middleware/        # Auth and rate limiting
+        parser/            # LinkedIn page parser engine
+        scoring/           # 9-dimension scoring system
+      types/               # Shared TypeScript types
+  browser/                 # Chrome extension source
+  agent/                   # Claude skill code
+  db/
+    init/                  # SQL migration scripts (001-019)
+  data/                    # User data (gitignored)
+    drives/
+      db/                  # PostgreSQL data volume
+  docs/                    # Documentation
+  docker-compose.yml       # Deployment configuration
+```
+
+## Related Documentation
+
+- [Quick Start](/docs/guides/quickstart) -- get running in 5 minutes with Docker
+- [Self-Hosting Guide](/docs/guides/self-hosting) -- production deployment, backups, and monitoring
+- [API Overview](/docs/api-reference) -- all 80+ REST API endpoints
+- [Scoring System](/docs/scoring) -- mathematical models behind every score

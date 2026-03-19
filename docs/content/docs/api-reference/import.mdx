@@ -1,0 +1,437 @@
+---
+title: Import API
+description: Import contacts from CSV files, LinkedIn exports, and legacy data.
+---
+
+# Import API
+
+Import contacts from various sources including CSV file uploads, local LinkedIn export
+directories, full profile dumps, and legacy graph data.
+
+---
+
+## Upload CSV Files
+
+```
+POST /api/import/upload
+```
+
+Upload one or more CSV files for import processing. Creates an import session and
+stores the files for subsequent processing.
+
+**Auth:** None
+
+**Content-Type:** `multipart/form-data`
+
+**Form Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `files` | File[] | Yes | One or more `.csv` files (max 50 MB each) |
+
+**Response (201):**
+
+```json
+{
+  "sessionId": "uuid",
+  "files": ["Connections.csv", "Messages.csv"],
+  "uploadDir": "/app/uploads/imports/uuid",
+  "errors": ["Receipts.pdf: only .csv files are accepted"]
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/import/upload \
+  -F "files=@Connections.csv" \
+  -F "files=@Messages.csv"
+```
+
+**Error Codes:** `400` (no files, no valid CSVs, file too large), `500`
+
+---
+
+## Process CSV Import
+
+```
+POST /api/import/csv
+```
+
+Triggers CSV processing for an existing import session. Processing runs asynchronously
+in the background.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "sessionId": "uuid",
+  "selfContactId": "uuid",
+  "selfName": "Your Name"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `sessionId` | UUID | Yes | Import session from upload |
+| `selfContactId` | UUID | Yes | Your own contact UUID (owner node) |
+| `selfName` | string | No | Your display name |
+
+**Response:**
+
+```json
+{
+  "sessionId": "uuid",
+  "status": "processing"
+}
+```
+
+Poll `/api/import/status/:sessionId` for progress.
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/import/csv \
+  -H "Content-Type: application/json" \
+  -d '{"sessionId":"UUID","selfContactId":"UUID"}'
+```
+
+**Error Codes:** `400` (invalid UUIDs), `404` (session/files not found), `409` (already processing), `500`
+
+---
+
+## Import from Directory
+
+```
+POST /api/import/from-directory
+```
+
+Import LinkedIn CSV files from a local directory path. The directory must be under
+an allowed path prefix. Runs synchronously and returns a summary.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "directoryPath": "data/linkedin/LinkedinExport",
+  "selfContactId": "uuid",
+  "selfName": "Your Name"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `directoryPath` | string | Yes | Path to directory containing CSV files |
+| `selfContactId` | UUID | Yes | Your own contact UUID |
+| `selfName` | string | No | Your display name |
+
+<Callout type="info">
+Paths must be under `/home/aepod/dev/ctox/data/` or `/data/`. Relative paths
+starting with `data/` are automatically resolved.
+</Callout>
+
+**Response:**
+
+```json
+{
+  "newRecords": 456,
+  "updatedRecords": 12,
+  "totalRecords": 468,
+  "directoryPath": "/data/linkedin/LinkedinExport",
+  "recognizedFiles": ["Connections.csv", "Messages.csv"],
+  "skippedFiles": ["random.csv"],
+  "scoringTriggered": true
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/import/from-directory \
+  -H "Content-Type: application/json" \
+  -d '{"directoryPath":"data/linkedin/LinkedinExport","selfContactId":"UUID"}'
+```
+
+**Error Codes:** `400` (missing path, no CSVs, not a directory), `403` (path not allowed), `404` (directory not found), `500`
+
+---
+
+## Detect Local Files
+
+```
+GET /api/import/detect-local
+```
+
+Checks for LinkedIn export files in the default data directory and classifies them
+by type.
+
+**Auth:** None
+
+**Response (files found):**
+
+```json
+{
+  "found": true,
+  "directoryPath": "data/linkedin/LinkedinExport",
+  "recognizedFiles": [
+    { "name": "Connections.csv", "type": "connections" },
+    { "name": "Messages.csv", "type": "messages" }
+  ],
+  "deepFiles": [
+    { "name": "Ad_Targeting.csv", "type": "ad_targeting" },
+    { "name": "Certifications.csv", "type": "certifications" }
+  ],
+  "otherFiles": ["unknown.csv"],
+  "subdirectories": ["Articles", "Jobs"],
+  "totalCsvCount": 28,
+  "hasFullDump": true
+}
+```
+
+**Response (no files):**
+
+```json
+{
+  "found": false
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/import/detect-local
+```
+
+**Error Codes:** Never errors (returns `{ "found": false }` on failure)
+
+---
+
+## Import Full Profile
+
+```
+POST /api/import/full-profile
+```
+
+Deep-import a full LinkedIn data export to build a versioned owner profile used for
+ICP and niche context.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "directoryPath": "data/linkedin/LinkedinExport"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `directoryPath` | string | Yes | Path to LinkedIn export directory |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "profileId": "uuid",
+    "version": 2,
+    "selfName": "Your Name",
+    "importedFiles": ["Profile.csv", "Positions.csv", "Education.csv"],
+    "skippedFiles": ["unknown.csv"],
+    "totalFiles": 3
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/import/full-profile \
+  -H "Content-Type: application/json" \
+  -d '{"directoryPath":"data/linkedin/LinkedinExport"}'
+```
+
+**Error Codes:** `400` (missing path, not a directory), `403` (path not allowed), `404` (directory not found), `500`
+
+---
+
+## Get Owner Profile
+
+```
+GET /api/import/full-profile
+```
+
+Returns the current owner profile (the latest imported version).
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "version": 2,
+    "is_current": true,
+    ...
+  }
+}
+```
+
+Returns `{ "data": null }` if no profile has been imported.
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/import/full-profile
+```
+
+**Error Codes:** `500`
+
+---
+
+## Import History
+
+```
+GET /api/import/history
+```
+
+Returns a paginated list of past import sessions.
+
+**Auth:** None
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | integer | `1` | Page number |
+| `limit` | integer | `20` | Items per page (max 100) |
+
+**Response:**
+
+```json
+{
+  "data": [ ... ],
+  "pagination": { "page": 1, "limit": 20, "total": 5, "totalPages": 1 }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/import/history
+```
+
+**Error Codes:** `500`
+
+---
+
+## Get Import Status
+
+```
+GET /api/import/status/:sessionId
+```
+
+Returns the progress and status of an import session.
+
+**Auth:** None
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `sessionId` | UUID | Import session ID |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "session": {
+      "id": "uuid",
+      "status": "completed",
+      "startedAt": "2025-01-15T10:00:00.000Z",
+      "completedAt": "2025-01-15T10:01:30.000Z",
+      "newRecords": 456,
+      "updatedRecords": 12,
+      "errors": []
+    }
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/import/status/UUID
+```
+
+**Error Codes:** `400` (invalid UUID), `404` (session not found), `500`
+
+---
+
+## Import Legacy Graph
+
+```
+POST /api/import/legacy-graph
+```
+
+Import data from the v1 `.linkedin-prospector/data/graph.json` file into the v2
+database. Imports contacts, companies, edges, clusters, scores, behavioral data,
+and graph metrics in a single transaction.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "graphPath": ".linkedin-prospector/data/graph.json",
+  "rescore": true
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `graphPath` | string | No | Path to graph.json (default: `.linkedin-prospector/data/graph.json`) |
+| `rescore` | boolean | No | Trigger batch rescore after import (default `false`) |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "imported": {
+    "contacts": 1234,
+    "companies": 89,
+    "edges": 15600,
+    "clusters": 12,
+    "clusterMemberships": 890,
+    "scores": 1100,
+    "behavioral": 340,
+    "graphMetrics": 980
+  },
+  "source": {
+    "contacts": 1234,
+    "companies": 89,
+    "edges": 15600,
+    "clusters": 12
+  },
+  "rescoreTriggered": true
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/import/legacy-graph \
+  -H "Content-Type: application/json" \
+  -d '{"rescore":true}'
+```
+
+**Error Codes:** `403` (path not allowed), `404` (file not found), `500`

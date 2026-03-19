@@ -1,0 +1,215 @@
+---
+title: The Game Loop
+description: Understand the complete NetworkNav intelligence cycle and how each step feeds into the next for continuous network improvement.
+---
+
+
+# The Game Loop
+
+**What you will learn:** The 9-stage intelligence cycle (import, score, discover, enrich, capture, analyze, act, track, re-score), the three key feedback loops, and a recommended daily and weekly workflow.
+
+NetworkNav is designed as a continuous intelligence loop. Every action you take feeds data back into the system, which produces better scores, smarter recommendations, and more targeted actions. This guide explains each stage of the loop and how they connect.
+
+## The Complete Cycle
+
+```
+Import → Score → Discover → Enrich → Capture → Analyze → Act → Track → Re-score
+   ↑                                                                        |
+   └────────────────────────────────────────────────────────────────────────┘
+```
+
+Each step produces outputs that become inputs for the next step. The more cycles you complete, the more intelligent the system becomes.
+
+## Stage by Stage
+
+### 1. Import
+
+**What happens**: You upload LinkedIn CSV exports into NetworkNav. The import pipeline parses contacts, resolves companies with fuzzy matching, deduplicates records, and constructs graph edges.
+
+**Outputs**: Contact records, company records, connection edges, connected-at timestamps.
+
+**Feeds into**: Scoring (every imported contact is auto-scored).
+
+See the [Importing Contacts](/docs/guides/importing-contacts) guide for details.
+
+### 2. Score
+
+**What happens**: The 15-dimension scoring engine evaluates every contact. Phase 1 calculates a composite score across 9 dimensions and assigns tiers and personas. Phase 2 computes referral likelihood across 6 components.
+
+**Outputs**: Composite scores, tiers (Gold/Silver/Bronze/Watch), personas, behavioral personas, referral tiers, referral personas.
+
+**Feeds into**: Discovery (contacts are matched against ICPs), Task Generation (Gold tier and key personas trigger tasks).
+
+See the [Scoring Contacts](/docs/guides/scoring-contacts) guide for details.
+
+### 3. Discover
+
+**What happens**: You define niches, create ICPs, and analyze which segments of your network are strongest. The treemap and wedge visualizations reveal patterns. The People Panel lets you filter and take bulk actions.
+
+**Outputs**: Niche definitions, ICP criteria, contact-to-ICP mappings, market segment analysis.
+
+**Feeds into**: Enrichment (bulk enrich from People Panel), Outreach (add contacts to campaigns by ICP).
+
+See the [Discover](/docs/guides/discover) guide for details.
+
+### 4. Enrich
+
+**What happens**: Licensed data providers (PDL, Apollo, Lusha, Crunchbase, BuiltWith) add verified emails, phone numbers, work history, company data, and technographics to your contacts.
+
+**Outputs**: Enriched contact profiles, company intelligence, technology stacks.
+
+**Feeds into**: Re-scoring (enriched contacts are auto-rescored with more dimensional data).
+
+See the [Enrichment](/docs/guides/enrichment) guide for details.
+
+### 5. Capture
+
+**What happens**: The Chrome extension captures LinkedIn page data as you browse. When you visit a contact's profile, the extension extracts current headline, about section, experience, education, skills, connection count, and recent activity.
+
+**Outputs**: Fresh profile data, behavioral observations, content engagement signals.
+
+**Feeds into**: Analysis (captured data updates behavioral and content dimensions), Re-scoring (captures trigger auto-rescore).
+
+See the [Browser Extension](/docs/browser-extension) documentation for details.
+
+### 6. Analyze
+
+**What happens**: The system processes captured and enriched data through its analytical models. Graph centrality metrics are recalculated. Behavioral personas are updated. Network clusters are re-detected. ICP fit scores are refreshed.
+
+**Outputs**: Updated graph metrics, behavioral classifications, cluster assignments, ICP fit scores.
+
+**Feeds into**: Action recommendations (Next Best Action API).
+
+### 7. Act
+
+**What happens**: You take action based on the system's recommendations. This includes working through the task queue, sending outreach messages, scheduling meetings, and building relationships.
+
+**Outputs**: Outreach events, task completions, pipeline stage transitions.
+
+**Feeds into**: Tracking (every action is logged and measured).
+
+See the [Outreach](/docs/guides/outreach) and [Goals and Tasks](/docs/guides/goals-and-tasks) guides for details.
+
+### 8. Track
+
+**What happens**: The pipeline Kanban board tracks each contact through conversation stages (Queued, Contacted, Replied, Meeting, Converted, Closed). Template performance metrics accumulate. Campaign analytics update.
+
+**Outputs**: Pipeline state, response rates, conversion metrics, template performance data.
+
+**Feeds into**: Re-scoring (outreach events update behavioral scores).
+
+### 9. Re-score
+
+**What happens**: Contacts are re-scored based on all accumulated data — original import, enrichment, captures, outreach events, and behavioral observations. Scores shift as the system learns more about each contact.
+
+**Outputs**: Updated scores, tier changes, persona reclassifications.
+
+**Feeds into**: New task generation (tier changes trigger new tasks), Discovery (ICP fit scores update), and the cycle continues.
+
+## Feedback Loops
+
+The game loop contains several internal feedback loops that accelerate learning:
+
+### Outreach Events to Behavioral Scoring
+
+When a contact replies to your outreach, their behavioral score increases. This can push them into a higher tier, which triggers new tasks and higher-priority recommendations.
+
+```
+Send message → Contact replies → Behavioral score up → Tier change → New tasks generated
+```
+
+### Capture to Auto-Score
+
+When the extension captures a LinkedIn profile, the fresh data triggers an automatic rescore. If the capture reveals new signals (e.g., they changed jobs to a company in your ICP), their score and persona may change.
+
+```
+Visit profile → Extension captures data → Auto-rescore → ICP fit changes → Discovery updates
+```
+
+### Tier Change to Task Generation
+
+When a contact crosses a tier threshold (e.g., Watch to Silver, or Silver to Gold), the system automatically generates appropriate tasks. This means enrichment or capture actions that improve a contact's data can immediately produce new action items.
+
+```
+Enrich contact → Score improves → Tier upgrade → Auto-generate tasks → New action items in queue
+```
+
+<Callout type="tip">
+The most impactful feedback loop is enrichment-to-rescore. A single enrichment action can add industry, company size, and title data that activates 3-4 new scoring dimensions, often moving a contact from Watch to Silver or Gold in one step.
+</Callout>
+
+## Daily Workflow
+
+A recommended daily routine takes about 15-20 minutes:
+
+<Steps>
+
+### Check Next Best Action
+
+Open the extension or visit the Tasks page. Review the highest-priority recommended action.
+
+```bash title="Terminal"
+curl http://localhost:3000/api/tasks?action=next-best
+```
+
+### Work the task queue
+
+Complete 5-10 tasks from your queue. The extension handles VISIT_PROFILE and CAPTURE_PAGE tasks passively as you browse LinkedIn. Focus your active effort on SEND_MESSAGE and ENGAGE_CONTENT tasks.
+
+### Review pipeline
+
+Check the outreach pipeline Kanban board. Move contacts who have replied to the appropriate column. Follow up on stale conversations.
+
+### Capture as you browse
+
+Leave the extension active as you browse LinkedIn throughout the day. It will capture profile data and auto-complete tasks in the background.
+
+</Steps>
+
+## Weekly Workflow
+
+Set aside 30-60 minutes once a week for strategic review:
+
+<Steps>
+
+### Review scoring weights
+
+Are the right contacts floating to the top? If not, adjust dimension weights in Admin and rescore.
+
+### Check enrichment budget
+
+Review your enrichment spending in the Admin panel. Are you on track for your monthly budget? Should you enrich more Silver-tier contacts?
+
+### Analyze niche performance
+
+Open the Discover page and review the treemap. Are there niches with high contact counts but low ICP fit? Consider refining your ICP criteria.
+
+### Generate new goals
+
+Click **Generate Goals** to have Claude analyze your current top contacts. New opportunities may have emerged since last week.
+
+### Review campaign metrics
+
+Check template performance. If a template has a low reply rate, try a different approach. If one is performing well, scale it to more contacts.
+
+</Steps>
+
+## Measuring Progress
+
+Track these metrics over time to gauge the health of your network intelligence system:
+
+| Metric | Where to Find It | What Good Looks Like |
+|--------|-----------------|---------------------|
+| Gold tier count | Contacts page filter | Growing week over week |
+| Average composite score | Admin dashboard | Increasing as enrichment fills in data |
+| Reply rate | Outreach Track tab | 15-30% for cold outreach, 40%+ for warm |
+| Tasks completed per day | Tasks page | Consistent daily volume |
+| Enrichment coverage | Admin dashboard | 80%+ of Gold/Silver contacts enriched |
+| ICP match rate | Discover treemap | Clear, dark segments in your primary niches |
+
+## Next Steps
+
+- **[Quick Start](/docs/guides/quickstart)** -- If you have not set up yet, start here.
+- **[Scoring Contacts](/docs/guides/scoring-contacts)** -- Deep dive into the scoring engine that powers the loop.
+- **[Configuration](/docs/guides/configuration)** -- Tune scoring weights, budget caps, and extension settings for your workflow.
+- **[RVF Training](/docs/scoring/rvf-training)** -- Validate your scoring model with pairwise comparisons to close the feedback loop.

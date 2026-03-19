@@ -1,0 +1,80 @@
+---
+title: Browser Extension
+description: Overview of the LinkedIn Network Intelligence Chrome extension for compliant page capture and task management.
+---
+
+
+# Browser Extension
+
+The LinkedIn Network Intelligence (LNI) Chrome extension is the primary data capture interface for NetworkNav. It reads visible LinkedIn pages, sends the raw HTML to your self-hosted app for processing, and surfaces tasks and templates directly in your browser.
+
+## What the Extension Does
+
+The extension provides four core capabilities:
+
+<Cards>
+  <Card title="Page Capture" href="/docs/browser-extension/capturing-pages">
+    Capture the HTML of any LinkedIn page you are viewing. The app parses it into structured contact, company, and activity data.
+  </Card>
+  <Card title="Task Display" href="/docs/browser-extension/task-system">
+    See your pending networking tasks directly in the popup or side panel, with one-click navigation to target profiles.
+  </Card>
+  <Card title="Message Templates" href="/docs/browser-extension/templates-clipboard">
+    Copy pre-written outreach templates to your clipboard, optionally personalized with AI for the contact you are viewing.
+  </Card>
+  <Card title="Offline Queue" href="/docs/browser-extension/offline-mode">
+    Captures are queued locally when the app is unreachable and automatically flushed when connectivity returns.
+  </Card>
+</Cards>
+
+## "Dumb Capture, Smart App" Architecture
+
+The extension follows a strict separation of concerns:
+
+- **The extension only reads visible DOM.** It captures the full `outerHTML` of the page you are currently viewing and sends it to the app. It does not parse, enrich, or store structured data.
+- **The app does all processing.** Parsing, contact upsert, scoring, enrichment, and task generation happen entirely server-side in the Next.js application.
+
+This design keeps the extension small (under 25 KB total), easy to audit, and resistant to LinkedIn DOM changes. When LinkedIn changes their markup, only the server-side parser configurations need updating -- no extension rebuild required.
+
+## LinkedIn Terms of Service Compliance
+
+<Callout type="warn">
+The extension is designed for compliant use. Violating LinkedIn's Terms of Service can result in account restrictions. Always use the extension responsibly.
+</Callout>
+
+The extension enforces several compliance boundaries:
+
+- **No automation.** Every capture is initiated by a deliberate user action (clicking the Capture button). There is no background scraping or autonomous crawling.
+- **No invisible requests.** The extension does not make API calls to LinkedIn. It only reads the DOM of pages you have already loaded in your browser tab.
+- **User-initiated only.** Auto-capture is opt-in, disabled by default, and subject to a configurable daily limit (default: 50 pages per day).
+- **Rate limiting.** A daily capture counter enforces a hard cap. The extension badge turns yellow at 80% and red at the limit, preventing further captures until the next day.
+- **No credential access.** The extension never reads or stores your LinkedIn credentials. It operates entirely on rendered page content.
+
+## Quick Start
+
+If you want to get the extension running immediately, follow these steps:
+
+1. Build the extension from source ([Installation](/docs/browser-extension/installation))
+2. Load it into Chrome as an unpacked extension
+3. Generate an authentication token and register ([Authentication](/docs/browser-extension/authentication))
+4. Navigate to a LinkedIn profile and click Capture
+
+For the complete walkthrough, start with the [Installation](/docs/browser-extension/installation) guide.
+
+## Extension Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| Service Worker | `service-worker.ts` | Message routing, capture queue, health checks, alarms |
+| Content Script | `content/index.ts` | Page type detection, HTML capture, overlay UI, SPA navigation |
+| Popup | `popup/popup.ts` | Quick status, capture button, task list, templates, settings |
+| Side Panel | `sidepanel/sidepanel.ts` | Full goal/task view, template preview, real-time updates |
+| App Client | `shared/app-client.ts` | HTTP and WebSocket communication with the Next.js backend |
+| Storage | `utils/storage.ts` | Type-safe `chrome.storage.local` wrapper with queue operations |
+
+## Related Documentation
+
+- [Extension API Reference](/docs/api-reference/extension) -- all REST endpoints the extension communicates with
+- [Security Model](/docs/architecture/security) -- extension authentication and rate limiting
+- [Parser Engine](/docs/architecture/parser-engine) -- how captured HTML is parsed server-side
+- [Goals and Tasks Guide](/docs/guides/goals-and-tasks) -- the task system that drives the extension's task display

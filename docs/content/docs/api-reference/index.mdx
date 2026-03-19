@@ -1,0 +1,149 @@
+---
+title: API Overview
+description: NetworkNav REST API reference — authentication, conventions, and common patterns.
+---
+
+# API Overview
+
+NetworkNav exposes a JSON REST API built on Next.js App Router route handlers. All endpoints
+are served from a single origin and share common conventions for requests, responses, and error
+handling.
+
+## Base URL
+
+```
+http://localhost:3000
+```
+
+In Docker, the app container exposes port 3000 by default. Replace with your deployment URL
+in production.
+
+## Authentication
+
+NetworkNav uses two authentication models depending on the endpoint group:
+
+| Endpoint group | Auth mechanism | Header |
+|---|---|---|
+| App API (`/api/*` except `/api/extension/*`) | None (local-only) | — |
+| Extension API (`/api/extension/*`) | Token-based | `X-Extension-Token: <token>` |
+| Extension Registration (`/api/extension/register`) | Display token in body | — |
+
+<Callout type="info">
+The app API has no authentication because NetworkNav is designed to run on a private
+network or localhost. Extension endpoints require a token obtained through the
+`/api/extension/register` flow.
+</Callout>
+
+## Common Response Format
+
+### Success responses
+
+All successful responses return JSON. Most use the `data` wrapper:
+
+```json
+{
+  "data": { ... }
+}
+```
+
+Some endpoints return paginated results:
+
+```json
+{
+  "data": [ ... ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 142,
+    "totalPages": 8
+  }
+}
+```
+
+### Error responses
+
+Errors follow a consistent shape:
+
+```json
+{
+  "error": "Human-readable error message",
+  "details": "Optional technical detail or sub-error"
+}
+```
+
+Extension endpoints use a slightly different error shape:
+
+```json
+{
+  "error": "ERROR_CODE",
+  "message": "Human-readable description"
+}
+```
+
+## HTTP Status Codes
+
+| Code | Meaning |
+|------|---------|
+| `200` | Success |
+| `201` | Created (POST that creates a resource) |
+| `400` | Bad request — missing or invalid parameters |
+| `401` | Unauthorized — missing or invalid extension token |
+| `403` | Forbidden — path not allowed (import endpoints) |
+| `404` | Resource not found |
+| `409` | Conflict — duplicate resource |
+| `500` | Internal server error |
+| `503` | Service unavailable (health check failures) |
+
+## Content Type
+
+All request and response bodies use `application/json` unless stated otherwise.
+The `/api/import/upload` endpoint accepts `multipart/form-data`.
+The `/api/admin/export` endpoint returns `text/csv`.
+
+## Pagination
+
+Paginated endpoints accept these query parameters:
+
+| Parameter | Type | Default | Max | Description |
+|-----------|------|---------|-----|-------------|
+| `page` | integer | `1` | — | Page number (1-indexed) |
+| `limit` | integer | `20` | `100` | Items per page |
+
+Some endpoints use `offset` instead of `page`:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `offset` | integer | `0` | Number of items to skip |
+| `limit` | integer | `50` | Items to return |
+
+## ID Format
+
+All resource IDs are UUIDs (v4). Example:
+
+```
+a1b2c3d4-e5f6-7890-abcd-ef1234567890
+```
+
+Endpoints validate UUID format and return `400` for malformed IDs.
+
+## Rate Limiting
+
+Extension endpoints are subject to implicit rate limiting through the token authentication
+middleware. The app API has no built-in rate limiting (it runs on a private network).
+
+## API Groups
+
+| Group | Prefix | Description |
+|-------|--------|-------------|
+| [Contacts](/docs/api-reference/contacts) | `/api/contacts` | CRUD, search, scores, activity, network |
+| [Scoring](/docs/api-reference/scoring) | `/api/scoring` | Run scoring, manage weights, preview changes |
+| [Enrichment](/docs/api-reference/enrichment) | `/api/enrichment` | Enrich contacts, manage providers and budget |
+| [Graph](/docs/api-reference/graph) | `/api/graph` | Network graph data, metrics, communities, pathfinding |
+| [Import](/docs/api-reference/import) | `/api/import` | CSV upload, directory import, LinkedIn data |
+| [Goals & Tasks](/docs/api-reference/goals-tasks) | `/api/goals`, `/api/tasks`, `/api/actions` | Goal tracking, task management, action log |
+| [Outreach](/docs/api-reference/outreach) | `/api/outreach` | Templates, campaigns, pipeline, events |
+| [Extension](/docs/api-reference/extension) | `/api/extension` | Browser extension integration |
+| [Admin](/docs/api-reference/admin) | `/api/admin` | Health checks, data export, purge, erasure |
+| [Dashboard](/docs/api-reference/dashboard) | `/api/dashboard` | Aggregated dashboard statistics |
+| [Discover](/docs/api-reference/discover) | `/api/icps`, `/api/niches`, `/api/offerings`, `/api/icp`, `/api/discover` | ICP, niche, and offering management |
+| [Claude AI](/docs/api-reference/claude) | `/api/claude` | AI-powered analysis, suggestions, personalization |

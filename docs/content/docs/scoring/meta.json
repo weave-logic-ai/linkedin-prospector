@@ -1,0 +1,14 @@
+{
+  "title": "Scoring & Models",
+  "pages": [
+    "index",
+    "composite-score",
+    "dimensions",
+    "referral-score",
+    "tier-assignment",
+    "persona-classification",
+    "weight-management",
+    "auto-scoring",
+    "rvf-training"
+  ]
+}

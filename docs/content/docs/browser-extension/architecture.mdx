@@ -1,0 +1,195 @@
+---
+title: Architecture
+description: Technical architecture of the Chrome extension, including Manifest V3 components, message passing, and build system.
+---
+
+
+# Architecture
+
+The extension is built on Chrome's Manifest V3 platform and consists of four main components that communicate via Chrome's message-passing API.
+
+## Component Overview
+
+```
++---------------------+     chrome.runtime      +-------------------+
+|   Content Script    | <-------- messages -----> |  Service Worker   |
+|   (LinkedIn tabs)   |                          |  (Background)     |
++---------------------+                          +-------------------+
+  |  Reads DOM                                     |  HTTP / WS
+  |  Overlay UI                                    |  to App
+  |  SPA nav detection                             |  Queue mgmt
+                                                   |  Alarms
+                                                   |
+                          chrome.runtime           v
++---------------------+ <-------- messages ----> +-------------------+
+|      Popup UI       |                          |    Side Panel     |
+|  (Toolbar click)    |                          |  (Browser side)   |
++---------------------+                          +-------------------+
+  |  Registration                                  |  Goals/tasks
+  |  Quick capture                                 |  Templates
+  |  Task list                                     |  Real-time updates
+  |  Settings                                      |  Contact context
+```
+
+## Manifest V3 Components
+
+### Service Worker (`service-worker.ts`)
+
+The service worker is the central hub. It runs in the background (no persistent DOM) and handles:
+
+- **Message routing** -- receives `chrome.runtime.onMessage` from content scripts, popup, and side panel
+- **Capture processing** -- submits captures to the app or queues them for offline retry
+- **Health checks** -- periodic HTTP calls to `/api/extension/health` every 30 seconds
+- **Queue management** -- flushes the offline capture queue every 60 seconds
+- **Retry queue** -- retries failed API requests every 2 minutes with max 3 attempts
+- **Badge management** -- updates the toolbar icon badge with queue depth, rate limit status, or error indicators
+- **WebSocket client** -- optional real-time connection to the app for push events (disabled by default)
+- **Alarm scheduling** -- creates and handles Chrome Alarms for periodic tasks
+
+The service worker is stateless between restarts. All persistent state lives in `chrome.storage.local`.
+
+### Content Script (`content/index.ts`)
+
+Injected into every `linkedin.com` page at `document_idle`. Responsibilities:
+
+- **Page type detection** -- matches the current URL against regex patterns to classify the page
+- **Scroll depth tracking** -- passive scroll listener tracks maximum scroll position
+- **DOM stability detection** -- `MutationObserver` waits for the page to stop changing
+- **Pre-capture scroll** -- scrolls the page to bottom and back to trigger lazy-loaded content
+- **HTML capture** -- reads `document.documentElement.outerHTML` (with overlay hidden)
+- **Overlay UI** -- renders a floating widget with status indicator and capture button
+- **SPA navigation** -- `MutationObserver` detects URL changes in LinkedIn's client-side router
+- **Message handling** -- responds to `CAPTURE_REQUEST`, `GET_STATUS`, and `CONNECTION_STATUS` messages
+
+### Popup (`popup/popup.ts`)
+
+Opened by clicking the extension icon. A compact UI providing:
+
+- **Registration flow** -- token input and Connect button for first-time setup
+- **Status dashboard** -- captures today, queue depth, task count, connection state
+- **Current page info** -- detected page type for the active tab
+- **Capture button** -- triggers capture of the current LinkedIn page
+- **Task list** -- up to 10 pending tasks with Go/Copy actions
+- **Template selector** -- dropdown with preview, copy, and AI personalization
+- **Settings panel** -- collapsible section for app URL, auto-capture, limits, overlay position
+
+### Side Panel (`sidepanel/sidepanel.ts`)
+
+Opened via the popup's "Open Side Panel" button or by clicking the overlay. A persistent sidebar providing:
+
+- **Connection status** -- real-time indicator
+- **Page context** -- current page type and scroll depth percentage
+- **Goals and tasks** -- hierarchical view with progress bars and completion checkboxes
+- **Template cards** -- card-based template browser with preview panel and AI personalization
+- **Real-time updates** -- `chrome.storage.onChanged` listener for instant UI updates
+- **Tab monitoring** -- `chrome.tabs.onActivated` and `onUpdated` listeners for page context changes
+- **Periodic refresh** -- 15-second polling interval for status updates
+
+## Message Passing
+
+All inter-component communication uses `chrome.runtime.sendMessage` with typed messages:
+
+| Message Type | Sender | Receiver | Purpose |
+|-------------|--------|----------|---------|
+| `CAPTURE_REQUEST` | Popup, Side Panel, Content | Service Worker | Initiate a page capture |
+| `CAPTURE_RESULT` | Content | Service Worker | Return captured HTML payload |
+| `GET_STATUS` | Popup, Side Panel | Service Worker | Request connection state and stats |
+| `PAGE_INFO` | Content | Service Worker | Report URL change (SPA navigation) |
+| `CONNECTION_STATUS` | Service Worker | Content | Broadcast connection state to overlays |
+| `TASKS_UPDATE` | Side Panel | Service Worker | Update a task's status |
+| `OPEN_SIDE_PANEL` | Content | Service Worker | Request side panel open |
+
+All message handlers return `true` for asynchronous responses (using `sendResponse` callback).
+
+## Permissions
+
+The manifest declares these permissions:
+
+| Permission | Purpose |
+|------------|---------|
+| `storage` | Persist tokens, queue, settings, and tasks in `chrome.storage.local` |
+| `activeTab` | Access the URL and content of the currently active tab |
+| `sidePanel` | Open and manage the Chrome side panel |
+| `alarms` | Schedule periodic health checks, queue flushes, and retries |
+
+Host permissions:
+
+| Pattern | Purpose |
+|---------|---------|
+| `https://www.linkedin.com/*` | Inject content script, read page content |
+| `https://linkedin.com/*` | Same as above (non-www variant) |
+| `http://localhost/*` | Communicate with the locally-hosted NetworkNav app |
+
+## Content Security Policy
+
+The extension's CSP for extension pages (popup, side panel):
+
+```
+script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:* ws://localhost:*;
+```
+
+This allows:
+
+- Scripts only from the extension's own bundle (no inline scripts, no remote scripts)
+- HTTP and WebSocket connections only to `localhost` (any port)
+
+<Callout type="warn">
+If you deploy the NetworkNav app on a remote server, you must update the `connect-src` directive in `manifest.json` to include that server's origin. Otherwise, the extension will be blocked from making API requests.
+</Callout>
+
+## WebSocket Connection
+
+The extension optionally maintains a WebSocket connection for real-time push events:
+
+- **URL format:** `ws://localhost:3000/ws/extension?token=[token]`
+- **Reconnection:** Exponential backoff starting at 5 seconds, max 60 seconds, multiplier 2x
+- **Events received:** `CAPTURE_CONFIRMED`, `TASK_CREATED`, `TASK_UPDATED`, `GOAL_PROGRESS`, `TEMPLATE_READY`, `ENRICHMENT_COMPLETE`, `SETTINGS_UPDATED`, `PARSE_COMPLETE`
+- **Events sent:** `PAGE_NAVIGATED`, `TASK_VIEWED`
+- **Fallback:** When WebSocket is unavailable (default in development), the extension uses HTTP polling via health checks every 30 seconds
+
+WebSocket is disabled by default. It is only initialized if `settings.wsEnabled` is `true` in local storage. The default Next.js dev server does not support WebSocket upgrade.
+
+## Build System
+
+The extension uses **esbuild** with TypeScript for fast builds:
+
+- **Entry points:** 4 (service-worker, content, popup, sidepanel)
+- **Output:** `browser/dist/` directory with `.js` and `.map` files
+- **Module format:** ESM (`"type": "module"` in the service worker manifest entry)
+- **Source maps:** Generated for all bundles
+- **Total output size:** ~21 KB (4 bundles combined)
+
+## File Structure
+
+```
+browser/
+  manifest.json              # Chrome extension manifest (V3)
+  package.json               # Build dependencies (esbuild, typescript)
+  tsconfig.json              # TypeScript configuration
+  icons/                     # Extension icons (16, 48, 128 px)
+  src/
+    types/
+      index.ts               # All shared type definitions
+    shared/
+      constants.ts           # URL patterns, defaults, alarm names
+      app-client.ts          # HTTP + WebSocket client class
+    utils/
+      storage.ts             # Type-safe chrome.storage.local wrapper
+      logger.ts              # Prefixed console logger
+    content/
+      index.ts               # Content script (capture, overlay, nav detection)
+    service-worker.ts         # Background service worker
+    popup/
+      popup.html             # Popup markup
+      popup.css              # Popup styles
+      popup.ts               # Popup logic
+    sidepanel/
+      sidepanel.html         # Side panel markup
+      sidepanel.css          # Side panel styles
+      sidepanel.ts           # Side panel logic
+  dist/                      # Build output (gitignored)
+    service-worker.js
+    content.js
+    popup.js
+    sidepanel.js
+```

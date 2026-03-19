@@ -1,0 +1,230 @@
+---
+title: Claude AI
+description: Anthropic Claude integration for network analysis, goal generation, and outreach personalization.
+---
+
+NetworkNav integrates with Anthropic's Claude API for three AI-powered features: contact analysis, network goal generation, and outreach template personalization. Unlike enrichment providers that fetch external data, Claude processes existing contact data to generate insights and recommendations.
+
+## What Claude Does
+
+| Feature | Input | Output |
+|---------|-------|--------|
+| Contact analysis | Contact profile + scores + graph metrics | Actionable insights (strengths, opportunities, engagement approach) |
+| Goal generation | Top 20 contacts with scores | 3-5 goals with specific tasks |
+| Template personalization | Outreach template + contact data | Filled merge variables, natural personalized message |
+
+## Setup
+
+1. Get an API key from [console.anthropic.com](https://console.anthropic.com/)
+2. Set the environment variable:
+
+```bash
+ANTHROPIC_API_KEY=your-api-key-here
+```
+
+No database activation is needed. Claude features are available immediately when the API key is set.
+
+## Client Architecture
+
+The Claude integration uses a singleton client pattern:
+
+```typescript
+// client.ts - Singleton wrapper
+let client: Anthropic | null = null;
+
+export function getClaudeClient(): Anthropic {
+  if (!client) {
+    client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return client;
+}
+
+export async function claudeChat(
+  systemPrompt: string,
+  userMessage: string,
+  options?: { model?: string; maxTokens?: number }
+): Promise<string>
+```
+
+The `claudeChat` function is the core primitive used by all three integration points. It sends a single-turn message with a system prompt and user message, returning the text response.
+
+### Model
+
+All calls use **claude-sonnet-4-20250514** by default. This model provides a good balance of speed and quality for the analysis tasks NetworkNav requires.
+
+To use a different model, pass it in the options:
+
+```typescript
+await claudeChat(systemPrompt, userMessage, {
+  model: 'claude-sonnet-4-20250514',
+  maxTokens: 1024,
+});
+```
+
+## Integration Point 1: Contact Analysis
+
+The `analyzeContact` function generates insights about a single contact.
+
+### Input
+
+- Contact data: name, headline, title, company, location, about, tags, connections
+- Score data (optional): composite score, tier, persona, dimension breakdown
+- Graph metrics (optional): PageRank, betweenness centrality, degree centrality
+
+### System prompt
+
+```
+You are a professional networking analyst. Analyze the given contact
+and provide concise, actionable insights about their potential value
+as a professional connection. Focus on:
+1. Key strengths and areas of influence
+2. Potential collaboration opportunities
+3. Suggested engagement approach
+Keep your response under 300 words.
+```
+
+### Output
+
+A plain text analysis (up to 512 tokens) with actionable networking recommendations.
+
+### Token usage
+
+- Max tokens: 512
+- Typical input: 200-400 tokens (contact summary)
+- Estimated cost: ~$0.002 per analysis
+
+## Integration Point 2: Goal Generation
+
+The `generateGoalsForNetwork` function suggests networking goals based on your contact portfolio.
+
+### Input
+
+- Up to 20 top contacts with their scores
+- Contact summaries include name, headline, company, score, tier, persona
+
+### System prompt
+
+```
+You are a professional networking strategist. Based on the network
+data provided, suggest 3-5 actionable goals with specific tasks.
+Return your response as a JSON array with this structure:
+[{ "title": "Goal title", "description": "Why this goal matters",
+   "tasks": ["Task 1", "Task 2"] }]
+Return ONLY the JSON array, no other text.
+```
+
+### Output
+
+A JSON array of `GoalSuggestion` objects:
+
+```typescript
+interface GoalSuggestion {
+  title: string;        // e.g., "Strengthen fintech connections"
+  description: string;  // Why this goal matters
+  tasks: string[];      // Specific action items
+}
+```
+
+### JSON extraction
+
+Claude's response may include markdown fences or preamble text. The `extractJson` helper handles this:
+
+1. Try to find JSON in ````json ... ``` `` fences
+2. Try to find a JSON array `[...]` or object `{...}` pattern
+3. Fall back to the raw text
+
+### Token usage
+
+- Max tokens: 1024
+- Typical input: 500-1500 tokens (20 contact summaries)
+- Estimated cost: ~$0.005 per generation
+
+## Integration Point 3: Template Personalization
+
+The `personalizeTemplate` function fills merge variables in outreach templates using contact context.
+
+### Input
+
+- Template with merge variables: `{{first_name}}`, `{{company}}`, `{{shared_interest}}`, etc.
+- Contact data: full profile summary
+- Optional context: subject line, desired tone
+
+### System prompt
+
+```
+You are an expert at personalizing outreach messages. Given a template
+with merge variables (wrapped in {{double braces}}) and contact
+information, fill in the variables naturally. Return a JSON object
+with two fields:
+- "personalizedContent": the fully personalized message
+- "mergeFields": an object mapping each merge variable name to the
+  value you used
+Return ONLY the JSON object, no other text.
+```
+
+### Output
+
+```typescript
+{
+  personalizedContent: string;  // The fully personalized message
+  mergeFields: Record<string, string>;  // Variable -> value mapping
+}
+```
+
+### Graceful degradation
+
+If Claude's response cannot be parsed as JSON, the function returns the original template unchanged with an empty merge fields map.
+
+### Token usage
+
+- Max tokens: 1024
+- Typical input: 300-600 tokens (template + contact summary)
+- Estimated cost: ~$0.003 per personalization
+
+## Contact Summary Construction
+
+All three integration points use the `buildContactSummary` helper to construct a structured text summary:
+
+```
+Name: Jane Smith
+Headline: VP of Engineering at TechCorp
+Title: VP of Engineering
+Company: TechCorp
+Location: San Francisco, CA
+About: Experienced engineering leader focused on...
+Tags: Python, Machine Learning, Cloud Architecture
+Connections: 2500
+Score: 85.2, Tier: gold
+Persona: Technical Leader
+Graph metrics: PageRank: 0.0234, Betweenness: 0.0156
+```
+
+The summary omits null/empty fields to minimize token usage.
+
+## Cost Considerations
+
+| Operation | Max Tokens | Est. Input Tokens | Est. Cost |
+|-----------|------------|-------------------|-----------|
+| Contact analysis | 512 | 200-400 | ~$0.002 |
+| Goal generation | 1024 | 500-1500 | ~$0.005 |
+| Template personalization | 1024 | 300-600 | ~$0.003 |
+
+Costs are estimates based on Claude Sonnet pricing. Actual costs depend on input and output token counts.
+
+### Optimization strategies
+
+- **Contact analysis** limits the `about` field to 300 characters
+- **Goal generation** processes at most 20 contacts (the top-scored ones)
+- **All calls** use 1024 or fewer max output tokens
+- **Single-turn conversations** avoid the overhead of multi-turn context
+
+## Error Handling
+
+All Claude integration functions handle errors gracefully:
+
+- **Missing API key**: The Anthropic SDK will throw on instantiation; features are effectively disabled
+- **API errors**: Caught and logged; functions return empty/default results
+- **Invalid JSON responses**: `extractJson` attempts multiple parsing strategies; falls back to defaults
+- **Rate limits**: Handled by the Anthropic SDK's built-in retry logic
+
+No Claude errors will crash the application or block other features.

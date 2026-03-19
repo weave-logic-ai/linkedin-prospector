@@ -1,0 +1,337 @@
+---
+title: Database Schema
+description: Complete reference for all PostgreSQL tables, indexes, triggers, and materialized views.
+---
+
+NetworkNav uses PostgreSQL with the `ruvector-postgres` extension image. The schema is defined across 19 ordered migration scripts in `db/init/` that run automatically on first container startup.
+
+## Schema Overview
+
+The database contains 30+ tables organized into functional groups:
+
+| Group | Tables | Schema File(s) |
+|-------|--------|-----------------|
+| Core | contacts, companies, edges, clusters, cluster_memberships | 002 |
+| Enrichment | person_enrichments, work_history, education, company_enrichments | 003 |
+| Behavioral | behavioral_observations, content_profiles, activity_patterns | 004 |
+| Messages | messages, message_stats | 005 |
+| Outreach | campaigns, templates, sequences, steps, states, events, performance | 006 |
+| Scoring | contact_scores, score_dimensions, weight_profiles, tier_thresholds | 007 |
+| ICP/Niche | niche_profiles, icp_profiles, contact_icp_fits, wedge_metrics | 008 |
+| Goals/Tasks | goals, tasks | 009 |
+| Vectors | profile_embeddings, content_embeddings, company_embeddings | 010 |
+| Import | import_sessions, import_files, import_change_log | 011 |
+| Budget | enrichment_providers, budget_periods, enrichment_transactions | 012 |
+| Cache/Graph | page_cache, graph_metrics, selector_configs | 013 |
+| System | schema_versions, enriched_contacts (materialized view) | 014 |
+| Graph Sync | Trigger functions for ruvector graph | 015 |
+| Owner | owner_profiles | 016 |
+| Extension | extension_tokens, extension_settings (+ selector config enhancements) | 017 |
+| Phase 4.5 | offerings, action_log, niche_offerings, icp_offerings | 018 |
+| Referral | referral_dimensions, scoring_runs (+ contact_scores columns) | 019 |
+
+## Core Tables
+
+### contacts
+
+The central table. Every person in the network is a contact.
+
+```sql
+CREATE TABLE contacts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  linkedin_url TEXT UNIQUE NOT NULL,
+  first_name TEXT,
+  last_name TEXT,
+  full_name TEXT,
+  headline TEXT,
+  title TEXT,
+  current_company TEXT,
+  current_company_id UUID REFERENCES companies(id),
+  location TEXT,
+  about TEXT,
+  email TEXT,
+  phone TEXT,
+  connections_count INTEGER,
+  degree INTEGER DEFAULT 1,
+  profile_image_url TEXT,
+  discovered_via TEXT[] DEFAULT '{}',
+  tags TEXT[] DEFAULT '{}',
+  notes TEXT,
+  is_archived BOOLEAN DEFAULT FALSE,
+  dedup_hash TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+```
+
+Key indexes: `dedup_hash`, GIN on `tags`, `current_company_id`, `is_archived`.
+
+### companies
+
+Organizations extracted from contact work history or enrichment.
+
+```sql
+CREATE TABLE companies (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  domain TEXT,
+  industry TEXT,
+  size_range TEXT,
+  linkedin_url TEXT,
+  description TEXT,
+  headquarters TEXT,
+  founded_year INTEGER,
+  employee_count INTEGER,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+```
+
+### edges
+
+Relationships between entities. Supports contact-to-contact and contact-to-company edges.
+
+```sql
+CREATE TABLE edges (
+  id UUID PRIMARY KEY,
+  source_contact_id UUID NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+  target_contact_id UUID REFERENCES contacts(id) ON DELETE CASCADE,
+  target_company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  edge_type TEXT NOT NULL,
+  weight REAL DEFAULT 1.0,
+  properties JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ,
+  CONSTRAINT edge_has_target CHECK (
+    target_contact_id IS NOT NULL OR target_company_id IS NOT NULL
+  )
+);
+```
+
+### clusters and cluster_memberships
+
+Groups of contacts detected by clustering algorithms. Each cluster has an optional `centroid` vector (RUVECTOR(384)) for similarity matching.
+
+## Scoring Tables
+
+### contact_scores
+
+One row per contact with the composite score and tier assignment.
+
+```sql
+CREATE TABLE contact_scores (
+  id UUID PRIMARY KEY,
+  contact_id UUID NOT NULL UNIQUE REFERENCES contacts(id) ON DELETE CASCADE,
+  composite_score REAL NOT NULL DEFAULT 0,
+  tier TEXT CHECK (tier IN ('gold','silver','bronze','watch','unscored')),
+  persona TEXT,
+  behavioral_persona TEXT,
+  -- Referral scoring (added in 019)
+  referral_likelihood REAL,
+  referral_tier TEXT,
+  referral_persona TEXT,
+  behavioral_signals JSONB,
+  referral_signals JSONB,
+  scored_at TIMESTAMPTZ,
+  scoring_version INTEGER DEFAULT 1
+);
+```
+
+### score_dimensions
+
+Breakdown of the 9 scoring dimensions for each contact score.
+
+| Dimension | Weight (default) |
+|-----------|-----------------|
+| icp_fit | 0.20 |
+| relationship_strength | 0.15 |
+| network_hub | 0.10 |
+| signal_boost | 0.10 |
+| skills_relevance | 0.10 |
+| behavioral | 0.10 |
+| content_relevance | 0.10 |
+| graph_centrality | 0.10 |
+| network_proximity | 0.05 |
+
+### scoring_weight_profiles and tier_thresholds
+
+Configurable weight profiles with degree-aware tier thresholds. The default profile uses higher thresholds for 2nd-degree connections (e.g., gold requires 90+ for 2nd-degree vs 80+ for 1st-degree).
+
+## Enrichment Tables
+
+### person_enrichments
+
+Provenance records for each enrichment attempt per contact per provider.
+
+```sql
+CREATE TABLE person_enrichments (
+  id UUID PRIMARY KEY,
+  contact_id UUID NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  raw_response JSONB,
+  enriched_fields TEXT[] DEFAULT '{}',
+  confidence REAL,
+  cost_cents INTEGER DEFAULT 0,
+  enriched_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
+  UNIQUE(contact_id, provider)
+);
+```
+
+### work_history and education
+
+Detailed career and education history linked to contacts. Populated from CSV import, extension capture, and enrichment providers.
+
+### company_enrichments
+
+Company-level enrichment records from providers like Crunchbase and BuiltWith.
+
+## Behavioral Tables
+
+### behavioral_observations
+
+Individual observations of contact behavior (posts, comments, reactions) captured by the extension.
+
+### content_profiles
+
+Aggregated content analysis per contact: topics, tone, posting frequency, engagement metrics.
+
+### activity_patterns
+
+Detected patterns (e.g., posting schedule, engagement trends) with confidence scores.
+
+## Outreach Tables
+
+### outreach_campaigns, sequences, and steps
+
+Multi-step outreach campaigns with ordered sequence steps, each linked to a template with configurable delays.
+
+### outreach_templates
+
+Message templates with merge variables (`{{first_name}}`, `{{company}}`, etc.) and category classification.
+
+Categories: `initial_outreach`, `follow_up`, `meeting_request`, `referral_ask`, `content_share`, `custom`.
+
+### outreach_states and events
+
+Per-contact outreach state machine tracking: `not_started` -> `queued` -> `sent` -> `opened` -> `replied` -> `accepted`/`declined`/`bounced`/`opted_out`.
+
+### template_performance
+
+Aggregate performance metrics per template per time period (sent, open, reply, accept counts).
+
+## Extension Tables
+
+### page_cache
+
+Stores captured LinkedIn page HTML with a 5-version rotation trigger per URL.
+
+```sql
+CREATE TABLE page_cache (
+  id UUID PRIMARY KEY,
+  url TEXT NOT NULL,
+  page_type TEXT NOT NULL,
+  html_content TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1,
+  parsed BOOLEAN DEFAULT FALSE,
+  parsed_at TIMESTAMPTZ,
+  capture_id UUID,
+  extension_version TEXT,
+  session_id TEXT,
+  scroll_depth REAL,
+  trigger_mode TEXT DEFAULT 'manual',
+  parse_version INTEGER,
+  created_at TIMESTAMPTZ
+);
+```
+
+### selector_configs
+
+CSS selector chains for each LinkedIn page type. Stores both per-row selectors and a JSONB `selectors_json` blob used by the parser engine. A deactivation trigger ensures only one active config exists per page type.
+
+### extension_tokens
+
+Token-based authentication for the browser extension. Stores SHA-256 hashes with revocation support.
+
+### extension_settings
+
+Per-extension JSONB settings storage.
+
+## Vector Tables
+
+Three embedding tables with HNSW indexes for semantic similarity search:
+
+```sql
+-- Profile embeddings (one per contact)
+CREATE TABLE profile_embeddings (
+  contact_id UUID NOT NULL UNIQUE REFERENCES contacts(id),
+  embedding RUVECTOR(384) NOT NULL,
+  model TEXT NOT NULL DEFAULT 'all-MiniLM-L6-v2'
+);
+
+-- Content embeddings (multiple per contact)
+CREATE TABLE content_embeddings (
+  contact_id UUID NOT NULL REFERENCES contacts(id),
+  content_type TEXT NOT NULL,
+  embedding RUVECTOR(384) NOT NULL
+);
+
+-- Company embeddings (one per company)
+CREATE TABLE company_embeddings (
+  company_id UUID NOT NULL UNIQUE REFERENCES companies(id),
+  embedding RUVECTOR(384) NOT NULL
+);
+```
+
+HNSW index configuration: `m = 16`, `ef_construction = 200`, using `ruvector_cosine_ops`.
+
+## Budget Tables
+
+### enrichment_providers
+
+Registered data providers with cost, capabilities, priority, and activation status. Seeded with 7 providers (PDL, Lusha, TheirStack, Apollo, Crunchbase, BuiltWith, LinkedIn Extension).
+
+### budget_periods
+
+Time-bounded budget allocation (daily/weekly/monthly/yearly) with spend tracking.
+
+### enrichment_transactions
+
+Per-lookup audit trail linking provider, contact, budget period, cost, and returned fields.
+
+## Additional Tables
+
+### goals and tasks
+
+Goal tracking with measurable targets and linked tasks per contact.
+
+### owner_profiles
+
+Versioned storage for the user's own LinkedIn data export, including ad targeting data, endorsements, recommendations, and agent advisements.
+
+### offerings, action_log
+
+Service offerings with niche/ICP associations. The action log provides a time-machine audit trail with before/after snapshots and revert capability.
+
+### referral_dimensions and scoring_runs
+
+Referral scoring breakdown per contact and batch scoring run tracking.
+
+## Materialized View
+
+The `enriched_contacts` view joins contacts with companies, scores, messages, outreach states, and enrichment status for fast read queries. Refreshed concurrently via `refresh_enriched_contacts()`.
+
+## Triggers
+
+| Trigger | Table | Purpose |
+|---------|-------|---------|
+| `update_updated_at_column` | Multiple | Auto-set `updated_at` on UPDATE |
+| `rotate_page_cache` | page_cache | Keep only 5 most recent versions per URL |
+| `deactivate_previous_selector_config` | selector_configs | Ensure one active config per page type |
+| `sync_contact_to_graph_node` | contacts | Mirror INSERT to ruvector graph |
+| `sync_contact_delete_from_graph` | contacts | Mirror DELETE from ruvector graph |
+| `sync_edge_to_graph` | edges | Mirror edge INSERT to ruvector graph |
+| `sync_edge_delete_from_graph` | edges | Mirror edge DELETE from ruvector graph |
+
+Graph sync triggers are graceful no-ops if the ruvector graph functions are not available.

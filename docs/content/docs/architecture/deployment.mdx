@@ -1,0 +1,358 @@
+---
+title: Deployment Guide
+description: Docker Compose deployment, environment configuration, SSL, backups, and production hardening.
+---
+
+NetworkNav deploys as two Docker containers orchestrated by Docker Compose. This guide covers setup, configuration, SSL, and production operations.
+
+## Quick Start
+
+```bash
+# Clone and configure
+cd networknav
+cp .env.example .env
+# Edit .env with your credentials
+
+# Start services
+docker compose up -d
+
+# Verify health
+docker compose ps
+curl http://localhost:3000/api/health
+```
+
+## Docker Compose Configuration
+
+The `docker-compose.yml` defines two services:
+
+### Database Service (`db`)
+
+```yaml
+services:
+  db:
+    image: ruvnet/ruvector-postgres:latest
+    container_name: ctox-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ctox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-ctox}
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d
+      - ./data/drives/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ctox} -d ${POSTGRES_DB:-ctox}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+```
+
+Key points:
+- Uses `ruvector-postgres` which includes the RUVECTOR extension for vector similarity search
+- Schema scripts in `db/init/` run automatically on first start (alphabetical order)
+- Data persists in `./data/drives/db/` on the host
+- Health check uses `pg_isready` with 30-second start period for initial schema setup
+- `POSTGRES_PASSWORD` is required; compose will fail without it
+
+### Application Service (`app`)
+
+```yaml
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      target: runner
+    container_name: ctox-app
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ctox}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ctox}
+      NODE_ENV: production
+      PDL_API_KEY: ${PDL_API_KEY:-}
+      APOLLO_API_KEY: ${APOLLO_API_KEY:-}
+      LUSHA_API_KEY: ${LUSHA_API_KEY:-}
+      THEIRSTACK_API_KEY: ${THEIRSTACK_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+```
+
+Key points:
+- Multi-stage Dockerfile with `runner` target for minimal production image
+- Waits for database health check before starting
+- All API keys are optional (features degrade gracefully)
+- `./data` mounted at `/data` inside the container for file access
+
+## Environment Variables
+
+### Required
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `POSTGRES_PASSWORD` | PostgreSQL password | `your-strong-password-here` |
+
+### Optional (with defaults)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `POSTGRES_USER` | `ctox` | PostgreSQL username |
+| `POSTGRES_DB` | `ctox` | PostgreSQL database name |
+| `NODE_ENV` | `production` | Node.js environment |
+
+### Optional (API keys)
+
+| Variable | Service | Enables |
+|----------|---------|---------|
+| `PDL_API_KEY` | People Data Labs | Contact enrichment (email, phone, employment) |
+| `APOLLO_API_KEY` | Apollo.io | Contact enrichment (email, phone, company) |
+| `LUSHA_API_KEY` | Lusha | Contact enrichment (verified email/phone) |
+| `THEIRSTACK_API_KEY` | TheirStack | Company technographics |
+| `ANTHROPIC_API_KEY` | Anthropic Claude | AI analysis, goal generation, template personalization |
+| `CRUNCHBASE_API_KEY` | Crunchbase | Company funding and leadership data |
+| `BUILTWITH_API_KEY` | BuiltWith | Company tech stack analysis |
+| `ALLOW_DEV_ORIGIN` | - | Set to `true` to allow localhost CORS in production |
+
+### Example `.env` file
+
+```bash
+POSTGRES_PASSWORD=change-me-to-something-strong
+POSTGRES_USER=ctox
+POSTGRES_DB=ctox
+
+# Enrichment providers (set the ones you have)
+PDL_API_KEY=
+APOLLO_API_KEY=
+LUSHA_API_KEY=
+
+# AI features
+ANTHROPIC_API_KEY=
+```
+
+## Volume Mounts and Persistence
+
+| Host Path | Container Path | Purpose |
+|-----------|---------------|---------|
+| `./db/init/` | `/docker-entrypoint-initdb.d` | SQL schema scripts (read-only at init) |
+| `./data/drives/db/` | `/var/lib/postgresql/data` | PostgreSQL data directory |
+| `./data/` | `/data` | Application data (imports, exports) |
+
+The `data/` directory is gitignored. Create it before first run:
+
+```bash
+mkdir -p data/drives/db data/drives/app data/drives/shared data/drives/config
+```
+
+## Health Checks
+
+Both services expose health checks:
+
+### Database
+
+```bash
+pg_isready -U ctox -d ctox
+```
+
+Checked every 10 seconds. The app service will not start until this passes.
+
+### Application
+
+```bash
+wget -qO- http://127.0.0.1:3000/api/health
+```
+
+Checked every 15 seconds. Returns JSON with database connectivity status.
+
+## SSL/TLS with Reverse Proxy
+
+NetworkNav does not terminate SSL directly. Use a reverse proxy for HTTPS:
+
+### Caddy (recommended for simplicity)
+
+```
+networknav.yourdomain.com {
+    reverse_proxy localhost:3000
+}
+```
+
+Caddy automatically provisions and renews Let's Encrypt certificates.
+
+### Nginx
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name networknav.yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/networknav.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/networknav.yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+## Production Hardening
+
+### Resource limits
+
+Add to `docker-compose.yml` for production:
+
+```yaml
+services:
+  db:
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+
+  app:
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+```
+
+### Restrict database access
+
+In production, remove the database port mapping to prevent external access:
+
+```yaml
+services:
+  db:
+    # Remove or comment out:
+    # ports:
+    #   - "5432:5432"
+```
+
+The app service connects to the database via Docker's internal network (`db:5432`).
+
+### Restart policies
+
+Both services use `restart: unless-stopped`, which restarts containers after crashes or host reboots but not after manual `docker compose stop`.
+
+## Backup and Restore
+
+### Database backup
+
+```bash
+# Backup to compressed SQL
+docker exec ctox-db pg_dump -U ctox -d ctox | gzip > backup-$(date +%Y%m%d).sql.gz
+
+# Or use pg_dump with custom format for parallel restore
+docker exec ctox-db pg_dump -U ctox -d ctox -Fc > backup-$(date +%Y%m%d).dump
+```
+
+### Database restore
+
+```bash
+# From SQL
+gunzip -c backup-20260319.sql.gz | docker exec -i ctox-db psql -U ctox -d ctox
+
+# From custom format
+docker exec -i ctox-db pg_restore -U ctox -d ctox --clean < backup-20260319.dump
+```
+
+### Full system backup
+
+```bash
+# Stop services first for consistent backup
+docker compose stop
+
+# Backup data directory
+tar czf networknav-backup-$(date +%Y%m%d).tar.gz data/
+
+# Restart
+docker compose up -d
+```
+
+### Automated backups
+
+Create a cron job for daily backups:
+
+```bash
+# /etc/cron.d/networknav-backup
+0 2 * * * root docker exec ctox-db pg_dump -U ctox -d ctox | gzip > /backups/networknav-$(date +\%Y\%m\%d).sql.gz
+```
+
+## Monitoring
+
+### Container status
+
+```bash
+docker compose ps
+docker compose logs -f app
+docker compose logs -f db
+```
+
+### Application health
+
+```bash
+curl -s http://localhost:3000/api/health | jq .
+```
+
+### Database statistics
+
+```bash
+docker exec ctox-db psql -U ctox -d ctox -c "
+  SELECT relname, n_tup_ins, n_tup_upd, n_tup_del
+  FROM pg_stat_user_tables
+  ORDER BY n_tup_ins DESC
+  LIMIT 10;
+"
+```
+
+### Rebuilding after code changes
+
+```bash
+docker compose build app
+docker compose up -d app
+```
+
+### Clearing the `.next` cache
+
+If the `.next` build cache becomes root-owned inside the container:
+
+```bash
+docker exec ctox-app rm -rf /app/.next
+docker compose restart app
+```
+
+## Upgrading Schema
+
+New SQL migration scripts are added to `db/init/` with incrementing numeric prefixes. These only run on first database initialization.
+
+For existing deployments, apply migrations manually:
+
+```bash
+docker exec -i ctox-db psql -U ctox -d ctox < db/init/019-referral-scoring-schema.sql
+```
+
+Or connect directly:
+
+```bash
+docker exec -it ctox-db psql -U ctox -d ctox
+```

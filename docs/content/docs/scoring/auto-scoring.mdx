@@ -1,0 +1,160 @@
+---
+title: Auto-Scoring Triggers
+description: Fire-and-forget scoring pattern, trigger points, batch concurrency, and rescore-all mechanics.
+---
+
+# Auto-Scoring Triggers
+
+NetworkNav uses a **fire-and-forget** pattern for scoring: whenever contact data changes, scoring is triggered in the background without blocking the calling operation.
+
+## 1. Fire-and-Forget Pattern
+
+The core function `triggerAutoScore(contactId)` calls `scoreContact()` and discards the returned Promise:
+
+```
+triggerAutoScore(contactId):
+    scoreContact(contactId).catch(log_error)
+    // Returns immediately — does not await
+```
+
+This design ensures that:
+
+1. **Import endpoints respond instantly.** Importing 500 contacts does not wait for 500 scoring runs.
+2. **Enrichment flows are non-blocking.** When an Apollo.io enrichment completes, scoring runs in parallel.
+3. **Extension captures are fast.** The browser extension sidebar receives an immediate response.
+4. **Errors are isolated.** A scoring failure for one contact does not affect the calling operation.
+
+<Callout type="warn">
+Because scoring is fire-and-forget, there is a brief window after data changes where the displayed score is stale. The UI should treat scores as **eventually consistent** and provide a manual rescore button for immediate updates.
+</Callout>
+
+## 2. Trigger Points
+
+Auto-scoring is invoked at four integration points:
+
+| Trigger | Function called | Source file |
+|---|---|---|
+| Contact import (CSV, LinkedIn, directory) | `triggerBatchAutoScore(ids)` | `api/import/*/route.ts` |
+| Enrichment apply (Apollo.io results saved) | `triggerAutoScore(id)` | `api/enrichment/apply/route.ts` |
+| Extension capture (sidebar save) | `triggerAutoScore(id)` | `api/extension/capture/route.ts` |
+| Outreach events (email sent, reply received) | `triggerAutoScore(id)` | `api/outreach/*/route.ts` |
+
+## 3. Batch Scoring with Concurrency Cap
+
+For batch imports, `triggerBatchAutoScore` processes contacts with a **concurrency cap of 5**:
+
+```
+triggerBatchAutoScore(contactIds):
+    CONCURRENCY = 5
+    idx = 0
+
+    function worker():
+        while idx < contactIds.length:
+            id = contactIds[idx++]
+            await scoreContact(id)     // Sequential within each worker
+
+    spawn CONCURRENCY workers in parallel
+    // Returns immediately (Promise.all runs in background)
+```
+
+This creates up to 5 parallel workers, each processing contacts sequentially from a shared index. The total throughput is approximately $5 \times$ the single-contact scoring rate.
+
+### Concurrency Analysis
+
+Let $t$ be the average time to score one contact (including database queries). With $n$ contacts and concurrency $k = 5$:
+
+$$T_{\text{total}} \approx \frac{n \cdot t}{k}$$
+
+For $n = 500$ contacts and $t = 200\text{ms}$: $T_{\text{total}} \approx 20\text{s}$.
+
+<Callout type="info">
+The concurrency cap of 5 was chosen to balance throughput against database connection pool pressure. The PostgreSQL connection pool is shared with the web application, so unlimited concurrency would risk connection exhaustion during large imports.
+</Callout>
+
+## 4. Rescore-All with Progress Tracking
+
+The `triggerRescoreAll()` function rescores every non-archived contact and tracks progress in the `scoring_runs` table.
+
+### Flow
+
+```
+triggerRescoreAll():
+    contactIds = getAllContactIds()
+    runId = createScoringRun("rescore-all", contactIds.length)
+
+    // Background loop (sequential)
+    for each id in contactIds:
+        try:
+            scoreContact(id)
+            scored++
+        catch:
+            failed++
+
+        // Update progress every 10 contacts
+        if (scored + failed) % 10 == 0:
+            updateScoringRun(runId, {scored, failed})
+
+    updateScoringRun(runId, {scored, failed, status: "completed"})
+    return runId
+```
+
+### Progress Tracking Schema
+
+The `scoring_runs` table records:
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID | Run identifier (returned to caller for polling) |
+| `run_type` | string | `"single"`, `"batch"`, or `"rescore-all"` |
+| `status` | string | `"pending"`, `"running"`, `"completed"`, `"failed"` |
+| `total_contacts` | integer | Total contacts to score |
+| `scored_contacts` | integer | Successfully scored so far |
+| `failed_contacts` | integer | Failed scoring attempts |
+| `started_at` | timestamp | When the run began |
+| `completed_at` | timestamp | When the run finished (null while running) |
+
+The UI can poll `GET /api/scoring/status?runId=...` to display a progress bar.
+
+<Callout type="warn">
+Rescore-all is **sequential** (not concurrent) to avoid overwhelming the database during a full network rescore. For a network of 2000 contacts at 200ms each, expect approximately 400 seconds (6--7 minutes).
+</Callout>
+
+## 5. Task Auto-Generation on Tier Change
+
+After each contact is scored, the pipeline compares the new score against the previous score. If a **tier change** occurred, task generation is triggered:
+
+```
+checkAndGenerateTasks(contactId, oldScore, newScore):
+    if oldScore.tier != newScore.tier:
+        // Generate appropriate follow-up task
+```
+
+This is also fire-and-forget: failures in task generation do not affect scoring. The `checkAndGenerateTasks` function is awaited with `.catch()` error swallowing.
+
+### Tier Change Scenarios
+
+| Old Tier | New Tier | Task generated |
+|---|---|---|
+| watch/bronze | silver/gold | "Review upgraded contact" |
+| gold/silver | bronze/watch | "Review downgraded contact" |
+| unscored | any | "Review newly scored contact" |
+
+## 6. Scoring Pipeline Execution Order
+
+For a single `scoreContact(id)` call, the execution order is:
+
+1. Load weight profile from database.
+2. Load contact scoring data (joins contacts, companies, graph_metrics, etc.).
+3. Determine available dimensions from contact data.
+4. Redistribute weights for available dimensions.
+5. Load active ICP profiles.
+6. **Phase 1:** Run all 9 dimension scorers, compute composite score.
+7. **Phase 2:** Run all 6 referral components, compute referral likelihood.
+8. Attach behavioral signals.
+9. Retrieve old score for tier comparison.
+10. Upsert new score to database.
+11. Fire-and-forget: check for tier change, generate tasks.
+12. Compute per-ICP fit scores for all active ICP profiles.
+13. Return `ScoringRunResult`.
+
+Steps 7 and 11 are wrapped in try/catch to ensure Phase 2 and task generation failures are non-blocking.

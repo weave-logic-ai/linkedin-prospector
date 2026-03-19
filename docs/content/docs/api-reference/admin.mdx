@@ -1,0 +1,429 @@
+---
+title: Admin API
+description: System health, data export, purge, GDPR erasure, and scoring calibration.
+---
+
+
+# Admin API
+
+Administrative endpoints for system health monitoring, data management, GDPR compliance,
+and scoring weight calibration.
+
+<Callout type="warn">
+Several endpoints in this section perform **irreversible destructive operations** (purge
+and GDPR erasure). They require confirmation tokens and should only be called after
+verifying the parameters. There is no undo. Always back up your database before running
+purge or erasure in production.
+</Callout>
+
+---
+
+<Callout type="warn">
+None of the admin endpoints require authentication. In production, restrict access to
+`/api/admin/*` routes using your reverse proxy (nginx, Caddy) or network-level controls.
+Exposing these endpoints publicly allows anyone to purge data, export contacts, or
+perform GDPR erasure.
+</Callout>
+
+## System Health Check
+
+```
+GET /api/admin/health
+```
+
+Comprehensive system health check including database connectivity, provider status,
+table row counts, and disk usage.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "status": "healthy",
+  "checks": {
+    "db": {
+      "connected": true,
+      "latencyMs": 12
+    },
+    "providers": [
+      { "name": "apollo", "active": true },
+      { "name": "pdl", "active": false }
+    ],
+    "counts": {
+      "contacts": 1234,
+      "goals": 5,
+      "tasks": 42,
+      "enrichment_transactions": 890,
+      "action_log": 2500
+    },
+    "diskUsage": {
+      "dbSizeBytes": 524288000,
+      "dbSizeHuman": "500 MB"
+    }
+  }
+}
+```
+
+Status values: `healthy` or `degraded`.
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/admin/health
+```
+
+**Error Codes:** `503` (degraded)
+
+---
+
+## Export Contacts (CSV)
+
+```
+GET /api/admin/export
+```
+
+Export all non-archived contacts with scores as a CSV file.
+
+<Callout type="warn">
+The export contains PII (names, email addresses, phone numbers, LinkedIn URLs). Handle
+the downloaded file according to your data protection policy.
+</Callout>
+
+**Auth:** None
+
+**Response:** `text/csv` file download.
+
+**CSV Columns:** `full_name`, `first_name`, `last_name`, `email`, `phone`, `title`,
+`current_company`, `location`, `linkedin_url`, `composite_score`, `tier`, `persona`, `tags`
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/admin/export -o contacts-export.csv
+```
+
+**Error Codes:** `500`
+
+---
+
+## Get Default Weight Profile
+
+```
+GET /api/admin/scoring
+```
+
+Returns the default scoring weight profile.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "name": "default",
+    "weights": {
+      "icp_fit": 0.2,
+      "network_hub": 0.15,
+      ...
+    },
+    "isDefault": true
+  }
+}
+```
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/admin/scoring
+```
+
+**Error Codes:** `404` (no default profile), `500`
+
+---
+
+## Update Weights (Admin)
+
+```
+PUT /api/admin/scoring
+```
+
+Update scoring weights with an option to trigger a batch rescore.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "name": "default",
+  "weights": {
+    "icp_fit": 0.2,
+    "network_hub": 0.15,
+    "relationship_strength": 0.15,
+    "signal_boost": 0.1,
+    "skills_relevance": 0.1,
+    "network_proximity": 0.1,
+    "behavioral": 0.05,
+    "content_relevance": 0.05,
+    "graph_centrality": 0.1
+  },
+  "description": "Balanced default weights",
+  "isDefault": true,
+  "triggerRescore": true
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `weights` | `Record<string, number>` | Yes | Weights (must sum to 1.0) |
+| `name` | string | No | Profile name (default: `default`) |
+| `description` | string | No | Description |
+| `isDefault` | boolean | No | Set as default (default: `true`) |
+| `triggerRescore` | boolean | No | Trigger batch rescore after update |
+
+**Response:**
+
+```json
+{
+  "data": { "id": "uuid", "name": "default", ... },
+  "rescore": { "queued": true, "contactCount": 1234 }
+}
+```
+
+**curl:**
+
+```bash
+curl -X PUT http://localhost:3000/api/admin/scoring \
+  -H "Content-Type: application/json" \
+  -d '{"weights":{"icp_fit":0.2,"network_hub":0.15,"relationship_strength":0.15,"signal_boost":0.1,"skills_relevance":0.1,"network_proximity":0.1,"behavioral":0.05,"content_relevance":0.05,"graph_centrality":0.1},"triggerRescore":true}'
+```
+
+**Error Codes:** `400` (missing weights, sum != 1.0), `500`
+
+---
+
+## Data Purge
+
+```
+POST /api/admin/purge
+```
+
+Purge data by scope with optional filters. Requires a confirmation token for safety.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "scope": "contacts",
+  "filters": {
+    "tier": "watch",
+    "olderThan": "2024-01-01T00:00:00.000Z",
+    "archived": true
+  },
+  "confirmToken": "CONFIRM_PURGE"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `scope` | string | Yes | `contacts`, `enrichment`, `scoring`, or `all` |
+| `filters.tier` | string | No | Only purge contacts in this tier |
+| `filters.olderThan` | string | No | ISO date — only purge records created before |
+| `filters.archived` | boolean | No | Only purge archived contacts |
+| `confirmToken` | string | Yes | Must be exactly `CONFIRM_PURGE` |
+
+**Response:**
+
+```json
+{
+  "purged": {
+    "contacts": 45,
+    "enrichment_transactions": 120,
+    "person_enrichments": 45,
+    "contact_scores": 45,
+    "score_dimensions": 270
+  }
+}
+```
+
+<Callout type="warn">
+This operation is **irreversible**. Deleted contacts and their associated enrichment,
+scoring, outreach, and behavioral data cannot be recovered. The owner contact (degree 0)
+is protected and never purged regardless of filters. When `scope` is `enrichment` or
+`scoring`, **all** records of that type are deleted (the `filters` object only applies
+to the `contacts` and `all` scopes).
+</Callout>
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/admin/purge \
+  -H "Content-Type: application/json" \
+  -d '{"scope":"scoring","confirmToken":"CONFIRM_PURGE"}'
+```
+
+**Error Codes:** `400` (missing/wrong confirmToken, invalid scope), `500`
+
+---
+
+## GDPR Erasure
+
+```
+POST /api/admin/erasure
+```
+
+Right-to-erasure (GDPR Article 17). Permanently deletes all data for a specific
+contact across all tables in a single transaction. An erasure audit record is
+preserved in the action log.
+
+<Callout type="warn">
+This deletes data from **17 tables** in a single transaction. The operation is
+irreversible. A minimal audit record (action type, timestamp, contact ID) is kept
+in `action_log` for compliance tracking but all PII is removed. No authentication
+is required on this endpoint -- restrict access at the network/proxy layer in production.
+</Callout>
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "contactId": "uuid",
+  "confirmToken": "CONFIRM_ERASURE"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contactId` | UUID | Yes | Contact to erase |
+| `confirmToken` | string | Yes | Must be exactly `CONFIRM_ERASURE` |
+
+**Tables erased:** `action_log` (non-erasure entries), `enrichment_transactions`,
+`person_enrichments`, `score_dimensions`, `contact_scores`, `contact_icp_fits`,
+`outreach_events`, `outreach_states`, `tasks`, `edges`, `behavioral_observations`,
+`content_profiles`, `activity_patterns`, `cluster_memberships`, `work_history`,
+`education`, and the `contacts` row itself.
+
+**Response:**
+
+```json
+{
+  "erased": true,
+  "contactId": "uuid"
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/admin/erasure \
+  -H "Content-Type: application/json" \
+  -d '{"contactId":"UUID","confirmToken":"CONFIRM_ERASURE"}'
+```
+
+**Error Codes:** `400` (missing contactId/confirmToken), `404` (contact not found), `500`
+
+---
+
+## RVF Comparison (Get Pair)
+
+```
+GET /api/admin/rvf
+```
+
+Get a random pair of scored contacts for relative value feedback (RVF) calibration.
+RVF helps validate scoring by comparing contacts head-to-head.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "pair": [
+    {
+      "id": "uuid",
+      "full_name": "Jane Doe",
+      "headline": "VP Engineering",
+      "current_company": "Acme Corp",
+      "composite_score": 0.78,
+      "tier": "gold",
+      "persona": "decision_maker"
+    },
+    {
+      "id": "uuid",
+      "full_name": "John Smith",
+      "headline": "Software Engineer",
+      "current_company": "Beta Inc",
+      "composite_score": 0.45,
+      "tier": "silver",
+      "persona": "influencer"
+    }
+  ],
+  "totalComparisons": 42,
+  "totalContacts": 1234
+}
+```
+
+Returns `{ "pair": null }` if fewer than 2 scored contacts exist.
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/admin/rvf
+```
+
+**Error Codes:** `500`
+
+---
+
+## RVF Comparison (Submit)
+
+```
+POST /api/admin/rvf
+```
+
+Submit a comparison result indicating which contact is more valuable.
+
+**Auth:** None
+
+**Request Body:**
+
+```json
+{
+  "winnerId": "uuid",
+  "loserId": "uuid",
+  "isEqual": false
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `winnerId` | UUID | Yes | Contact judged more valuable |
+| `loserId` | UUID | Yes | Other contact |
+| `isEqual` | boolean | No | True if contacts are equally valuable |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "totalComparisons": 43
+}
+```
+
+**curl:**
+
+```bash
+curl -X POST http://localhost:3000/api/admin/rvf \
+  -H "Content-Type: application/json" \
+  -d '{"winnerId":"UUID1","loserId":"UUID2","isEqual":false}'
+```
+
+**Error Codes:** `400` (missing IDs), `500`

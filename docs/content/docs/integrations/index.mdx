@@ -1,0 +1,218 @@
+---
+title: Integrations Overview
+description: Data provider landscape, enrichment waterfall concept, and how to add new providers.
+---
+
+NetworkNav integrates with multiple external data providers to enrich contact profiles beyond what LinkedIn exports provide. This section documents each provider, the waterfall orchestration system, and the Claude AI integration.
+
+## Why Multiple Providers?
+
+No single data provider covers all the fields NetworkNav needs. Each provider has strengths in different areas:
+
+| Provider | Best For | Match Method |
+|----------|----------|-------------|
+| People Data Labs | Comprehensive person data | LinkedIn URL, email, name+company |
+| Apollo.io | Email discovery, company context | LinkedIn URL, name+company |
+| Lusha | Verified direct contact info | Name+company, LinkedIn URL |
+| Crunchbase | Company funding and leadership | Company name |
+| BuiltWith | Technology stack analysis | Company domain |
+| Claude AI | Analysis and personalization | Contact profile data |
+
+## Enrichment Waterfall Concept
+
+Rather than calling every provider for every contact, NetworkNav uses a **field-aware waterfall** that:
+
+1. Identifies which fields are missing for a contact
+2. Selects only providers capable of filling those fields
+3. Calls providers in priority order (lowest priority number = first)
+4. Stops when all target fields are filled or budget is exhausted
+5. Tracks every lookup cost for budget enforcement
+
+This approach minimizes cost while maximizing data coverage.
+
+```
+Contact needs: email, phone, company_size
+       |
+       v
+  PDL (priority 10): returns email, phone
+  -> email: filled, phone: filled
+       |
+       v
+  Lusha (priority 20): skipped (email+phone already filled)
+       |
+       v
+  TheirStack (priority 30): can fill company_size? No -> skip
+       |
+       v
+  Crunchbase (priority 50): returns company_size
+  -> company_size: filled
+       |
+       v
+  All target fields filled -> STOP
+```
+
+## Cost Comparison
+
+| Provider | Cost per Lookup | Free Tier | Best Value For |
+|----------|----------------|-----------|----------------|
+| LinkedIn (Extension) | $0.00 | Unlimited | Profile, employment, skills |
+| TheirStack | $0.05 | Limited | Company technographics |
+| Apollo.io | $0.08 | 50 credits/month | Email + basic company |
+| People Data Labs | $0.10 | 5 lookups/month (starter) | Comprehensive person data |
+| BuiltWith | $0.12 | Limited | Tech stack analysis |
+| Lusha | $0.15 | 40 credits/month | Verified phone numbers |
+| Crunchbase | $0.20 | Limited | Funding, investors |
+
+Costs are approximate and vary by plan. The `cost_per_lookup_cents` value in each provider determines budget tracking.
+
+## Provider Capabilities
+
+Each provider declares capabilities that map to contact fields:
+
+| Capability | Fields Populated | Providers |
+|------------|------------------|-----------|
+| email | email | PDL, Apollo, Lusha |
+| phone | phone | PDL, Apollo, Lusha |
+| social | linkedin_url, twitter, location | PDL |
+| employment | title, current_company, headline | PDL, Apollo |
+| education | education records | PDL |
+| company | current_company, industry | Lusha, Crunchbase |
+| funding | total_funding, last_funding_type | Crunchbase |
+| leadership | company leadership data | Crunchbase |
+| technographics | tech stack tags | TheirStack, BuiltWith |
+| website | company website URL | BuiltWith |
+| profile | about, headline, skills, connections | LinkedIn Extension |
+
+## Budget Enforcement
+
+All enrichment spending is tracked through the budget system:
+
+- **Budget periods**: Configurable as daily, weekly, monthly, or yearly
+- **Default**: $100/month (10,000 cents)
+- **Per-transaction tracking**: Every API call is logged with cost and status
+- **Waterfall halts**: When remaining budget is less than the next provider's cost
+- **Warning threshold**: 80% utilization triggers a warning flag
+
+```typescript
+interface BudgetStatus {
+  budgetCents: number;        // Total budget for period
+  spentCents: number;         // Amount spent so far
+  remainingCents: number;     // Budget remaining
+  utilizationPercent: number; // Percentage used
+  isWarning: boolean;         // true when >= 80% used
+  isExhausted: boolean;       // true when no budget left
+  lookupCount: number;        // Total lookups this period
+}
+```
+
+## Adding a New Provider
+
+To add a new enrichment provider:
+
+### 1. Implement the `EnrichmentProvider` interface
+
+Create a new file in `app/src/lib/enrichment/providers/`:
+
+```typescript
+import {
+  EnrichmentProvider,
+  EnrichmentContact,
+  EnrichmentResult,
+  EnrichmentField,
+} from '../types';
+
+export class MyProvider implements EnrichmentProvider {
+  readonly name = 'myprovider';
+  readonly displayName = 'My Provider';
+  readonly capabilities = ['email', 'phone'];
+  readonly costPerLookupCents = 10;
+
+  private apiKey: string | null;
+
+  constructor(config: { apiKey?: string } = {}) {
+    this.apiKey = config.apiKey || process.env.MY_PROVIDER_API_KEY || null;
+  }
+
+  async enrich(contact: EnrichmentContact): Promise<EnrichmentResult> {
+    if (!this.apiKey) {
+      return {
+        providerId: this.name,
+        providerName: this.displayName,
+        success: false,
+        fields: [],
+        costCents: 0,
+        error: 'API key not configured',
+      };
+    }
+
+    // Call your API and map the response
+    const fields: EnrichmentField[] = [];
+    // ... populate fields with { field, value, confidence }
+
+    return {
+      providerId: this.name,
+      providerName: this.displayName,
+      success: true,
+      fields,
+      costCents: this.costPerLookupCents,
+    };
+  }
+
+  estimateCost(contacts: EnrichmentContact[]): number {
+    return contacts.length * this.costPerLookupCents;
+  }
+
+  async checkBalance(): Promise<{ available: boolean; remaining?: number }> {
+    if (!this.apiKey) return { available: false };
+    return { available: true };
+  }
+}
+```
+
+### 2. Register in the waterfall
+
+Add a case to `createProviderInstance` in `waterfall.ts`:
+
+```typescript
+case 'myprovider': return new MyProvider(providerConfig);
+```
+
+### 3. Export from providers index
+
+```typescript
+export { MyProvider } from './myprovider';
+```
+
+### 4. Seed the database
+
+Add a row to `enrichment_providers`:
+
+```sql
+INSERT INTO enrichment_providers
+  (name, display_name, cost_per_lookup_cents, capabilities, priority)
+VALUES
+  ('myprovider', 'My Provider', 10, ARRAY['email', 'phone'], 45);
+```
+
+### 5. Add the env var
+
+Pass the API key through `docker-compose.yml`:
+
+```yaml
+environment:
+  MY_PROVIDER_API_KEY: ${MY_PROVIDER_API_KEY:-}
+```
+
+### Key design rules
+
+- **Always handle missing API keys gracefully** (return `success: false`, not an exception)
+- **Set costCents to 0** when a lookup fails or returns 404 (no charge for misses)
+- **Use confidence scores** (0.0-1.0) on returned fields to enable merge prioritization
+- **Filter boolean flags**: Some APIs return `true`/`false` instead of actual values on lower tiers; reject these
+
+## Related Documentation
+
+- [Enrichment Guide](/docs/guides/enrichment) -- practical guide to enriching contacts
+- [Enrichment API](/docs/api-reference/enrichment) -- REST endpoints for enrichment operations
+- [Configuration](/docs/guides/configuration) -- setting up API keys and budget caps
+- [Data Flow](/docs/architecture/data-flow) -- how enrichment fits into the overall data pipeline

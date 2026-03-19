@@ -1,0 +1,325 @@
+---
+title: Configuration
+description: Customize scoring weights, enrichment providers, extension settings, budget caps, and ICP criteria to tailor NetworkNav to your workflow.
+---
+
+
+# Configuration
+
+**What you will learn:** How to configure scoring weight profiles, set up enrichment provider API keys, customize the Chrome extension behavior, manage budget caps, and tailor ICP criteria and outreach templates.
+
+NetworkNav is configurable at multiple levels -- from scoring weights that determine how contacts are ranked to extension settings that control automatic data capture. This guide covers all user-facing configuration options.
+
+## Scoring Weight Configuration
+
+Scoring weights determine how much each of the 9 composite score dimensions contributes to the final score. Adjusting weights lets you prioritize what matters most to your workflow.
+
+### Accessing Weight Settings
+
+1. Navigate to **Admin** in the sidebar
+2. Click the **Scoring Weights** tab
+3. You will see a slider for each dimension
+
+### Available Dimensions and Defaults
+
+| Dimension | Default Weight | Increase If You Want To... |
+|-----------|---------------|---------------------------|
+| ICP Fit | High | Prioritize contacts matching your buyer profile |
+| Network Hub | Medium | Find well-connected people who can amplify your reach |
+| Relationship Strength | High | Focus on people you already have a relationship with |
+| Signal Boost | Medium | Emphasize keyword signals in headlines and bios |
+| Skills Relevance | Low | Weight technical or professional skill overlap |
+| Network Proximity | Medium | Prioritize contacts close to you in the network graph |
+| Behavioral | Medium | Reward active LinkedIn users who post and engage |
+| Content Relevance | Low | Focus on contacts whose content aligns with your business |
+| Graph Centrality | Low | Prioritize contacts with strong structural network positions |
+
+### Weight Profiles
+
+You can create and save multiple weight profiles for different use cases:
+
+- **Default** — balanced weights for general networking
+- **Sales** — emphasizes ICP Fit and Relationship Strength
+- **Partnerships** — emphasizes Network Hub and Behavioral
+- **Recruiting** — emphasizes Skills Relevance and Content Relevance
+
+<Steps>
+
+### Create a new weight profile
+
+Click **New Profile** in the Scoring Weights tab.
+
+### Adjust the sliders
+
+Move each dimension's slider to set its relative weight. The system normalizes weights internally, so only the ratios between dimensions matter.
+
+### Save and apply
+
+Click **Save Profile**. Then click **Rescore All** to apply the new weights across all contacts.
+
+</Steps>
+
+<Callout type="warn">
+Weight changes do not take effect until you rescore. Saving a profile updates the stored configuration but does not retroactively change existing scores.
+</Callout>
+
+<Callout type="tip">
+When a contact is missing data for a dimension, that dimension's weight is automatically redistributed to the remaining dimensions. This means increasing the weight of a dimension that most contacts lack data for will have little effect on most scores. Check your data coverage in Admin before tuning weights.
+</Callout>
+
+## Enrichment Provider Setup
+
+Each enrichment provider requires an API key set as an environment variable. You can configure these during initial setup or add them later.
+
+### Provider Configuration
+
+<Tabs items={['People Data Labs', 'Apollo', 'Lusha', 'Crunchbase', 'BuiltWith']}>
+
+<Tab value="People Data Labs">
+
+**Environment variable**: `PDL_API_KEY`
+
+PDL provides the broadest coverage for professional contact data including verified emails, work history, education, and social profiles.
+
+1. Sign up at [peopledatalabs.com](https://www.peopledatalabs.com)
+2. Generate an API key from your dashboard
+3. Add to your `.env` file:
+
+```bash title=".env"
+PDL_API_KEY=your-pdl-api-key
+```
+
+4. Restart the app: `docker compose restart app`
+
+</Tab>
+
+<Tab value="Apollo">
+
+**Environment variable**: `APOLLO_API_KEY`
+
+Apollo provides contact emails, phone numbers, and company information. It serves as the second provider in the contact data waterfall.
+
+1. Sign up at [apollo.io](https://www.apollo.io)
+2. Go to Settings, then API Keys
+3. Add to your `.env` file:
+
+```bash title=".env"
+APOLLO_API_KEY=your-apollo-api-key
+```
+
+4. Restart the app: `docker compose restart app`
+
+</Tab>
+
+<Tab value="Lusha">
+
+**Environment variable**: `LUSHA_API_KEY`
+
+Lusha specializes in direct dial phone numbers and personal email addresses. It is used as the final fallback in the contact data waterfall.
+
+1. Sign up at [lusha.com](https://www.lusha.com)
+2. Generate an API key from your account settings
+3. Add to your `.env` file:
+
+```bash title=".env"
+LUSHA_API_KEY=your-lusha-api-key
+```
+
+4. Restart the app: `docker compose restart app`
+
+</Tab>
+
+<Tab value="Crunchbase">
+
+**Environment variable**: `THEIRSTACK_API_KEY`
+
+Crunchbase provides company-level intelligence including industry, funding rounds, employee count, and revenue data.
+
+1. Sign up at [crunchbase.com/api](https://data.crunchbase.com)
+2. Obtain an API key from your developer portal
+3. Add to your `.env` file:
+
+```bash title=".env"
+THEIRSTACK_API_KEY=your-crunchbase-api-key
+```
+
+4. Restart the app: `docker compose restart app`
+
+</Tab>
+
+<Tab value="BuiltWith">
+
+**Environment variable**: `THEIRSTACK_API_KEY`
+
+BuiltWith identifies the technology stack used by a company's website. This data feeds into ICP fit scoring when you target companies using specific technologies.
+
+1. Sign up at [builtwith.com/api](https://builtwith.com/api)
+2. Generate an API key
+3. The key is shared with the Crunchbase provider via `THEIRSTACK_API_KEY`
+4. Restart the app: `docker compose restart app`
+
+</Tab>
+
+</Tabs>
+
+<Callout>
+You do not need all providers configured. NetworkNav gracefully skips any provider without a configured key and proceeds with available providers.
+</Callout>
+
+## Extension Settings
+
+The Chrome extension has several configurable options that control its behavior.
+
+### Accessing Extension Settings
+
+1. Click the NetworkNav extension icon in Chrome
+2. Click the gear icon to open settings
+
+### Available Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Auto-capture** | On | Automatically capture LinkedIn profile data when visiting profiles |
+| **Overlay position** | Bottom-right | Where the capture notification appears on LinkedIn pages |
+| **Capture limit** | 50/day | Maximum profiles to auto-capture per day (prevents excessive requests) |
+| **Show task notifications** | On | Display notification badges for pending tasks |
+| **Side panel auto-open** | Off | Automatically open the side panel on LinkedIn pages |
+
+### Configuring Auto-Capture
+
+Auto-capture is the most impactful extension setting. When enabled, the extension automatically extracts profile data whenever you visit a LinkedIn profile. This data feeds into scoring and can auto-complete VISIT_PROFILE and CAPTURE_PAGE tasks.
+
+**When to disable auto-capture**:
+- If you want full control over which profiles are captured
+- If you are browsing profiles you do not want in your database
+- If you are approaching your daily capture limit and want to be selective
+
+## Budget Caps and Warnings
+
+Budget controls prevent unexpected spending on enrichment provider APIs.
+
+### Setting Budget Caps
+
+1. Navigate to **Admin** in the sidebar
+2. Click the **Budget** tab (or look for budget settings within the enrichment section)
+3. Set monthly caps per provider:
+
+| Provider | Field | Description |
+|----------|-------|-------------|
+| PDL | Monthly cap ($) | Maximum monthly spend on PDL lookups |
+| Apollo | Monthly cap ($) | Maximum monthly spend on Apollo lookups |
+| Lusha | Monthly cap ($) | Maximum monthly spend on Lusha lookups |
+| Crunchbase | Monthly cap ($) | Maximum monthly spend on Crunchbase lookups |
+| BuiltWith | Monthly cap ($) | Maximum monthly spend on BuiltWith lookups |
+
+### Warning and Enforcement Behavior
+
+- At **80% of the cap**, a yellow warning banner appears on enrichment actions
+- At **100% of the cap**, enrichment requests to that provider are refused
+- Budget counters reset on the 1st of each calendar month
+- You can view current spend in the Admin dashboard
+
+## ICP Criteria Customization
+
+ICP criteria define who your Ideal Customer Profile is. These criteria directly influence the ICP Fit scoring dimension.
+
+### Criteria Fields
+
+| Field | Type | Example |
+|-------|------|---------|
+| **Roles** | String array | `["VP Engineering", "CTO", "Director of Engineering"]` |
+| **Industries** | String array | `["Software", "Financial Services", "Healthcare"]` |
+| **Company size ranges** | String array | `["50-200", "201-1000"]` |
+| **Locations** | String array | `["San Francisco", "New York", "Remote"]` |
+| **Signals** | String array | `["hiring", "series B", "scaling"]` |
+| **Minimum connections** | Number | `100` |
+
+### Managing ICPs
+
+ICPs are managed from the Discover page (see [Discover guide](/docs/guides/discover)). You can also manage them via API:
+
+```bash title="List all ICPs"
+curl http://localhost:3000/api/icps
+```
+
+```bash title="Update ICP criteria"
+curl -X PATCH http://localhost:3000/api/icps/icp-uuid \
+  -H "Content-Type: application/json" \
+  -d '{
+    "criteria": {
+      "roles": ["VP Engineering", "CTO"],
+      "industries": ["Software"],
+      "companySizeRanges": ["50-200", "201-1000"],
+      "locations": ["San Francisco Bay Area"]
+    }
+  }'
+```
+
+### Weight Overrides per ICP
+
+Each ICP can override the global scoring weights. This lets you emphasize different dimensions for different buyer profiles:
+
+```bash title="Set weight overrides for an ICP"
+curl -X PATCH http://localhost:3000/api/icps/icp-uuid \
+  -H "Content-Type: application/json" \
+  -d '{
+    "weightOverrides": {
+      "icp_fit": 0.25,
+      "skills_relevance": 0.15,
+      "network_hub": 0.10
+    }
+  }'
+```
+
+Contacts matched against this ICP will be scored using these weights instead of the global defaults.
+
+## Template Management
+
+Outreach templates are managed from the Outreach page. For configuration purposes, here are the key options:
+
+### Template Settings
+
+- **Default template** — set a template as the default for quick actions
+- **Merge variable validation** — the editor highlights invalid merge variables
+- **Template categories** — organize templates by use case (cold outreach, follow-up, referral ask, etc.)
+
+### Managing Templates via API
+
+```bash title="List templates"
+curl http://localhost:3000/api/outreach/templates
+```
+
+```bash title="Update a template"
+curl -X PATCH http://localhost:3000/api/outreach/templates/template-uuid \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Template Name",
+    "body": "Hi {{first_name}}, updated message body..."
+  }'
+```
+
+```bash title="Delete a template"
+curl -X DELETE http://localhost:3000/api/outreach/templates/template-uuid
+```
+
+## Configuration Checklist
+
+Use this checklist when setting up a new NetworkNav instance:
+
+| Step | Priority | Guide |
+|------|----------|-------|
+| Set `POSTGRES_PASSWORD` | Required | [Quick Start](/docs/guides/quickstart) |
+| Set `ANTHROPIC_API_KEY` | Recommended | [Quick Start](/docs/guides/quickstart) |
+| Add at least one enrichment provider key | Recommended | [Enrichment](/docs/guides/enrichment) |
+| Review and adjust scoring weights | Optional | This page |
+| Set enrichment budget caps | Recommended | This page |
+| Configure extension auto-capture | Optional | This page |
+| Create initial niches and ICPs | Recommended | [Discover](/docs/guides/discover) |
+| Create outreach templates | Recommended | [Outreach](/docs/guides/outreach) |
+
+## Next Steps
+
+- **[Scoring Contacts](/docs/guides/scoring-contacts)** -- See how your weight configuration affects tier assignments and personas.
+- **[Weight Management](/docs/scoring/weight-management)** -- Deep dive into the math behind weight redistribution and sensitivity analysis.
+- **[RVF Training](/docs/scoring/rvf-training)** -- Validate your weight configuration with human pairwise comparisons.
+- **[The Game Loop](/docs/guides/game-loop)** -- Understand the full intelligence cycle and recommended daily workflow.

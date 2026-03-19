@@ -1,0 +1,149 @@
+---
+title: Relative Value Function Training
+description: Pairwise comparison-based learning for scoring weight refinement, with Bradley-Terry model foundations.
+---
+
+# Relative Value Function (RVF) Training
+
+RVF training is a human-in-the-loop mechanism for refining the scoring model through pairwise comparisons. Instead of asking users to assign absolute scores, it presents two contacts side-by-side and asks: "Which of these two contacts is more valuable to you?"
+
+## 1. Motivation
+
+The composite score $S$ is a parametric model: its behavior is fully determined by the weight vector $\mathbf{w} = (w_1, \ldots, w_9)$. The default weights reflect general B2B SaaS assumptions, but every network is different. RVF training collects preference data to validate and refine these weights.
+
+**Key insight.** Humans are poor at assigning absolute numeric values ("rate this contact from 0 to 10") but reliably consistent at pairwise comparisons ("which of these two is more valuable?"). RVF leverages this cognitive strength.
+
+## 2. Data Collection
+
+### Comparison Interface
+
+The admin panel presents a card-based UI showing two scored contacts:
+
+- Full name, headline, current company
+- Current composite score, tier, and persona
+- A **"Pick Winner"** button for each contact
+- An **"Equal"** button for ties
+
+### Storage Schema
+
+Comparisons are stored in the `rvf_comparisons` table:
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID | Primary key |
+| `winner_id` | UUID | Contact chosen as more valuable (FK to contacts) |
+| `loser_id` | UUID | Contact not chosen (FK to contacts) |
+| `is_equal` | boolean | True if user indicated equal value |
+| `created_at` | timestamp | When the comparison was made |
+
+### Sample Size
+
+For a network of $n$ scored contacts, the maximum number of distinct pairs is:
+
+$$\binom{n}{2} = \frac{n(n-1)}{2}$$
+
+In practice, $O(n \log n)$ comparisons are sufficient for reliable model calibration. For a network of 500 contacts, approximately 50--100 comparisons provide useful signal.
+
+## 3. The Bradley-Terry Model
+
+RVF training is grounded in the **Bradley-Terry model** of pairwise comparison, a standard statistical framework for ranking from preferences.
+
+### Model Definition
+
+Each contact $i$ has a latent "strength" parameter $\pi_i > 0$. The probability that contact $i$ is preferred over contact $j$ is:
+
+$$P(i \succ j) = \frac{\pi_i}{\pi_i + \pi_j}$$
+
+Equivalently, defining $\lambda_i = \log \pi_i$:
+
+$$P(i \succ j) = \sigma(\lambda_i - \lambda_j) = \frac{1}{1 + e^{-(\lambda_i - \lambda_j)}}$$
+
+where $\sigma$ is the logistic sigmoid function.
+
+### Connection to Composite Score
+
+In the scoring model, the composite score $S_i$ serves as a proxy for $\lambda_i$. If the weights are well-calibrated, then:
+
+$$S_i > S_j \implies P(i \succ j) > 0.5$$
+
+That is, the model's ranking should agree with human preferences more often than not.
+
+### Log-Likelihood
+
+Given a set of observed comparisons $\mathcal{D} = \{(i_k, j_k) : i_k \text{ preferred over } j_k\}$, the log-likelihood under the Bradley-Terry model is:
+
+$$\ell(\boldsymbol{\lambda}) = \sum_{(i,j) \in \mathcal{D}} \log \sigma(\lambda_i - \lambda_j)$$
+
+### Weight Optimization (Future)
+
+To refine weights $\mathbf{w}$, we can substitute $\lambda_i = S_i(\mathbf{w}) = \sum_k d_{ik} \cdot w_k$ and maximize:
+
+$$\mathbf{w}^* = \arg\max_{\mathbf{w}} \sum_{(i,j) \in \mathcal{D}} \log \sigma\!\left(\sum_k (d_{ik} - d_{jk}) \cdot w_k\right)$$
+
+subject to $w_k \geq 0$ and $\sum_k w_k = 1$.
+
+This is a convex optimization problem (log-sigmoid is concave) and can be solved with gradient ascent or off-the-shelf constrained optimizers.
+
+<Callout type="info">
+The weight optimization step is not yet implemented in the production codebase. The current implementation collects comparison data and displays it in the admin panel. The optimization pipeline is planned for a future release.
+</Callout>
+
+## 4. Concordance Metric
+
+To evaluate how well the current weights match human preferences, compute the **concordance rate**:
+
+$$C = \frac{|\{(i,j) \in \mathcal{D} : S_i > S_j\}|}{|\mathcal{D}|}$$
+
+A concordance of 0.5 means the model is no better than random. A concordance above 0.8 indicates strong alignment between the model and human judgment.
+
+### Interpreting Low Concordance
+
+If $C < 0.7$, the weights likely need adjustment. Common causes:
+
+1. **ICP weight too high:** The model over-values title/industry match while the user cares more about relationship depth.
+2. **Behavioral weight too low:** The user values active engagers but the model doesn't weight behavioral signals enough.
+3. **Missing dimension:** A factor the user considers important (e.g., geographic proximity) is not captured by any dimension.
+
+## 5. Handling Equal Comparisons
+
+When the user selects "Equal", the comparison is stored with `is_equal = true`. In the Bradley-Terry framework, ties can be handled with the **Davidson extension**:
+
+$$P(i \sim j) = \frac{\nu \sqrt{\pi_i \pi_j}}{\pi_i + \pi_j + \nu \sqrt{\pi_i \pi_j}}$$
+
+where $\nu > 0$ is a tie propensity parameter. For weight optimization, ties contribute a modified likelihood term that penalizes large score differences between contacts judged as equal.
+
+## 6. Current Implementation
+
+The current RVF implementation provides:
+
+1. **GET `/api/admin/rvf`**: Returns a random pair of scored contacts and the total comparison count.
+2. **POST `/api/admin/rvf`**: Records a comparison (winner, loser, isEqual).
+3. **Admin UI component** (`RvfTraining`): Card-based comparison interface with progress tracking.
+
+### Progress Indicator
+
+The UI displays a progress bar based on:
+
+$$\text{progress} = \frac{\text{totalComparisons}}{\binom{n}{2}} \times 100\%$$
+
+This represents coverage of all possible pairs, though in practice far fewer comparisons are needed for useful signal.
+
+## 7. Practical Guidance
+
+### Getting Started
+
+1. Navigate to the Admin panel and select the RVF Training section.
+2. You will see two contact cards. Click the one you consider more valuable for your business goals.
+3. If both are equally valuable, click the "Equal" button.
+4. Repeat for at least 30--50 comparisons.
+
+### Tips for Effective Comparisons
+
+- **Be consistent.** If you prefer Contact A over B, and B over C, you should prefer A over C.
+- **Think about your actual goal.** Are you optimizing for sales pipeline? Introductions? Industry influence?
+- **Don't overthink.** Quick, intuitive judgments are more consistent than deliberated ones.
+- **Review periodically.** As your business goals evolve, your preferences may shift. Run new comparison sessions quarterly.
+
+### Using Results
+
+After collecting sufficient comparisons, review the concordance rate. If the current model agrees with your preferences 80%+ of the time, the weights are well-calibrated. If not, consider adjusting the weight profile based on which dimensions your preferred contacts tend to score high on.

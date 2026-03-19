@@ -1,0 +1,148 @@
+---
+title: Dashboard API
+description: Aggregated dashboard statistics and metrics.
+---
+
+# Dashboard API
+
+A single endpoint that returns all dashboard data in one request, including contact
+statistics, tier distribution, enrichment budget, network health, goals, tasks, and
+recent discoveries.
+
+---
+
+## Get Dashboard Data
+
+```
+GET /api/dashboard
+```
+
+Returns aggregated data for the main dashboard. Runs multiple parallel database queries
+for optimal performance.
+
+**Auth:** None
+
+**Response:**
+
+```json
+{
+  "data": {
+    "stats": {
+      "totalContacts": 1234,
+      "tierDistribution": {
+        "gold": 45,
+        "silver": 120,
+        "bronze": 350,
+        "watch": 500,
+        "unscored": 219
+      },
+      "enrichedCount": 890,
+      "enrichmentRate": 0.72,
+      "recentImports": 3
+    },
+    "budget": {
+      "budgetCents": 5000,
+      "spentCents": 1250,
+      "utilization": 0.25,
+      "lookupCount": 45
+    },
+    "recentActivity": [
+      {
+        "type": "import",
+        "message": "Imported 456 new, 12 updated contacts",
+        "timestamp": "2025-01-15T10:00:00.000Z"
+      }
+    ],
+    "networkHealth": {
+      "dataMaturity": 75,
+      "graphMetricsComputed": true,
+      "embeddingsGenerated": 1100,
+      "totalEdges": 15600,
+      "avgScore": 0.42
+    },
+    "activeGoal": {
+      "id": "uuid",
+      "title": "Connect with 10 gold contacts",
+      "current_value": 4,
+      "target_value": 10,
+      "deadline": "2025-03-31",
+      "priority": 3
+    },
+    "pendingTasks": [
+      {
+        "id": "uuid",
+        "title": "Review Jane Doe profile",
+        "priority": "high",
+        "due_date": null,
+        "url": "https://linkedin.com/in/jdoe",
+        "task_type": "review"
+      }
+    ],
+    "pendingTaskCount": 15,
+    "recentDiscoveries": [
+      {
+        "type": "niche",
+        "id": "uuid",
+        "name": "SaaS Founders",
+        "score": 0.82,
+        "memberCount": 25,
+        "createdAt": "2025-01-14T00:00:00.000Z"
+      },
+      {
+        "type": "icp",
+        "id": "uuid",
+        "name": "Enterprise Decision Makers",
+        "score": null,
+        "memberCount": null,
+        "createdAt": "2025-01-13T00:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+### Response Fields
+
+**stats** — Contact overview:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `totalContacts` | number | Non-archived contact count |
+| `tierDistribution` | object | Count per tier (gold, silver, bronze, watch, unscored) |
+| `enrichedCount` | number | Total enrichment records |
+| `enrichmentRate` | number | Ratio of enriched to total contacts |
+| `recentImports` | number | Import sessions in last 7 days |
+
+**budget** — Enrichment budget period:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `budgetCents` | number | Budget for current period |
+| `spentCents` | number | Amount spent |
+| `utilization` | number | Spent / budget ratio |
+| `lookupCount` | number | Total lookups this period |
+
+**networkHealth** — Data quality indicators:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `dataMaturity` | number | 0-100 score (contacts + enrichment + graph + embeddings) |
+| `graphMetricsComputed` | boolean | Whether PageRank etc. have been computed |
+| `embeddingsGenerated` | number | Profile embeddings count |
+| `totalEdges` | number | Network edges count |
+| `avgScore` | number | Average composite score |
+
+**activeGoal** — Highest-priority active goal (or `null`).
+
+**pendingTasks** — Top 5 pending tasks by priority. Priority labels: `high` (1-3),
+`medium` (4-6), `low` (7-10).
+
+**recentDiscoveries** — Latest 5 niches and ICPs, sorted by creation date.
+
+**curl:**
+
+```bash
+curl http://localhost:3000/api/dashboard
+```
+
+**Error Codes:** `500`

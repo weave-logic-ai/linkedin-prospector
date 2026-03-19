@@ -1,0 +1,199 @@
+---
+title: Importing Contacts
+description: How to import LinkedIn CSV exports into NetworkNav, including supported formats, the parsing pipeline, and deduplication behavior.
+---
+
+
+# Importing Contacts
+
+**What you will learn:** How to export your LinkedIn data, import it into NetworkNav, and understand the parsing, deduplication, and company resolution pipeline that runs behind the scenes.
+
+NetworkNav's import pipeline ingests LinkedIn CSV exports and transforms them into scored, enrichable contact records. This guide covers every supported format, how the parser works under the hood, and what to expect after import.
+
+## Exporting from LinkedIn
+
+<Steps>
+
+### Request your data
+
+1. Go to **Settings & Privacy** on LinkedIn
+2. Click **Get a copy of your data** (under Data privacy)
+3. Select the data categories you want:
+   - **Connections** (required)
+   - **Messages** (optional, adds conversation context)
+   - **Invitations** (optional, adds pending connections)
+   - **Endorsements** (optional, adds skill validation)
+   - **Recommendations** (optional, adds social proof)
+4. Click **Request archive**
+
+### Download the archive
+
+LinkedIn will email you when the export is ready (usually within 10 minutes for Connections, up to 24 hours for full archives). Download and unzip the file.
+
+### Locate your CSV files
+
+The unzipped folder contains several CSV files. The primary file you need is `Connections.csv`.
+
+</Steps>
+
+## Supported CSV Types
+
+| File | What It Contains | Import Behavior |
+|------|-----------------|-----------------|
+| `Connections.csv` | First name, last name, email, company, position, connected date | Creates contact nodes + company resolution + edges |
+| `messages.csv` | Message threads with timestamps | Adds conversation history to existing contacts |
+| `Invitations.csv` | Sent/received invitations with status | Creates pending contact records |
+| `Endorsements.csv` | Skills endorsed by your connections | Adds skill data to existing contacts |
+| `Recommendations.csv` | Written/received recommendations | Adds recommendation text as signal data |
+
+<Callout type="tip">
+Always import `Connections.csv` first. Other CSV types augment existing contact records and will skip contacts not already in the database. Importing supplementary files afterward fills in skills, messages, and recommendation data on your existing contacts.
+</Callout>
+
+## How the Import Pipeline Works
+
+When you upload a CSV, the import engine performs several processing steps.
+
+### 1. Preamble Detection
+
+LinkedIn CSV exports include a 2-line preamble (typically notes about the export). The parser detects and strips these lines automatically by checking whether the first line contains valid CSV headers.
+
+### 2. Company Resolution with Fuzzy Matching
+
+Company names from LinkedIn are often inconsistent ("Google", "Google LLC", "Alphabet/Google"). The import engine:
+
+1. Normalizes the company name (trim, lowercase, remove suffixes like LLC/Inc/Ltd)
+2. Checks the existing company table for an exact normalized match
+3. If no exact match, runs Levenshtein distance comparison against all companies
+4. Matches with distance less than 3 are treated as the same company
+5. If no match is found, a new company record is created
+
+### 3. Contact Deduplication via SHA-256
+
+Every contact is assigned a deterministic hash based on:
+
+```
+SHA-256(lowercase(first_name) + lowercase(last_name) + lowercase(email || company + position))
+```
+
+This hash is used as the deduplication key. If a contact with the same hash already exists:
+
+- New fields that were previously empty are filled in (field-level diff)
+- Existing non-empty fields are **never overwritten**
+- The contact is **never deleted** (never-delete policy)
+- The `updated_at` timestamp is refreshed
+
+### 4. Edge Construction
+
+For `Connections.csv` imports, the system creates graph edges between you and each imported contact. The `connected_on` date from the CSV becomes the edge timestamp, which feeds into the relationship strength scoring dimension.
+
+## Import Methods
+
+<Tabs items={['UI Upload', 'API Upload', 'Directory Import']}>
+
+<Tab value="UI Upload">
+
+The simplest method. Navigate to the **Import** page in the sidebar and use the upload wizard.
+
+1. Click **Upload CSV**
+2. Select one or more CSV files
+3. The wizard shows a preview of detected contacts
+4. Click **Import** to begin processing
+
+<Callout>
+Screenshot: Import page upload wizard showing file selection and contact preview.
+</Callout>
+
+</Tab>
+
+<Tab value="API Upload">
+
+Upload a CSV file directly via the REST API:
+
+```bash title="Terminal"
+curl -X POST http://localhost:3000/api/import/csv \
+  -F "file=@Connections.csv" \
+  -F "type=connections"
+```
+
+Response:
+
+```json
+{
+  "imported": 847,
+  "duplicates": 23,
+  "companies_created": 312,
+  "companies_matched": 535,
+  "edges_created": 847
+}
+```
+
+</Tab>
+
+<Tab value="Directory Import">
+
+If you have an unzipped LinkedIn export folder, you can import all supported CSVs at once:
+
+```bash title="Terminal"
+curl -X POST http://localhost:3000/api/import/from-directory \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/data/linkedin/LinkedinExport"}'
+```
+
+This scans the directory for all recognized CSV filenames and imports them in the correct order (Connections first, then supplementary files).
+
+<Callout>
+The directory must be accessible to the app container. The default volume mount maps `./data` to `/data` inside the container.
+</Callout>
+
+</Tab>
+
+</Tabs>
+
+## After Import
+
+Once import completes, several things happen automatically:
+
+1. **Auto-scoring fires** — every new or updated contact is scored across all 9 dimensions
+2. **Tier assignment** — contacts are classified into Gold, Silver, Bronze, or Watch
+3. **Persona classification** — each contact receives a persona label (Buyer, Hub, Advisor, etc.)
+4. **Task generation** — Gold-tier contacts and certain personas trigger automatic task creation
+
+Navigate to the **Contacts** page to see your imported and scored network.
+
+## Deduplication in Detail
+
+NetworkNav follows a **never-delete, always-merge** policy for contact data:
+
+| Scenario | Behavior |
+|----------|----------|
+| New contact (no hash match) | Created with all provided fields |
+| Existing contact, new fields | Empty fields are filled with new data |
+| Existing contact, conflicting fields | Original data is preserved (no overwrite) |
+| Existing contact, no new data | `updated_at` is refreshed, no other changes |
+| Re-import same CSV | All contacts deduplicated, zero new records |
+
+This design means you can safely re-import the same CSV multiple times or import overlapping exports without data loss or corruption.
+
+## Troubleshooting
+
+### "No contacts found in CSV"
+
+This usually means the file is not a valid LinkedIn export. Check that:
+- The file has a `.csv` extension
+- The first data row (after any preamble) contains headers like `First Name`, `Last Name`, `Email Address`, `Company`, `Position`
+- The file is UTF-8 encoded
+
+### Company names are not merging
+
+Fuzzy matching uses a Levenshtein distance threshold of 3. If company names differ by more than 3 characters after normalization, they will be treated as separate companies. You can merge companies manually from the Admin panel.
+
+### Import is slow for large files
+
+For exports with more than 5,000 contacts, the import may take 30-60 seconds due to company resolution and edge construction. The API returns a progress indicator for batch imports.
+
+## Next Steps
+
+- **[Enrichment](/docs/guides/enrichment)** -- Add verified emails, phone numbers, and company data to your imported contacts.
+- **[Scoring Contacts](/docs/guides/scoring-contacts)** -- Understand how imported contacts are automatically scored and classified.
+- **[Discover](/docs/guides/discover)** -- Segment your imported network into niches and ICPs.

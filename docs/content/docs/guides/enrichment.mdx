@@ -1,0 +1,220 @@
+---
+title: Enrichment
+description: Add verified emails, phone numbers, work history, company data, and technographics to your contacts using licensed data providers.
+---
+
+
+# Enrichment
+
+**What you will learn:** How to set up enrichment providers, enrich contacts individually or in batch, control costs with budget caps, and understand how enrichment data improves scoring accuracy.
+
+Enrichment transforms basic LinkedIn connection data into comprehensive intelligence profiles. By querying licensed data providers, NetworkNav adds verified contact information, employment history, education, company financials, and technology stack data to your contacts.
+
+## What Enrichment Adds
+
+| Data Category | Fields Added | Source Providers |
+|--------------|-------------|-----------------|
+| **Contact info** | Verified email, phone number, social profiles | People Data Labs (PDL), Apollo, Lusha |
+| **Work history** | Past positions, companies, durations, seniority | PDL, Apollo |
+| **Education** | Degrees, institutions, graduation years | PDL |
+| **Company data** | Industry, employee count, revenue, funding, HQ location | Crunchbase |
+| **Technographics** | Technology stack, tools, platforms used by their company | BuiltWith |
+| **Social profiles** | Twitter, GitHub, personal website | PDL, Apollo |
+
+## Provider Hierarchy and Waterfall
+
+NetworkNav uses a waterfall strategy to maximize data coverage while minimizing API costs. Each provider is tried in order until the data field is resolved.
+
+### Contact Data Waterfall
+
+```
+PDL  →  Apollo  →  Lusha
+```
+
+1. **PDL** is queried first (best coverage for professional data)
+2. If PDL returns incomplete data, **Apollo** fills in the gaps
+3. **Lusha** is used as a final fallback for phone numbers and direct emails
+
+### Company Data
+
+```
+Crunchbase (company profile, funding, industry)
+```
+
+Crunchbase is queried independently for company-level data when the contact's company is identified.
+
+### Technographics
+
+```
+BuiltWith (technology stack, tools, platforms)
+```
+
+BuiltWith is queried for the company's domain to identify their technology stack. This data feeds into ICP fit scoring.
+
+## Setting Up API Keys
+
+Each provider requires its own API key. Set them as environment variables in your `.env` file:
+
+```bash title=".env"
+# Contact data providers
+PDL_API_KEY=your-pdl-key-here
+APOLLO_API_KEY=your-apollo-key-here
+LUSHA_API_KEY=your-lusha-key-here
+
+# Company data
+THEIRSTACK_API_KEY=your-theirstack-key-here
+
+# Claude AI (for personalization features)
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+```
+
+<Callout>
+You do not need all provider keys to use enrichment. NetworkNav gracefully skips providers without configured keys and uses whatever data is available. Even a single provider adds significant value.
+</Callout>
+
+### Where to Get API Keys
+
+| Provider | Signup URL | Free Tier |
+|----------|-----------|-----------|
+| People Data Labs | [peopledatalabs.com](https://www.peopledatalabs.com) | 100 free credits |
+| Apollo | [apollo.io](https://www.apollo.io) | 50 credits/month |
+| Lusha | [lusha.com](https://www.lusha.com) | 5 credits/month |
+| Crunchbase | [crunchbase.com/api](https://data.crunchbase.com) | Basic plan available |
+| BuiltWith | [builtwith.com/api](https://builtwith.com/api) | Limited free lookups |
+
+## Enriching Contacts
+
+<Tabs items={['Single Contact', 'Batch Enrichment', 'API']}>
+
+<Tab value="Single Contact">
+
+1. Open a contact's detail page
+2. Click the **Enrich** button
+3. Select which providers to query (or use the default waterfall)
+4. Review the enrichment preview
+5. Click **Apply** to save the enriched data
+
+<Callout>
+Screenshot: Contact detail page showing the Enrich button and provider selection.
+</Callout>
+
+</Tab>
+
+<Tab value="Batch Enrichment">
+
+1. Navigate to the **Contacts** table
+2. Select multiple contacts using the checkboxes
+3. Click **Enrich Selected** from the toolbar actions
+4. Choose providers and confirm
+5. Enrichment runs in the background — you will see a progress indicator
+
+Batch enrichment respects your budget caps and will stop if the cap is reached.
+
+</Tab>
+
+<Tab value="API">
+
+Enrich a single contact:
+
+```bash title="Terminal"
+curl -X POST http://localhost:3000/api/enrichment/enrich \
+  -H "Content-Type: application/json" \
+  -d '{"contactId": "uuid-here", "providers": ["pdl", "apollo"]}'
+```
+
+Apply enrichment results:
+
+```bash title="Terminal"
+curl -X POST http://localhost:3000/api/enrichment/apply \
+  -H "Content-Type: application/json" \
+  -d '{"contactId": "uuid-here", "enrichmentId": "enrich-uuid"}'
+```
+
+</Tab>
+
+</Tabs>
+
+## Dry-Run Mode
+
+Before spending credits, you can preview what enrichment would return without committing the data or consuming API credits (where the provider supports it):
+
+1. Select a contact or batch
+2. Click **Enrich** and toggle **Dry Run** on
+3. Review the preview showing which fields would be populated
+4. If satisfied, run the real enrichment
+
+Dry-run mode is useful for estimating costs before enriching large batches.
+
+## Budget Enforcement
+
+NetworkNav includes built-in budget controls to prevent unexpected API spending.
+
+### How It Works
+
+- Set a monthly budget cap per provider in the Admin panel
+- At **80% usage**, the system shows a warning banner on enrichment actions
+- At **100% usage**, enrichment requests are refused until the next billing period
+- Budget tracking resets on the 1st of each month
+
+### Cost Estimates
+
+These are approximate costs per lookup as of early 2026. Check each provider's current pricing for exact rates.
+
+| Provider | Approximate Cost per Lookup | Typical Fields Returned |
+|----------|-----------------------------|------------------------|
+| PDL | $0.01 - $0.10 | Email, phone, work history, education |
+| Apollo | $0.01 - $0.05 | Email, phone, company info |
+| Lusha | $0.05 - $0.20 | Direct dial, personal email |
+| Crunchbase | $0.05 - $0.15 | Company profile, funding, industry |
+| BuiltWith | $0.02 - $0.10 | Technology stack |
+
+## Auto-Rescore After Enrichment
+
+Whenever enrichment data is applied to a contact, the scoring engine automatically re-evaluates that contact. Enriched contacts typically score higher because more dimensions have data to work with:
+
+- **ICP Fit** improves with verified industry and company size
+- **Skills Relevance** improves with detailed work history
+- **Content Relevance** improves with social profile data
+- **Network Hub** improves with connection count data
+
+This means a contact that was previously "Watch" tier with limited data might jump to "Silver" or "Gold" after enrichment reveals they match your ICP criteria.
+
+## Enrichment History
+
+Every enrichment action is logged. You can view a contact's enrichment history from their detail page:
+
+1. Open a contact
+2. Click the **Enrichment History** tab
+3. See each enrichment run with provider, timestamp, fields updated, and cost
+
+This audit trail helps you track spending and understand how a contact's profile evolved over time.
+
+## Best Practices
+
+1. **Start with PDL** — it has the best coverage-to-cost ratio for professional data
+2. **Enrich Gold and Silver tiers first** — focus your budget on high-value contacts
+3. **Use dry-run for large batches** — preview before committing credits
+4. **Set budget caps early** — avoid surprises by configuring limits in Admin before your first batch enrichment
+5. **Re-enrich periodically** — people change jobs; re-enriching stale contacts can update company and title data
+
+## Related Documentation
+
+- [Enrichment Waterfall](/docs/integrations/enrichment-waterfall) -- how the waterfall selects and sequences providers
+- [People Data Labs (PDL)](/docs/integrations/people-data-labs) -- primary person enrichment provider
+- [Apollo.io](/docs/integrations/apollo) -- email discovery and company context
+- [Lusha](/docs/integrations/lusha) -- verified email and phone numbers
+- [Crunchbase](/docs/integrations/crunchbase) -- company funding and leadership
+- [BuiltWith](/docs/integrations/builtwith) -- technology stack analysis
+- [Enrichment API](/docs/api-reference/enrichment) -- REST endpoints for enrichment operations
+- [Scoring Contacts](/docs/guides/scoring-contacts) -- how enrichment improves scoring accuracy
+
+<Callout type="tip">
+After enrichment, contacts are automatically rescored. A Watch-tier contact with limited data can jump to Silver or Gold once enrichment reveals ICP-matching industry, company size, or role data. Prioritize enriching your Gold and Silver tiers first to get the highest return on your API spend.
+</Callout>
+
+## Next Steps
+
+- **[Scoring Contacts](/docs/guides/scoring-contacts)** -- See how enrichment data feeds into the 15-dimension scoring engine.
+- **[Discover](/docs/guides/discover)** -- Use enriched data to build more accurate ICPs and niches.
+- **[Configuration](/docs/guides/configuration)** -- Set budget caps and provider priorities.
+- **[Composite Score Math](/docs/scoring/composite-score)** -- Understand the monotonicity property that explains why enrichment tends to improve scores.

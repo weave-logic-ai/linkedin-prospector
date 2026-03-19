@@ -1,0 +1,15 @@
+{
+  "title": "Guides",
+  "pages": [
+    "quickstart",
+    "importing-contacts",
+    "enrichment",
+    "scoring-contacts",
+    "discover",
+    "outreach",
+    "goals-and-tasks",
+    "game-loop",
+    "self-hosting",
+    "configuration"
+  ]
+}

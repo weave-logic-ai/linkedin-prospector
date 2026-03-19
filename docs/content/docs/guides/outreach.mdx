@@ -1,0 +1,289 @@
+---
+title: Outreach
+description: Create AI-powered outreach templates, manage campaigns, and track your pipeline from first contact to conversion.
+---
+
+
+# Outreach
+
+**What you will learn:** How to create outreach templates with merge variables, run AI-personalized campaigns, manage your pipeline on a Kanban board, and track template performance metrics.
+
+NetworkNav's outreach system takes you from scored contacts to active conversations. It combines templated messaging with Claude AI personalization, campaign management, and a full pipeline Kanban board for tracking every relationship through to conversion.
+
+## Pipeline Overview
+
+The outreach system has four connected components:
+
+```
+Templates → Campaigns → Pipeline → Track
+```
+
+1. **Templates** — reusable message templates with merge variables
+2. **Campaigns** — groups of contacts receiving the same template
+3. **Pipeline** — Kanban board tracking each contact through conversation stages
+4. **Track** — performance analytics across templates and campaigns
+
+## Creating Templates
+
+Templates are the building blocks of outreach. Each template contains a message body with merge variables that get filled in per-contact.
+
+<Steps>
+
+### Navigate to Outreach
+
+Click **Outreach** in the sidebar, then select the **Templates** tab.
+
+### Create a new template
+
+Click **New Template** and fill in:
+
+- **Name** — an internal label (e.g., "Cold intro to VP Engineering")
+- **Subject** (optional) — for email-style outreach
+- **Body** — the message text with merge variables
+
+### Use merge variables
+
+Merge variables are placeholders that get replaced with contact-specific data:
+
+| Variable | Replaced With |
+|----------|--------------|
+| `{{first_name}}` | Contact's first name |
+| `{{last_name}}` | Contact's last name |
+| `{{company}}` | Current company name |
+| `{{headline}}` | LinkedIn headline |
+| `{{title}}` | Job title |
+| `{{location}}` | Contact's location |
+| `{{mutual_connections}}` | Count of mutual connections |
+| `{{niche}}` | Matched niche name |
+| `{{icp}}` | Matched ICP name |
+
+Example template:
+
+```text
+Hi {{first_name}},
+
+I noticed you're leading engineering at {{company}} — really impressive
+work on the platform side. Given your focus on {{headline}}, I thought
+you might find value in what we're building for teams like yours.
+
+Would you be open to a quick 15-minute chat next week?
+
+Best,
+[Your name]
+```
+
+### Save the template
+
+Click **Save**. The template is now available for use in campaigns.
+
+</Steps>
+
+## Claude AI Personalization
+
+When Claude AI is configured (via `ANTHROPIC_API_KEY`), templates gain an additional layer of intelligence.
+
+### How It Works
+
+1. When generating a message for a specific contact, Claude receives the template and the contact's full profile
+2. Claude fills merge variables with the most relevant data
+3. Claude also adds personalized touches — referencing specific details from the contact's headline, about section, or shared connections
+4. The result is a message that reads as genuinely personal, not templated
+
+### Triggering Personalization
+
+- **Single contact**: Open a contact's detail page, click **Generate Message**, select a template
+- **Batch**: In a campaign, click **Generate All** to personalize messages for every contact in the campaign
+- **API**:
+
+```bash title="Terminal"
+curl -X POST http://localhost:3000/api/outreach/recommend \
+  -H "Content-Type: application/json" \
+  -d '{"contactId": "uuid-here", "templateId": "template-uuid"}'
+```
+
+<Callout>
+Claude personalization requires the ANTHROPIC_API_KEY environment variable to be set. Without it, templates use simple variable substitution only.
+</Callout>
+
+## Campaign Management
+
+Campaigns group contacts who will receive the same outreach template.
+
+<Steps>
+
+### Create a campaign
+
+From the **Campaigns** tab, click **New Campaign** and set:
+
+- **Name** — campaign label
+- **Template** — select from your saved templates
+- **Filters** — auto-populate the campaign with contacts matching criteria:
+  - Tier (e.g., Gold only)
+  - Persona (e.g., Buyer, Warm Lead)
+  - Niche or ICP
+  - Tags
+
+### Review the contact list
+
+The campaign shows all matched contacts with their scores, tiers, and personas. You can manually add or remove contacts before launching.
+
+### Generate personalized messages
+
+Click **Generate All** to have Claude personalize the template for each contact. Review the generated messages — you can edit any individual message before sending.
+
+### Manage the campaign
+
+Track campaign progress from the campaign detail view:
+
+- **Queued** — message generated, waiting to be sent
+- **Sent** — message delivered (manually via LinkedIn or email)
+- **Replied** — contact responded
+
+</Steps>
+
+## Pipeline Kanban
+
+The pipeline Kanban board tracks every outreach contact through six stages:
+
+| Column | Meaning |
+|--------|---------|
+| **Queued** | Contact is in a campaign but not yet contacted |
+| **Contacted** | Initial message sent |
+| **Replied** | Contact responded to your message |
+| **Meeting** | Meeting scheduled or completed |
+| **Converted** | Contact became a customer, partner, or completed desired action |
+| **Closed** | Conversation ended without conversion |
+
+### Moving Cards
+
+Drag and drop cards between columns to update their status. Each move:
+
+- Updates the contact's outreach state
+- Logs the transition in the activity timeline
+- Triggers behavioral scoring updates (replies and meetings improve the contact's score)
+- Updates campaign analytics
+
+### Outreach State Machine
+
+The pipeline follows a strict state machine — cards can only move forward or to Closed:
+
+```
+Queued → Contacted → Replied → Meeting → Converted
+                                              ↓
+Any stage ────────────────────────────→ Closed
+```
+
+You cannot move a card backward (e.g., from Replied to Queued). This ensures clean analytics and prevents accidental data corruption.
+
+<Callout>
+Screenshot: Pipeline Kanban board showing contacts distributed across columns.
+</Callout>
+
+## Template Performance Tracking
+
+The **Track** tab shows performance metrics for each template:
+
+| Metric | Description |
+|--------|-------------|
+| **Sent** | Total messages sent using this template |
+| **Replied** | Number of contacts who responded |
+| **Reply Rate** | Replied / Sent as a percentage |
+| **Meeting Rate** | Meetings / Sent as a percentage |
+| **Conversion Rate** | Converted / Sent as a percentage |
+
+Use these metrics to iterate on your templates. A/B test different approaches by creating template variants and comparing their performance.
+
+## Chrome Extension Workflow
+
+The browser extension integrates outreach directly into your LinkedIn browsing experience.
+
+<Steps>
+
+### Select a template
+
+In the extension side panel, choose an outreach template for the current contact.
+
+### Copy to clipboard
+
+Click **Copy Message**. The personalized message (with merge variables filled in) is copied to your clipboard.
+
+### Paste in LinkedIn
+
+Open the LinkedIn messaging window for that contact and paste the message. Make any final edits and send.
+
+### Log the outreach
+
+The extension detects the send action and automatically moves the contact to "Contacted" in the pipeline.
+
+</Steps>
+
+## Persona-to-Template Recommendations
+
+NetworkNav can recommend which template to use for each contact based on their persona:
+
+| Persona | Recommended Approach |
+|---------|---------------------|
+| **Buyer** | Direct value proposition, mention ICP-relevant pain points |
+| **Warm Lead** | Softer approach, reference shared connections or interests |
+| **Hub** | Partnership or collaboration angle, acknowledge their network influence |
+| **Advisor** | Ask for insight or advice, position as learning opportunity |
+| **Active Influencer** | Reference their content, suggest co-creation or amplification |
+| **Warm Introducer** (referral) | Ask for introductions to their network |
+
+Access recommendations via the API:
+
+```bash title="Terminal"
+curl http://localhost:3000/api/outreach/recommend?contactId=uuid-here
+```
+
+## API Reference
+
+### Templates
+
+```bash title="List templates"
+curl http://localhost:3000/api/outreach/templates
+```
+
+```bash title="Create template"
+curl -X POST http://localhost:3000/api/outreach/templates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Cold intro to VP Engineering",
+    "body": "Hi {{first_name}}, I noticed you are leading engineering at {{company}}..."
+  }'
+```
+
+### Campaigns
+
+```bash title="Create campaign"
+curl -X POST http://localhost:3000/api/outreach/campaigns \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Q1 SaaS Outreach",
+    "templateId": "template-uuid",
+    "filters": {"tier": "gold", "persona": "buyer"}
+  }'
+```
+
+### Pipeline Events
+
+```bash title="Log outreach event"
+curl -X POST http://localhost:3000/api/outreach/events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contactId": "uuid-here",
+    "eventType": "replied",
+    "notes": "Interested in a demo next week"
+  }'
+```
+
+<Callout type="tip">
+Start with Gold-tier Buyer contacts for your first campaigns. They have the highest ICP fit and relationship strength, so they are most likely to respond.
+</Callout>
+
+## Next Steps
+
+- **[Goals and Tasks](/docs/guides/goals-and-tasks)** -- Generate AI-powered goals and tasks that complement your outreach campaigns.
+- **[The Game Loop](/docs/guides/game-loop)** -- See how outreach fits into the continuous import-score-discover-enrich-act cycle.
+- **[Scoring Contacts](/docs/guides/scoring-contacts)** -- Understand how outreach events feed back into contact scoring.
+- **[Discover](/docs/guides/discover)** -- Build ICPs to automatically populate campaign target lists.

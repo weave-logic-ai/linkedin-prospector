@@ -1,0 +1,11 @@
+{
+  "title": "Architecture",
+  "pages": [
+    "index",
+    "database-schema",
+    "data-flow",
+    "parser-engine",
+    "security",
+    "deployment"
+  ]
+}

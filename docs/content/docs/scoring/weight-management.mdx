@@ -1,0 +1,159 @@
+---
+title: Weight Management
+description: Weight profiles, redistribution mechanics, sensitivity analysis, and tuning guidance.
+---
+
+# Weight Management
+
+Weights control the relative importance of each scoring dimension in the composite score. The `WeightManager` class loads weight profiles from the database and performs null-safe redistribution at scoring time.
+
+## 1. Default Weight Profile
+
+The hardcoded fallback profile is used when no database profile exists:
+
+| Dimension | Weight | Cumulative |
+|---|---|---|
+| `icp_fit` | 0.20 | 0.20 |
+| `relationship_strength` | 0.15 | 0.35 |
+| `network_hub` | 0.10 | 0.45 |
+| `signal_boost` | 0.10 | 0.55 |
+| `skills_relevance` | 0.10 | 0.65 |
+| `behavioral` | 0.10 | 0.75 |
+| `content_relevance` | 0.10 | 0.85 |
+| `graph_centrality` | 0.10 | 0.95 |
+| `network_proximity` | 0.05 | 1.00 |
+
+The design philosophy: ICP fit dominates (0.20) because the primary goal is identifying potential buyers. Relationship strength is second (0.15) because warm relationships convert better. The remaining 7 dimensions share 0.65 in roughly equal portions, with network proximity receiving the smallest weight (0.05) because degree information is already captured by relationship strength.
+
+## 2. Redistribution Mechanics
+
+### Algorithm
+
+Given base weights $\{w_1, \ldots, w_9\}$ and the set of available dimensions $A$:
+
+```
+function redistributeWeights(A):
+    W_A = sum of w_i for i in A
+    W_Ac = sum of w_i for i NOT in A
+
+    if W_Ac = 0:
+        return base weights unchanged
+
+    if W_A = 0:
+        return 1/|A| for each i in A, 0 for others
+
+    for each dimension i:
+        if i in A:
+            w_i' = w_i + W_Ac * (w_i / W_A)
+        else:
+            w_i' = 0
+
+    return {w_1', ..., w_9'}
+```
+
+### Simplification
+
+The formula $w_i' = w_i + W_{A^c} \cdot (w_i / W_A)$ simplifies to $w_i' = w_i / W_A$.
+
+**Proof:**
+
+$$w_i' = w_i + \frac{W_{A^c} \cdot w_i}{W_A} = w_i \left(1 + \frac{W_{A^c}}{W_A}\right) = w_i \cdot \frac{W_A + W_{A^c}}{W_A} = \frac{w_i}{W_A}$$
+
+since $W_A + W_{A^c} = 1$.
+
+### Worked Example
+
+Suppose only 5 of 9 dimensions are available: $\lbrace$icp\_fit, relationship\_strength, signal\_boost, behavioral, network\_proximity$\rbrace$.
+
+$$W_A = 0.20 + 0.15 + 0.10 + 0.10 + 0.05 = 0.60$$
+
+| Dimension | Base $w_i$ | Redistributed $w_i' = w_i / 0.60$ |
+|---|---|---|
+| icp_fit | 0.20 | 0.333 |
+| relationship_strength | 0.15 | 0.250 |
+| signal_boost | 0.10 | 0.167 |
+| behavioral | 0.10 | 0.167 |
+| network_proximity | 0.05 | 0.083 |
+| **Total** | **0.60** | **1.000** |
+
+The ratio $w_{\text{icp}}' / w_{\text{prox}}' = 0.333 / 0.083 = 4.0 = 0.20 / 0.05$, confirming that relative ratios are preserved.
+
+## 3. Custom Weight Profiles
+
+Weight profiles are stored in the `weight_profiles` database table. Each profile has:
+
+- `id` (UUID)
+- `name` (unique string)
+- `description` (optional)
+- `weights` (JSON object mapping dimension names to weights)
+- `is_default` (boolean, exactly one profile is default)
+
+### Creating a Custom Profile
+
+Custom profiles can be created through the admin panel. The profile's `weights` object must:
+
+1. Include all 9 dimension keys.
+2. Have non-negative values.
+3. Sum to 1.0 (the system does not auto-normalize).
+
+### Profile Selection
+
+The scoring pipeline accepts an optional `profileName` parameter. If omitted, the default profile is loaded. If no database profile exists at all, the hardcoded `DEFAULT_WEIGHTS` constant is used.
+
+## 4. Sensitivity Analysis
+
+How much does the composite score change when a single weight is adjusted?
+
+### Partial Derivative
+
+The composite score is $S = \sum_{i \in A} d_i \cdot w_i'$. If we adjust weight $w_k$ by $\Delta$ (and reduce all other weights proportionally to maintain $\sum = 1$), the change in $S$ is approximately:
+
+$$\Delta S \approx \Delta \cdot \left(d_k - S\right)$$
+
+This means:
+- Increasing the weight of a dimension that scores **above** the current composite will **increase** $S$.
+- Increasing the weight of a dimension that scores **below** the current composite will **decrease** $S$.
+- The magnitude of change is proportional to the gap between the dimension's score and the composite.
+
+### Impact Table
+
+For the default weights, the maximum possible impact of each dimension on the composite score is:
+
+| Dimension | Weight | Max contribution to $S$ (when $d_i = 1$) |
+|---|---|---|
+| icp_fit | 0.20 | 0.200 |
+| relationship_strength | 0.15 | 0.150 |
+| network_hub | 0.10 | 0.100 |
+| signal_boost | 0.10 | 0.100 |
+| skills_relevance | 0.10 | 0.100 |
+| behavioral | 0.10 | 0.100 |
+| content_relevance | 0.10 | 0.100 |
+| graph_centrality | 0.10 | 0.100 |
+| network_proximity | 0.05 | 0.050 |
+
+<Callout type="info">
+After redistribution, a dimension's effective weight can be much higher than its base weight. If only 3 dimensions are available, icp_fit's effective weight could reach $0.20 / 0.45 = 0.444$, contributing up to 44.4% of the composite score.
+</Callout>
+
+## 5. Best Practices for Weight Tuning
+
+1. **Start with defaults.** The default profile is calibrated for general B2B SaaS prospecting.
+
+2. **Adjust one weight at a time.** Change a single weight, rescore all contacts, and review the tier distribution before making further changes.
+
+3. **Use RVF training to validate.** After adjusting weights, run a session of [RVF pairwise comparisons](/docs/scoring/rvf-training) to check whether the new ranking matches your intuition.
+
+4. **Consider data availability.** Increasing the weight of a dimension that most contacts lack data for is counterproductive -- it will have zero effect on most contacts and create large score swings for the few that have data.
+
+5. **Monitor tier distribution.** After rescoring, check the gold/silver/bronze/watch distribution. A healthy distribution has 5--15% gold, 15--25% silver, 20--30% bronze, and the remainder as watch.
+
+6. **Document your rationale.** Use the profile `description` field to record why weights were changed and the date of the change.
+
+## 6. Implementation Reference
+
+The `WeightManager` class in `app/src/lib/scoring/weight-manager.ts`:
+
+- `loadProfile(name?)`: Loads a weight profile from the database, falling back to hardcoded defaults.
+- `getWeights()`: Returns the current profile's weight map.
+- `redistributeWeights(availableDimensions)`: Computes redistributed weights for the given set of available dimensions.
+- `getProfileId()`: Returns the current profile's ID.
