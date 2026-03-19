@@ -1,0 +1,217 @@
+---
+title: Semantic Search
+description: ruvector-powered semantic vector search with 384-dim ONNX embeddings, HNSW indexing, and cosine similarity.
+---
+
+# Semantic Search
+
+The agent integrates [ruvector](https://github.com/ruvnet/ruvector) as a core dependency to provide semantic vector search across your contact network. Instead of matching exact keywords, semantic search understands the meaning of profiles and queries, finding relevant contacts even when they use different terminology.
+
+<Callout type="warn">
+ruvector is a required dependency. Semantic search, similarity analysis, and vector-enhanced database queries all depend on it. Install it during initial setup.
+</Callout>
+
+## How It Works
+
+Each contact's profile text (headline, role, company, about section, location) is converted into a 384-dimensional vector using the **all-MiniLM-L6-v2** ONNX model. These vectors capture semantic meaning -- contacts with similar professional backgrounds produce similar vectors, even when they use different words.
+
+The vectors are stored in a local `.rvf` file (RuVector Format) using HNSW indexing for fast approximate nearest-neighbor lookup. When you search, your query is embedded into the same vector space and the k most similar contacts are returned, ranked by cosine similarity.
+
+## What Semantic Search Finds That Keywords Miss
+
+| Keyword Search For... | Also Finds (via Semantic Similarity)... |
+|---|---|
+| "AI consultant" | "machine learning advisor", "data science practice lead" |
+| "ecommerce founder" | "DTC brand builder", "Shopify agency owner" |
+| "VP Engineering" | "Head of Platform", "Director of Software Development" |
+| "growth marketing" | "demand generation", "customer acquisition", "performance marketing" |
+
+## Installation
+
+```bash
+cd .claude/linkedin-prospector/skills/linkedin-prospector
+npm install ruvector
+```
+
+On first run, the ONNX model (~30MB) is downloaded and cached in `.cache/`. Subsequent runs use the cached model.
+
+### System Requirements
+
+| Resource | Requirement |
+|----------|-------------|
+| Node.js | 18+ |
+| RAM (during vectorization) | ~100MB for the ONNX model |
+| Disk (ONNX model cache) | ~30MB (one-time download) |
+| Store size | ~1KB per contact (~250KB for 230 contacts) |
+
+## Building the Vector Store
+
+After installing ruvector, build the store from your scored contacts:
+
+```bash
+# Recommended: from graph.json (includes all scoring metadata)
+node scripts/vectorize.mjs --from-graph
+
+# Alternative: from contacts.json (raw data, no scores)
+node scripts/vectorize.mjs
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--from-graph` | off | Load from `graph.json` (recommended, includes scoring metadata) |
+| `--batch-size N` | 50 | Contacts per embedding batch. Lower if you hit memory limits. |
+| `--verbose` | off | Show per-batch progress and timing |
+
+### When to Rebuild
+
+Rebuild the vector store when:
+- You add new contacts (search, enrich, deep-scan)
+- You want updated scoring metadata in search results
+- The store file is missing or corrupt
+
+The `--rebuild` and `--full` pipeline modes include a vectorize step automatically.
+
+## Search Modes
+
+### Similar (k-NN from stored vector)
+
+Find contacts whose profiles are most similar to a specific person. Uses the stored vector directly -- no embedder initialization needed.
+
+```
+/network-intel find contacts similar to https://linkedin.com/in/someone
+```
+
+```bash
+node scripts/analyzer.mjs --mode similar --url "https://linkedin.com/in/someone" --top 20
+```
+
+**Performance:** Near-instant (under 50ms) when using stored vectors.
+
+### Semantic (free-text query)
+
+Search by natural language description. Embeds your query and finds the most relevant profiles.
+
+```
+/network-intel who talks about AI transformation?
+/network-intel search for people in cloud infrastructure
+```
+
+```bash
+node scripts/analyzer.mjs --mode semantic --query "AI transformation leaders" --top 20
+```
+
+**Performance:** ~500ms (includes embedding the query text + HNSW lookup).
+
+### DB Search (automatic vector enhancement)
+
+The `db.mjs search` command automatically uses semantic search first when the vector store is available, then falls back to substring matching.
+
+```bash
+node scripts/db.mjs search --keywords "cloud infrastructure"
+```
+
+## Architecture
+
+```
+                                    +-------------------+
+                                    |    ruvector        |
+                                    |    (core dep)      |
+                                    +--------+----------+
+                                             |
+                                             v
++-------------------+   vectorize.mjs   +----+----+
+|  graph.json       |----------------->| network  |
+|  (scored contacts)|   embed + store  |  .rvf    |
++-------------------+                  +-+--+--+--+
+                                         |  |  |
+                    +--------------------+  |  +--------------------+
+                    |                       |                       |
+                    v                       v                       v
+            analyzer.mjs            analyzer.mjs             db.mjs
+            --mode similar          --mode semantic           search
+            (stored vector)         (query embedding)        (auto fallback)
+```
+
+### Storage Format
+
+The `.rvf` file stores per contact:
+
+| Category | Fields |
+|----------|--------|
+| **Vector** | 384-dim float array (cosine distance, HNSW indexed) |
+| **Identity** | profileUrl, name, headline, title, location, currentRole, currentCompany, about, connections |
+| **Layer 1** | icpFit, networkHub, relationshipStrength, signalBoost, goldScore, tier, persona |
+| **Layer 2** | behavioralScore, behavioralPersona |
+| **Layer 3** | referralLikelihood, referralTier, referralPersona |
+| **Graph** | cluster, clusterLabel |
+| **Timestamps** | createdAt, updatedAt, embeddedAt |
+
+### HNSW Configuration
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| Dimensions | 384 | all-MiniLM-L6-v2 output |
+| Distance metric | cosine | Higher = more similar |
+| M | 16 | Max connections per HNSW layer |
+| efConstruction | 200 | Construction-time search breadth |
+
+## Pipeline Integration
+
+### Automatic Vectorization
+
+When ruvector is installed, `--rebuild` and `--full` pipeline modes automatically include a vectorize step:
+
+```
+--rebuild: graph-builder -> scorer -> behavioral -> referral -> vectorize -> analyzer -> snapshot
+--full:    search -> enrich -> graph-builder -> scorer -> behavioral -> referral -> vectorize -> analyzer -> snapshot
+```
+
+The vectorize step runs after all scorers complete so metadata includes all scores. It warns on failure but does not block downstream steps.
+
+### Score Metadata Sync
+
+Each scorer automatically upserts its scores into the RVF store after scoring:
+
+| Scorer | Fields Upserted |
+|--------|----------------|
+| `scorer.mjs` | icpFit, networkHub, relationshipStrength, signalBoost, goldScore, tier, persona |
+| `behavioral-scorer.mjs` | behavioralScore, behavioralPersona |
+| `referral-scorer.mjs` | referralLikelihood, referralTier, referralPersona |
+
+This keeps the vector store current without requiring full re-vectorization. Re-vectorization is only needed for new contacts.
+
+## The rvf-store.mjs API
+
+Central abstraction layer over ruvector. All ruvector interaction goes through this module.
+
+| Function | Description |
+|----------|-------------|
+| `isRvfAvailable()` | Synchronous check if ruvector is installed |
+| `openStore()` | Open or create the VectorDB at `data/network.rvf` |
+| `closeStore()` | Release the store reference |
+| `queryStore(vector, k, filter?)` | k-NN search. Returns `[{ id, score, metadata }]` |
+| `ingestContacts(entries)` | Batch insert `[{ id, vector, metadata }]` |
+| `getContact(id)` | Get a single entry by profile URL |
+| `deleteContact(id)` | Remove an entry |
+| `storeLength()` | Number of entries |
+| `upsertMetadata(id, partial)` | Merge metadata for existing entry (preserves vector) |
+| `buildProfileText(contact)` | Build consistent text for embedding |
+| `buildMetadata(contact, url)` | Build full metadata object |
+
+## Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| "ruvector not available" | `cd .claude/linkedin-prospector/skills/linkedin-prospector && npm i ruvector` |
+| "RVF store not available or empty" | `node scripts/vectorize.mjs --from-graph` |
+| "RVF store is locked" | Close other processes or delete `data/network.rvf.lock` |
+| ONNX model download slow | Wait (~30MB first run). Subsequent runs use cache. |
+| "ONNX embedder failed" | Delete `.cache/` and re-run |
+| Semantic results seem off | Rebuild from graph: `node scripts/vectorize.mjs --from-graph` |
+
+### Rebuilding from Scratch
+
+```bash
+rm -f .claude/linkedin-prospector/skills/linkedin-prospector/data/network.rvf
+node scripts/vectorize.mjs --from-graph --verbose
+```

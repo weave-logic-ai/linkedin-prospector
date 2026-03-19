@@ -5,14 +5,14 @@
     "index",
     "---Guides---",
     "guides/...",
-    "---Architecture---",
+    "---Subsystems---",
     "architecture/...",
+    "claude-agent/...",
+    "browser-extension/...",
     "---Scoring & Models---",
     "scoring/...",
     "---Integrations---",
     "integrations/...",
-    "---Browser Extension---",
-    "browser-extension/...",
     "---API Reference---",
     "api-reference/..."
   ]

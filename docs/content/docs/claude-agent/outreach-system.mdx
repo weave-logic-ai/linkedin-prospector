@@ -1,0 +1,176 @@
+---
+title: Outreach System
+description: Template engine, outreach configuration, sequences, rate budgets, and how agent outreach connects to the app.
+---
+
+# Outreach System
+
+The agent includes a template-based outreach system for generating personalized LinkedIn messages. Outreach is **generate-only** -- the agent creates message drafts but never sends them automatically. A human must always click the send button.
+
+## Template Engine
+
+Templates use merge fields that are populated from contact data:
+
+### Available Merge Fields
+
+| Field | Source |
+|-------|--------|
+| `{{firstName}}`, `{{lastName}}`, `{{name}}` | Contact name fields |
+| `{{company}}`, `{{currentRole}}`, `{{headline}}` | Profile info |
+| `{{mutualConnection}}`, `{{mutualCount}}` | Mutual connections |
+| `{{sharedInterest}}` | Shared interests/tags from scoring |
+| `{{personalNote}}` | Custom note (optional) |
+| `{{targetName}}`, `{{targetCompany}}` | For introduction requests |
+
+### Character Limits
+
+| Channel | Limit |
+|---------|-------|
+| LinkedIn connection request | 300 characters (hard limit) |
+| LinkedIn message | ~8000 characters |
+
+## Template Categories
+
+Templates are stored in `data/outreach-templates.yaml` and organized by type:
+
+### Connection Requests
+
+| Template | Persona/Tier | Use Case |
+|----------|-------------|----------|
+| `connection-request-default` | Silver | General outreach with mutual connection reference |
+| `connection-request-decision-maker` | Decision-maker | Value proposition for budget holders |
+| `connection-request-influencer` | Influencer | Thought leader engagement |
+| `connection-request-warm-mutual` | Gold | Warm introduction via mutual connection |
+| `connection-request-technical` | Technical expert | Technical common ground |
+| `connection-request-referral-source` | Referral source | Partnership exploration |
+
+### Follow-Up Messages
+
+| Template | Use Case |
+|----------|----------|
+| `followup-warm` | After connection accepted, suggest a call |
+| `followup-value-add` | Share relevant content as a conversation opener |
+| `followup-meeting-request` | Direct meeting request with specific availability |
+
+### Introduction Requests
+
+| Template | Use Case |
+|----------|----------|
+| `intro-request-mutual` | Ask a mutual connection for a warm intro |
+| `intro-request-specific-context` | Introduction with specific business context |
+
+### Re-engagement
+
+| Template | Use Case |
+|----------|----------|
+| `reengage-dormant` | Re-engage a contact you haven't spoken to in a while |
+| `reengage-news-hook` | Re-engage using recent company news |
+
+### Events
+
+| Template | Use Case |
+|----------|----------|
+| `event-invite` | Invite contacts to a webinar or roundtable |
+
+## Template Selection Rules
+
+The system automatically selects templates based on contact persona and tier:
+
+| Persona | Tier | Template Selected |
+|---------|------|-------------------|
+| decision-maker | gold | `connection-request-decision-maker` |
+| influencer | gold | `connection-request-influencer` |
+| technical-expert | any | `connection-request-technical` |
+| referral-source | any | `connection-request-referral-source` |
+| any | gold | `connection-request-warm-mutual` |
+| any | silver | `connection-request-default` |
+
+## Outreach Sequences
+
+Two built-in sequences define multi-step outreach cadences:
+
+### Default Sequence
+
+| Step | Channel | Delay | Condition |
+|------|---------|-------|-----------|
+| 1 | LinkedIn connection request | Day 0 | -- |
+| 2 | LinkedIn message | Day 2 | Connection accepted |
+| 3 | LinkedIn message | Day 7 | No response to step 2 |
+
+### High-Value Sequence
+
+| Step | Channel | Delay | Condition |
+|------|---------|-------|-----------|
+| 1 | LinkedIn connection request | Day 0 | -- |
+| 2 | LinkedIn message | Day 1 | Connection accepted |
+| 3 | Email | Day 3 | Message read |
+
+## Lifecycle States
+
+Every outreach plan moves through a state machine:
+
+```
+planned -> sent -> pending_response -> responded -> engaged -> converted
+                                    \-> declined -> closed_lost
+                                                 \-> deferred -> planned
+```
+
+| State | Meaning |
+|-------|---------|
+| `planned` | Outreach drafted but not sent |
+| `sent` | Message sent by human |
+| `pending_response` | Waiting for reply |
+| `responded` | Reply received |
+| `engaged` | Active conversation ongoing |
+| `converted` | Successfully converted to meeting/deal |
+| `declined` | Contact declined or not interested |
+| `deferred` | Postponed for later follow-up |
+| `closed_lost` | Permanently closed, no further action |
+
+State transitions require manual confirmation -- no automation.
+
+## Rate Budget
+
+LinkedIn rate limits are enforced to protect account health:
+
+| Limit | Daily | Weekly |
+|-------|-------|--------|
+| Connection requests | 20 | -- |
+| Messages | 50 | -- |
+| New connections | -- | 100 |
+| Profile views | 80 | -- |
+
+## Receptiveness Scoring
+
+The system predicts likelihood of positive response using a composite score:
+
+| Factor | Weight | Source |
+|--------|--------|--------|
+| Relationship strength | 0.30 | Layer 1 scoring |
+| Behavioral score | 0.25 | Layer 2 scoring |
+| Activity recency | 0.20 | Last activity timestamp |
+| Mutual connections | 0.15 | Mutual count |
+| Referral likelihood | 0.10 | Layer 3 scoring |
+
+## Connection to the App
+
+The agent's outreach system generates templates and tracks state locally in `data/outreach-state.json`. The app's outreach module (`app/src/app/(app)/outreach/`) provides the full web UI:
+
+| Feature | Agent | App |
+|---------|-------|-----|
+| Template generation | YAML templates with merge fields | Claude-powered personalization |
+| State tracking | Local JSON file | PostgreSQL with full audit trail |
+| Pipeline view | CLI state queries | Kanban board UI |
+| Rate budget | Config-based limits | Dashboard with usage charts |
+| Sending | Never (generate-only) | Never (generate-only) |
+
+When both systems are running, outreach plans created by the agent can be viewed and managed in the app's outreach pipeline.
+
+## Compliance
+
+| Policy | Setting |
+|--------|---------|
+| GDPR consent basis | Legitimate interest |
+| Auto-archive | 180 days after closed |
+| Automation policy | Generate-only -- human must send |
+| LinkedIn TOS | All outreach requires manual action |

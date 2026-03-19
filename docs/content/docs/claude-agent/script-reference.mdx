@@ -1,0 +1,133 @@
+---
+title: Script Reference
+description: Complete reference for all agent scripts grouped by phase, with common flags, environment variables, and data files.
+---
+
+# Script Reference
+
+All scripts are located in `.claude/linkedin-prospector/skills/linkedin-prospector/scripts/`.
+
+## Scripts by Phase
+
+### Phase 0: Configure
+
+| Script | Purpose | Interactive |
+|--------|---------|------------|
+| `configure.mjs wizard` | Full interactive ICP setup with prompts | Yes |
+| `configure.mjs init` | Quick template from a few inputs | Yes |
+| `configure.mjs generate --json '<config>'` | Non-interactive config from JSON | No |
+| `configure.mjs validate` | Check config file validity | No |
+
+<Callout type="warn">
+When using Claude Code slash commands, always use `generate --json` (not `wizard` or `init`). The interactive modes require readline stdin which hangs in non-interactive shells.
+</Callout>
+
+### Phase 1: Pull
+
+| Script | Purpose | Key Flags |
+|--------|---------|-----------|
+| `search.mjs` | Search LinkedIn 1st-degree connections | `--niche <slug>`, `--keywords "k1,k2"`, `--max-results N`, `--max-pages N` |
+| `enrich.mjs` | Visit profiles for detailed data | `--unenriched-only`, `--max N` |
+| `deep-scan.mjs` | Scan a contact's connections (2nd-degree) | `--url <url>`, `--max-pages N`, `--max-results N`, `--mutual-only` |
+| `batch-deep-scan.mjs` | Batch deep-scan multiple contacts | `--criteria <type>`, `--min-score N`, `--delay N`, `--dry-run`, `--skip N` |
+| `reparse.mjs` | Re-extract data from cached HTML | `--all`, `--type profiles\|search`, `--url <url>`, `--stats` |
+| `db.mjs` | Contact database CLI | `stats`, `search`, `export`, `seed`, `prune` |
+
+### Phase 2: Score
+
+| Script | Purpose | Key Flags |
+|--------|---------|-----------|
+| `graph-builder.mjs` | Build knowledge graph from contacts | `--verbose` |
+| `scorer.mjs` | Layer 1: ICP fit, network hub, gold score | `--verbose` |
+| `behavioral-scorer.mjs` | Layer 2: behavioral score, personas | `--verbose` |
+| `referral-scorer.mjs` | Layer 3: referral likelihood, personas | `--verbose` |
+| `vectorize.mjs` | Generate embeddings, build vector store | `--from-graph`, `--batch-size N`, `--verbose` |
+
+### Phase 3: Analyze
+
+| Script | Purpose | Key Flags |
+|--------|---------|-----------|
+| `analyzer.mjs` | 12 analysis modes | `--mode <mode>`, `--top N`, `--icp`, `--persona`, `--tier`, `--cluster`, `--name`, `--url`, `--query` |
+| `delta.mjs` | Snapshot and change detection | `--snapshot`, `--check`, `--list` |
+
+### Phase 4: Report
+
+| Script | Purpose | Key Flags |
+|--------|---------|-----------|
+| `report-generator.mjs` | Interactive HTML dashboard | `--verbose` |
+| `pipeline.mjs` | Pipeline orchestrator (all modes) | `--full`, `--rebuild`, `--rescore`, `--behavioral`, `--referrals`, `--report`, `--deep-scan`, `--validate`, `--reparse` |
+
+### Utility Modules (not called directly)
+
+| Module | Purpose |
+|--------|---------|
+| `lib.mjs` | Shared utilities: `launchBrowser()`, `parseArgs()`, `NICHE_KEYWORDS`, `USER_DATA_DIR` |
+| `cache.mjs` | HTML cache: `saveSearchPage()`, `saveProfilePage()`, `saveConnectionsPage()`, `loadIndex()`, `getCachedHtml()` |
+| `rvf-store.mjs` | ruvector abstraction: `isRvfAvailable()`, `openStore()`, `queryStore()`, `ingestContacts()`, `upsertMetadata()` |
+
+## Common Flags
+
+| Flag | Used By | Description |
+|------|---------|-------------|
+| `--verbose` | Most scripts | Detailed progress logging |
+| `--max-results <N>` | search, deep-scan, batch-deep-scan | Maximum results to collect |
+| `--max-pages <N>` | search, deep-scan, batch-deep-scan | Maximum pages to scroll |
+| `--top <N>` | analyzer, pipeline | Number of results to return |
+| `--niche <slug>` | search, pipeline (--full) | Niche from icp-config.json |
+| `--keywords "k1,k2"` | search, db search | Raw search keywords |
+| `--dry-run` | batch-deep-scan | Preview without executing |
+| `--json` | search | Output as JSON to stdout |
+| `--from-graph` | vectorize | Load from graph.json (recommended) |
+
+## Pipeline Modes
+
+| Mode | Steps | When to Use |
+|------|-------|-------------|
+| `--full` | search, enrich, graph, score, behavioral, referral, vectorize, analyze, snapshot | First-time setup |
+| `--rebuild` | graph, score, behavioral, referral, vectorize, analyze, snapshot | After data changes |
+| `--rescore` | score, behavioral, referral, analyze | After weight/threshold changes |
+| `--behavioral` | behavioral, analyze(behavioral), analyze(visibility) | Behavioral-only |
+| `--referrals` | referral-scorer, analyze(referrals) | Referral-only |
+| `--report` | report-generator | Generate HTML dashboard |
+| `--deep-scan --url <url>` | deep-scan, graph, score, behavioral, referral, report | Scan then rebuild |
+| `--validate` | configure validate | Validate config |
+| `--reparse` | reparse --all | Re-extract from cache |
+
+## Database Commands
+
+```bash
+node scripts/db.mjs stats                                    # Show contact counts
+node scripts/db.mjs search --niche <slug>                    # Search by niche
+node scripts/db.mjs search --keywords "k1,k2" --min-mutual 20  # Search with filters
+node scripts/db.mjs export --format csv                      # Export as CSV
+node scripts/db.mjs export --format json --niche <slug>      # Export filtered JSON
+node scripts/db.mjs prune --older-than 90d                   # Remove stale contacts
+node scripts/db.mjs seed --file /path/to/contacts.json       # Import from file
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BROWSER_DATA_DIR` | `.browser-data/` | Playwright persistent browser data directory |
+| `PROSPECTOR_DATA_DIR` | `skills/linkedin-prospector/data/` | Contact data directory (keeps PII separate) |
+
+## Data Files
+
+All data files are in `data/` within the skill directory:
+
+| File | Description | Generated By |
+|------|-------------|-------------|
+| `icp-config.json` | ICP configuration (user-editable) | `configure.mjs` |
+| `behavioral-config.json` | Behavioral persona rules | Ships with defaults |
+| `referral-config.json` | Referral scoring rules | Ships with defaults |
+| `outreach-config.json` | Outreach lifecycle, limits, sequences | Ships with defaults |
+| `outreach-templates.yaml` | Message templates with merge fields | Ships with defaults |
+| `contacts.json` | Contact database | `search.mjs`, `enrich.mjs`, `deep-scan.mjs` |
+| `graph.json` | Scored knowledge graph | `graph-builder.mjs`, `scorer.mjs` |
+| `network-report.html` | Interactive HTML dashboard | `report-generator.mjs` |
+| `network.rvf` | Semantic vector store | `vectorize.mjs` |
+| `outreach-state.json` | Outreach pipeline state | Outreach system |
+| `rate-budget.json` | Daily rate limit tracking | Outreach system |
+| `snapshots/` | Delta snapshots | `delta.mjs` |
+| `cache/` | Cached HTML pages | `search.mjs`, `enrich.mjs`, `deep-scan.mjs` |

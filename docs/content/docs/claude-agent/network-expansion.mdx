@@ -1,0 +1,140 @@
+---
+title: Network Expansion
+description: Deep scanning, batch deep scan, bridge contacts, dry-run preview, and rate limiting for 2nd and 3rd degree network discovery.
+---
+
+# Network Expansion
+
+Deep scanning discovers contacts beyond your 1st-degree network by scanning a contact's LinkedIn connection list. Bridge contacts appearing in multiple scans indicate high-value connectors and hidden network clusters.
+
+## Single Contact Deep Scan
+
+Scan one contact's connections to discover 2nd-degree contacts:
+
+```
+/network-intel deep scan https://linkedin.com/in/someone
+```
+
+```bash
+node scripts/deep-scan.mjs --url https://linkedin.com/in/someone
+```
+
+### What Deep Scan Does
+
+1. Navigates to the target's profile page
+2. Finds and clicks the connections link
+3. Paginates through visible connections, extracting name, title, URL, mutual count, and degree
+4. Caches each connections page as raw HTML
+5. Stores discovered contacts in `contacts.json` with `degree: 2` and `discoveredVia` metadata
+6. Marks the scanned contact as `deepScanned: true`
+7. Reports bridge contacts (appearing in multiple scans)
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--url <url>` | (required) | LinkedIn profile URL to scan |
+| `--max-pages <N>` | 5 | Pages of connections to scrape |
+| `--max-results <N>` | 100 | Maximum connections to discover |
+| `--depth <N>` | 2 | Store discovered contacts as degree-N |
+| `--mutual-only` | false | Only capture mutual connections |
+
+## Batch Deep Scan
+
+Sequentially deep-scans a prioritized list of contacts, then automatically rebuilds the graph and re-scores.
+
+```
+/network-intel expand my network through referral partners
+/network-intel deep scan the top hubs
+```
+
+### Dry-Run Preview
+
+Always preview before executing:
+
+```bash
+node scripts/batch-deep-scan.mjs --criteria referral --dry-run
+```
+
+This shows the scan list without executing, so you can review who will be scanned.
+
+### Criteria Modes
+
+| Criteria | Who Gets Scanned |
+|----------|-----------------|
+| `gold` | All gold-tier contacts, plus top 5 by ICP fit, network hub, behavioral, and relationship. Default. |
+| `referral` | Gold-referral tier first, then warm-introducers and white-label partners, then top silver-referral. |
+| `hub` | Top 10 contacts by network hub score. |
+| `all` | Gold-tier, gold-referral, top hubs, top ICP, top behavioral, top relationship. Most comprehensive but slowest. |
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--criteria <type>` | gold | Targeting criteria |
+| `--min-score <N>` | 0 | Minimum score threshold (0-1) |
+| `--max-pages <N>` | 3 | Pages per scan (conservative) |
+| `--max-results <N>` | 50 | Max connections per scan |
+| `--delay <N>` | 10 | Seconds between scans |
+| `--skip <N>` | 0 | Resume after interruption (skip first N) |
+| `--dry-run` | false | Preview without executing |
+| `--max-targets <N>` | unlimited | Max contacts to scan |
+
+After all scans complete, batch-deep-scan automatically runs: graph-builder, scorer, behavioral-scorer, referral-scorer, and report-generator.
+
+## Bridge Contacts
+
+When the same person appears in multiple deep scans, they are flagged as a **bridge contact**. Bridge contacts are valuable because they:
+
+- Connect multiple parts of your network
+- Indicate hidden clusters of relevant contacts
+- Are strong candidates for warm introductions
+
+Bridge contacts are tracked in `contacts.json` with a `discoveredVia` array listing all contacts whose scans surfaced them.
+
+## Who to Deep Scan First
+
+Prioritize scanning contacts whose connections are most likely relevant to your goals:
+
+1. **Gold-tier contacts** -- Their connections are likely relevant to your ICP
+2. **Gold-referral partners** -- Their connections include your potential buyers
+3. **Top hubs** -- They bridge multiple clusters and have the broadest reach
+
+## Rate Limiting
+
+LinkedIn may throttle or block automated access. The agent uses several strategies:
+
+| Strategy | Detail |
+|----------|--------|
+| **Delay between scans** | Default 10 seconds. Increase with `--delay` for safety. |
+| **Page limits** | Default 3 pages per scan. Fewer pages = lower risk. |
+| **Visible browser** | Runs `headless: false` to reduce detection |
+| **Anti-automation flags** | `--disable-blink-features=AutomationControlled` set automatically |
+| **HTML caching** | Pages cached locally so they never need to be fetched twice |
+
+**Signs of throttling:**
+- Empty search results when results should exist
+- Profile pages showing limited data
+- CAPTCHA challenges
+
+**Recovery:**
+- Wait 30-60 minutes before retrying
+- Re-establish your LinkedIn session if needed
+- Use `reparse.mjs` to re-extract from cached pages without hitting LinkedIn
+
+## Delta Tracking
+
+Track network changes over time after expansion:
+
+```
+/network-intel any new connections since last time?
+/network-intel save a snapshot
+```
+
+```bash
+node scripts/delta.mjs --snapshot    # Create snapshot
+node scripts/delta.mjs --check       # Compare vs. last snapshot
+node scripts/delta.mjs --list        # List all snapshots
+```
+
+The delta report shows new contacts added, contacts removed, tier changes, and recommendations.

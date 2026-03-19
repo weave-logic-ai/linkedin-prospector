@@ -53,7 +53,7 @@ When multiple ICP profiles exist, the contact is scored against all of them and 
 |-----------|--------|--------------|
 | **Mutual connections** | 0.40 | Normalized against max mutual count |
 | **Search term overlap** | 0.20 | Matched search terms, normalized |
-| **Recency** | 0.20 | <7d = 1.0, <30d = 0.7, <90d = 0.4, else = 0.2 |
+| **Recency** | 0.20 | &lt;7d = 1.0, &lt;30d = 0.7, &lt;90d = 0.4, else = 0.2 |
 | **Proximity** | 0.20 | Major metro (+0.5) + industry overlap (+0.5) |
 
 ### Gold Score (0-1)
@@ -95,8 +95,8 @@ Analyzes how active, connected, and engaged each contact is. Updates the Gold Sc
 
 | Component | Weight | What It Measures |
 |-----------|--------|-----------------|
-| **connectionPower** | 0.20 | Connection count. 500+ = 1.0, 300+ = 0.7, 100+ = 0.4, <100 = 0.1 |
-| **connectionRecency** | 0.15 | Days since connected. <30d = 1.0, <90d = 0.7, <180d = 0.4 |
+| **connectionPower** | 0.20 | Connection count. 500+ = 1.0, 300+ = 0.7, 100+ = 0.4, &lt;100 = 0.1 |
+| **connectionRecency** | 0.15 | Days since connected. &lt;30d = 1.0, &lt;90d = 0.7, &lt;180d = 0.4 |
 | **aboutSignals** | 0.25 | 8 keyword categories in About: connector, speaker, mentor, builder, etc. |
 | **headlineSignals** | 0.15 | Patterns: multi-role pipes (0.7), helping language (0.6), credentials (0.4) |
 | **superConnectorIndex** | 0.15 | Trait count / 5. 3+ traits = super-connector |
@@ -118,7 +118,7 @@ Tiers are reassigned. The v1 score is preserved as `goldScoreV1`.
 | **super-connector** | 3+ traits AND 500+ connections |
 | **content-creator** | Speaker/author/podcast keywords |
 | **silent-influencer** | 500+ connections, low signals |
-| **rising-connector** | <500 connections, connected < 180 days |
+| **rising-connector** | &lt;500 connections, connected &lt;180 days |
 | **passive-network** | Default |
 
 ## Layer 3: Referral

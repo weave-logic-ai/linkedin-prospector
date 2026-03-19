@@ -34,14 +34,27 @@ Import -> Score -> Discover -> Enrich -> Capture -> Analyze -> Act -> Track -> R
 
 Every action feeds back into the system. When you enrich a contact, they are automatically re-scored. When you receive an outreach reply, it updates their behavioral profile. When a contact reaches Gold tier, the system auto-generates tasks. The more you use it, the smarter it gets. See the [Game Loop guide](/docs/guides/game-loop) for details.
 
-## Architecture
+## Three Subsystems
 
-| Component | Technology | Purpose |
+NetworkNav is built from three cooperating subsystems:
+
+```
++------------------+        +------------------+        +------------------+
+|   Web App        |        |   Claude Agent   |        | Browser Extension|
+|   (app/)         |<------>|   (agent/)       |<------>|   (browser/)     |
+|                  |        |                  |        |                  |
+| Next.js dashboard|        | Claude Code skill|        | Chrome MV3       |
+| PostgreSQL + RVF |        | Playwright + CLI |        | Page capture     |
+| Scoring UI       |        | Scoring engine   |        | Task display     |
+| Outreach mgmt    |        | 12 analysis modes|        | Outreach overlay |
++------------------+        +------------------+        +------------------+
+```
+
+| Subsystem | Technology | Purpose |
 |-----------|-----------|---------|
-| **App** | Next.js 15, React 19, shadcn/ui | Dashboard, contacts, scoring, outreach UI |
-| **Database** | PostgreSQL + ruvector | Relational + vector + graph in one DB |
-| **Chrome Extension** | Chrome MV3 | Capture LinkedIn page data compliantly |
-| **Agent** | Claude API | Goal generation, template personalization, analysis |
+| **Web App** | Next.js 15, React 19, shadcn/ui, PostgreSQL + ruvector | Dashboard, contacts, scoring UI, outreach pipeline, REST API |
+| **Claude Agent** | Claude Code skill, Playwright, ruvector | LinkedIn search, 3-layer scoring, 12 analysis modes, semantic vector search, ICP config, report generation |
+| **Browser Extension** | Chrome MV3 | Passive LinkedIn page capture, task display, outreach overlays |
 | **Enrichment** | People Data Labs (PDL), Apollo, Lusha, Crunchbase, BuiltWith | Licensed data provider integrations |
 
 ## Documentation Sections
@@ -53,14 +66,17 @@ Every action feeds back into the system. When you enrich a contact, they are aut
   <Card title="Architecture" href="/docs/architecture">
     System architecture, database schema, data flow pipelines, the CSS selector-based parser engine, security model, and deployment configuration.
   </Card>
+  <Card title="Claude Agent" href="/docs/claude-agent">
+    The Claude Code skill for LinkedIn network intelligence: ICP configuration, slash commands, 3-layer scoring pipeline, 12 analysis modes, semantic search, network expansion, outreach templates, and vertical configurations.
+  </Card>
+  <Card title="Browser Extension" href="/docs/browser-extension">
+    Chrome extension installation, authentication, page capture, task system, outreach templates, settings, offline mode, and extension architecture.
+  </Card>
   <Card title="Scoring & Models" href="/docs/scoring">
     Mathematical foundations of the 15-dimension scoring engine including composite score proofs, dimension formulas, tier assignment, persona classification, referral scoring, weight management, auto-scoring, and RVF training.
   </Card>
   <Card title="Integrations" href="/docs/integrations">
     Data provider integrations (People Data Labs, Apollo, Lusha, Crunchbase, BuiltWith), Claude AI, and the enrichment waterfall orchestration system.
-  </Card>
-  <Card title="Browser Extension" href="/docs/browser-extension">
-    Chrome extension installation, authentication, page capture, task system, outreach templates, settings, offline mode, and extension architecture.
   </Card>
   <Card title="API Reference" href="/docs/api-reference">
     Complete REST API reference covering 80+ endpoints across contacts, scoring, enrichment, graph, import, goals and tasks, outreach, extension, admin, dashboard, discover, and Claude AI.
