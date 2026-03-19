@@ -1,0 +1,26 @@
+{
+  "date": "2026-03-12",
+  "operations": {
+    "profile_visits": {
+      "used": 0,
+      "limit": 80
+    },
+    "connection_requests": {
+      "used": 0,
+      "limit": 20
+    },
+    "messages_sent": {
+      "used": 0,
+      "limit": 25
+    },
+    "search_pages": {
+      "used": 0,
+      "limit": 30
+    },
+    "activity_feeds": {
+      "used": 0,
+      "limit": 20
+    }
+  },
+  "history": []
+}

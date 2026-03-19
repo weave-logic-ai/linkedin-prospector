@@ -2,6 +2,11 @@
 # User data directory (PII - never commit)
 data/drives/
 data/linkedin/
+
+# data/db/ and data/config/ ARE tracked (schema + default configs)
+# Only ignore user-modified config copies
+data/config/extension-tokens.json
+data/config/extension-settings.json
 **/contacts.json
 **/graph.json
 **/network-report.html
@@ -19,8 +24,6 @@ data/linkedin/
 *-credentials.json
 **/tokens/
 *-token.json
-data/config/extension-tokens.json
-data/config/extension-settings.json
 .env
 .env.local
 .env.*.local

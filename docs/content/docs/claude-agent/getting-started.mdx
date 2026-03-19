@@ -1,0 +1,187 @@
+---
+title: Getting Started
+description: Install prerequisites, configure your ICP profiles, and run your first LinkedIn network analysis.
+---
+
+# Getting Started
+
+This guide walks you through installing the Claude Agent skill, configuring your first Ideal Customer Profile, and running your first search and analysis.
+
+## Prerequisites
+
+Before you begin, ensure you have these installed:
+
+| Requirement | Version | Purpose |
+|-------------|---------|---------|
+| **Claude Code** | Latest | Slash command host for `/linkedin-prospector` and `/network-intel` |
+| **Node.js** | 18+ | ES module runtime for all agent scripts |
+| **Playwright** | Latest | Chromium browser automation for LinkedIn interaction |
+| **ruvector** | Latest | 384-dim ONNX embeddings and HNSW vector search (required for semantic search) |
+| **LinkedIn account** | Active session | Source data for contact search and enrichment |
+
+<Callout type="info">
+ruvector is a core dependency of the agent's intelligence pipeline. Semantic search, similarity analysis, and vector-enhanced database queries all depend on it. Install it during setup -- not as an afterthought.
+</Callout>
+
+## Installation
+
+<Steps>
+
+### Install the skill
+
+Clone or copy the agent into your project's `.claude/` directory:
+
+```bash
+cd your-project
+git clone git@github.com:weave-logic-ai/linkedin-prospector.git .claude/linkedin-prospector
+```
+
+This registers two slash commands in Claude Code: `/linkedin-prospector` and `/network-intel`.
+
+### Install Playwright
+
+```bash
+npm install playwright
+npx playwright install chromium
+```
+
+### Install ruvector
+
+```bash
+cd .claude/linkedin-prospector/skills/linkedin-prospector
+npm install ruvector
+```
+
+On first run, the ONNX model (~30MB) is downloaded and cached in `.cache/`. Subsequent runs use the cached model.
+
+### Establish a LinkedIn session
+
+Tell Claude:
+
+```
+/linkedin-prospector log me into LinkedIn
+```
+
+Claude launches a Chromium window via Playwright. Log into LinkedIn manually, then close the browser. Your session persists in `.browser-data/` and is reused for all future searches.
+
+Alternatively, run the script directly:
+
+```bash
+node -e "import('playwright').then(p => p.chromium.launchPersistentContext('.browser-data', {headless:false, channel:'chromium'}).then(c => console.log('Log into LinkedIn, then close the browser')))"
+```
+
+</Steps>
+
+## Configure Your ICP
+
+Tell Claude to walk you through configuration:
+
+```
+/linkedin-prospector set up my ICP config
+```
+
+Claude will ask about your services, target buyer roles, industries, buying signals, company size, and search niches, then generate the configuration. See [ICP Configuration](/docs/claude-agent/icp-configuration) for the full 8-step flow.
+
+To verify your config:
+
+```
+/linkedin-prospector validate config
+```
+
+## Your First Search
+
+Search for contacts in a niche defined in your config:
+
+```
+/linkedin-prospector find me 20 ecommerce contacts
+```
+
+Claude checks your local database first, then searches LinkedIn if more contacts are needed. After the search, enrich the profiles:
+
+```
+/linkedin-prospector enrich unenriched contacts
+```
+
+## Build, Score, and Analyze
+
+Switch to the analysis command to score your contacts:
+
+```
+/network-intel rebuild and rescore everything
+```
+
+This builds the knowledge graph, runs all three scoring layers (ICP, behavioral, referral), vectorizes contacts for semantic search, and creates a snapshot.
+
+Now explore your network:
+
+```
+/network-intel give me an overview
+/network-intel who are my best hubs?
+/network-intel find my top prospects
+/network-intel who are my best referral partners?
+/network-intel what should I focus on next?
+```
+
+## Generate a Report
+
+```
+/network-intel generate a report
+```
+
+Claude creates an interactive HTML dashboard at `data/network-report.html` with a 3D network graph, Chart.js charts, and sortable tables.
+
+## Complete Zero-to-Scored Walkthrough
+
+For those who prefer running scripts directly:
+
+```bash
+# 1. Install dependencies
+npm install playwright && npx playwright install chromium
+cd .claude/linkedin-prospector/skills/linkedin-prospector && npm install ruvector
+
+# 2. Log into LinkedIn (manual step in browser window)
+node -e "import('playwright').then(p => p.chromium.launchPersistentContext('.browser-data', {headless:false, channel:'chromium'}).then(c => console.log('Log in, then close')))"
+
+# 3. Configure ICP (interactive wizard)
+node scripts/configure.mjs wizard
+
+# 4. Validate
+node scripts/configure.mjs validate
+
+# 5. Search
+node scripts/search.mjs --niche ecommerce --max-results 30
+
+# 6. Enrich
+node scripts/enrich.mjs --unenriched-only --max 50
+
+# 7. Build graph + score + vectorize + snapshot
+node scripts/pipeline.mjs --rebuild
+
+# 8. Generate HTML report
+node scripts/pipeline.mjs --report
+
+# 9. Explore results
+node scripts/analyzer.mjs --mode summary
+node scripts/analyzer.mjs --mode hubs --top 10
+node scripts/analyzer.mjs --mode prospects --top 10
+node scripts/analyzer.mjs --mode referrals --top 10
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BROWSER_DATA_DIR` | `.browser-data/` | Path to Playwright persistent browser data |
+| `PROSPECTOR_DATA_DIR` | `skills/linkedin-prospector/data/` | Contact data directory (keeps PII separate from code) |
+
+## Troubleshooting
+
+| Error | Fix |
+|-------|-----|
+| "Browser not found" | Run `npx playwright install chromium` |
+| "Not logged in" | Use `/linkedin-prospector log me into LinkedIn` and log in manually |
+| "No contacts found" | Run a search first: `/linkedin-prospector find me 20 [niche] contacts` |
+| "Config is example template" | Run `/linkedin-prospector set up my ICP config` |
+| "graph.json missing" | Run `/network-intel rebuild and rescore everything` |
+| "ruvector not available" | Install: `cd .claude/linkedin-prospector/skills/linkedin-prospector && npm i ruvector` |
+| "RVF store not available or empty" | Build the vector store: `node scripts/vectorize.mjs --from-graph` |

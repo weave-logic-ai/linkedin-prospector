@@ -1,0 +1,16 @@
+{
+  "title": "Claude Agent",
+  "pages": [
+    "index",
+    "getting-started",
+    "icp-configuration",
+    "commands",
+    "scoring-pipeline",
+    "analysis-modes",
+    "semantic-search",
+    "network-expansion",
+    "outreach-system",
+    "vertical-templates",
+    "script-reference"
+  ]
+}

@@ -22,14 +22,16 @@
 - Use `docs/` for documentation and markdown files
 - Use `docs/.sparc/` for SPARC methodology files
 - Use `docs/plans/` for planning documents
-- Use `data/` for user data (gitignored, never commit PII)
-- Use `data/drives/[app,db,shared,config]` for Docker volume mounts
-- Use `db/init/` for PostgreSQL schema init scripts
+- Use `data/` for all data (some tracked, some gitignored)
+- Use `data/db/init/` for PostgreSQL schema init scripts (tracked in git)
+- Use `data/config/` for default configs (tracked in git)
+- Use `data/drives/` for Docker volume mounts (gitignored)
+- Use `data/linkedin/` for LinkedIn exports (gitignored, PII)
 
 ## Key Paths
 
 - **App root**: `app/` (run npm commands from here)
-- **DB schemas**: `db/init/001-015*.sql`
+- **DB schemas**: `data/db/init/001-019*.sql`
 - **Docker**: `docker-compose.yml` (root), `app/Dockerfile`
 - **Tests**: `tests/` (root, jest resolves @/ to app/src/)
 - **LinkedIn data**: `data/linkedin/LinkedinExport/`
