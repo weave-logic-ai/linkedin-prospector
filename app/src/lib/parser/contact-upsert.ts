@@ -3,6 +3,7 @@
 // Uses confidence-based field merging (higher confidence wins)
 
 import { transaction } from '@/lib/db/client';
+import { triggerAutoScore } from '@/lib/scoring/auto-score';
 import type { ProfileParseData } from './types';
 
 interface UpsertResult {
@@ -26,7 +27,7 @@ export async function upsertContactFromProfile(
     .replace(/\?.*$/, '') // Remove query params
     .replace(/\/$/, ''); // Remove trailing slash
 
-  return transaction(async (client) => {
+  const result = await transaction(async (client) => {
     // Check if contact exists
     const existing = await client.query<{
       id: string;
@@ -224,4 +225,9 @@ export async function upsertContactFromProfile(
       };
     }
   });
+
+  // Fire-and-forget auto-score after successful upsert
+  triggerAutoScore(result.contactId);
+
+  return result;
 }

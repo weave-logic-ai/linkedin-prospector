@@ -15,8 +15,9 @@ import {
   ContentRelevanceScorer,
   GraphCentralityScorer,
 } from './scorers';
-import { DimensionScorer, ScoringRunResult, IcpCriteria, ContactScoringData } from './types';
+import { DimensionScorer, ScoringRunResult, IcpCriteria, ContactScoringData, CompositeScore } from './types';
 import * as scoringQueries from '../db/queries/scoring';
+import { checkAndGenerateTasks } from './task-triggers';
 
 const behavioralScorer = new BehavioralScorer();
 
@@ -90,8 +91,37 @@ export async function scoreContact(
     score.behavioralSignals = behavioralScorer.lastSignals;
   }
 
+  // Retrieve old score before writing (for task trigger comparison)
+  let oldScore: CompositeScore | null = null;
+  try {
+    const oldBreakdown = await scoringQueries.getContactScoreBreakdown(contactId);
+    if (oldBreakdown) {
+      oldScore = {
+        compositeScore: oldBreakdown.compositeScore,
+        tier: oldBreakdown.tier as CompositeScore['tier'],
+        persona: (oldBreakdown.persona ?? 'unknown') as CompositeScore['persona'],
+        behavioralPersona: (oldBreakdown.behavioralPersona ?? 'unknown') as CompositeScore['behavioralPersona'],
+        dimensions: oldBreakdown.dimensions.map(d => ({ ...d, metadata: {} })),
+        scoringVersion: score.scoringVersion,
+        referralLikelihood: oldBreakdown.referralLikelihood,
+        referralTier: oldBreakdown.referralTier as CompositeScore['referralTier'],
+        referralPersona: oldBreakdown.referralPersona as CompositeScore['referralPersona'],
+        referralDimensions: null,
+        behavioralSignals: null,
+        referralSignals: null,
+      };
+    }
+  } catch {
+    // Non-critical — proceed without old score
+  }
+
   // Store score
   await scoringQueries.upsertContactScore(contactId, score);
+
+  // Generate tasks based on score transitions (fire-and-forget)
+  checkAndGenerateTasks(contactId, oldScore, score).catch((err) => {
+    console.error(`[scoring] Task trigger failed for ${contactId}:`, err);
+  });
 
   // Compute ICP fits for all active profiles
   const icpFits: ScoringRunResult['icpFits'] = [];

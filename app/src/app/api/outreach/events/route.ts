@@ -6,6 +6,7 @@ import {
   upsertOutreachState,
   getOutreachState,
 } from '@/lib/db/queries/outreach';
+import { processOutreachFeedback } from '@/lib/scoring/outreach-feedback';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -68,6 +69,11 @@ export async function POST(request: NextRequest) {
         last_action_at: new Date().toISOString(),
       });
     }
+
+    // Feed outreach outcome back into scoring (fire-and-forget)
+    processOutreachFeedback(body.contact_id, body.event_type).catch((err) => {
+      console.error('[outreach-events] Feedback processing failed:', err);
+    });
 
     return NextResponse.json({ data: event }, { status: 201 });
   } catch (error) {
