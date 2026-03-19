@@ -1,0 +1,164 @@
+{
+  "outreach": {
+    "lifecycle": {
+      "states": [
+        "planned",
+        "sent",
+        "pending_response",
+        "responded",
+        "engaged",
+        "converted",
+        "declined",
+        "deferred",
+        "closed_lost"
+      ],
+      "transitions": {
+        "planned": ["sent", "deferred"],
+        "sent": ["pending_response"],
+        "pending_response": ["responded", "declined", "deferred"],
+        "responded": ["engaged", "declined"],
+        "engaged": ["converted", "declined"],
+        "converted": [],
+        "declined": ["closed_lost", "deferred"],
+        "deferred": ["planned"],
+        "closed_lost": []
+      },
+      "defaultState": "planned"
+    },
+    "limits": {
+      "dailyConnectionRequests": 20,
+      "dailyMessages": 50,
+      "weeklyNewConnections": 100,
+      "dailyProfileViews": 80,
+      "note": "LinkedIn rate limits to protect account health"
+    },
+    "templateSelection": {
+      "rules": [
+        {
+          "persona": "decision-maker",
+          "tier": "gold",
+          "template": "connection-request-decision-maker"
+        },
+        {
+          "persona": "influencer",
+          "tier": "gold",
+          "template": "connection-request-influencer"
+        },
+        {
+          "persona": "technical-expert",
+          "template": "connection-request-technical"
+        },
+        {
+          "persona": "referral-source",
+          "template": "connection-request-referral-source"
+        },
+        {
+          "tier": "gold",
+          "template": "connection-request-warm-mutual"
+        },
+        {
+          "tier": "silver",
+          "template": "connection-request-default"
+        }
+      ],
+      "defaultTemplate": "connection-request-default"
+    },
+    "tracking": {
+      "stateFile": "outreach-state.json",
+      "autoAdvance": false,
+      "note": "State transitions require manual confirmation (no automation)"
+    },
+    "priorities": {
+      "tier": {
+        "gold": 100,
+        "silver": 75,
+        "bronze": 50,
+        "watch": 25
+      },
+      "persona": {
+        "decision-maker": 20,
+        "influencer": 15,
+        "technical-expert": 10,
+        "referral-source": 10,
+        "default": 5
+      },
+      "recency": {
+        "days_0_7": 15,
+        "days_8_30": 10,
+        "days_31_90": 5,
+        "days_90_plus": 0
+      }
+    },
+    "scoring": {
+      "receptiveness": {
+        "weights": {
+          "relationshipStrength": 0.30,
+          "behavioralScore": 0.25,
+          "activityRecency": 0.20,
+          "mutualConnections": 0.15,
+          "referralLikelihood": 0.10
+        },
+        "note": "Composite score predicting likelihood of positive response"
+      }
+    },
+    "sequences": {
+      "default": [
+        {
+          "step": 1,
+          "channel": "linkedin_connection_request",
+          "delay_days": 0,
+          "template_type": "connection-request"
+        },
+        {
+          "step": 2,
+          "channel": "linkedin_message",
+          "delay_days": 2,
+          "template_type": "followup",
+          "condition": "connection_accepted"
+        },
+        {
+          "step": 3,
+          "channel": "linkedin_message",
+          "delay_days": 7,
+          "template_type": "followup",
+          "condition": "no_response"
+        }
+      ],
+      "high_value": [
+        {
+          "step": 1,
+          "channel": "linkedin_connection_request",
+          "delay_days": 0,
+          "template_type": "connection-request"
+        },
+        {
+          "step": 2,
+          "channel": "linkedin_message",
+          "delay_days": 1,
+          "template_type": "followup",
+          "condition": "connection_accepted"
+        },
+        {
+          "step": 3,
+          "channel": "email",
+          "delay_days": 3,
+          "template_type": "meeting-request",
+          "condition": "message_read"
+        }
+      ]
+    },
+    "compliance": {
+      "gdpr": {
+        "consentBasis": "legitimate_interest",
+        "autoArchiveDays": 180,
+        "note": "Auto-archive closed plans after 180 days"
+      },
+      "linkedin": {
+        "automationPolicy": "generate_only",
+        "note": "Never automate sending — human must click send button"
+      }
+    }
+  },
+  "version": "1.0",
+  "lastUpdated": "2026-03-12"
+}

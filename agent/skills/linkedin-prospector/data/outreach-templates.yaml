@@ -1,0 +1,252 @@
+# Outreach Message Templates
+# User-editable YAML file with merge field templates for LinkedIn outreach
+#
+# Available merge fields:
+#   {{firstName}}, {{lastName}}, {{name}} - Contact name fields
+#   {{company}}, {{currentRole}}, {{headline}} - Profile info
+#   {{mutualConnection}}, {{mutualCount}} - Mutual connections
+#   {{sharedInterest}} - Shared interests/tags
+#   {{personalNote}} - Custom note (optional, truncated first)
+#   {{targetName}}, {{targetCompany}} - For introduction requests
+#
+# Character limits:
+#   - LinkedIn connection requests: 300 chars max (hard limit)
+#   - LinkedIn messages: ~8000 chars (no practical limit)
+#
+# Template selection rules defined in outreach-config.json
+
+templates:
+  # ====================
+  # CONNECTION REQUESTS
+  # ====================
+
+  connection-request-default:
+    id: conn-default
+    name: "Default Connection Request"
+    type: connection-request
+    maxChars: 300
+    default: true
+    template: |
+      Hi {{firstName}}, I noticed we share {{mutualCount}} connections including {{mutualConnection}}.
+      {{personalNote}}
+      Would love to connect and learn about your work at {{company}}.
+    requiredFields: [firstName, mutualConnection, company]
+    optionalFields: [personalNote, mutualCount]
+
+  connection-request-influencer:
+    id: conn-influencer
+    name: "Influencer/Thought Leader Outreach"
+    type: connection-request
+    maxChars: 300
+    persona: influencer
+    template: |
+      Hi {{firstName}}, your insights on {{sharedInterest}} really resonated with me.
+      I'd love to connect and exchange ideas on AI implementation in {{company}}'s space.
+      {{personalNote}}
+    requiredFields: [firstName, sharedInterest]
+    optionalFields: [personalNote, company]
+
+  connection-request-decision-maker:
+    id: conn-decision-maker
+    name: "Decision Maker - Value Proposition"
+    type: connection-request
+    maxChars: 300
+    persona: decision-maker
+    template: |
+      Hi {{firstName}}, I help {{company}} leaders leverage AI to streamline operations.
+      {{mutualConnection}} mentioned your work — would love to connect and share insights.
+    requiredFields: [firstName, company, mutualConnection]
+    optionalFields: []
+
+  connection-request-warm-mutual:
+    id: conn-warm
+    name: "Warm Introduction via Mutual"
+    type: connection-request
+    maxChars: 300
+    tier: gold
+    template: |
+      Hi {{firstName}}, {{mutualConnection}} speaks highly of your work at {{company}}.
+      We share an interest in {{sharedInterest}} — would love to connect.
+    requiredFields: [firstName, mutualConnection, company]
+    optionalFields: [sharedInterest]
+
+  connection-request-technical:
+    id: conn-technical
+    name: "Technical Expert/Engineer"
+    type: connection-request
+    maxChars: 300
+    persona: technical-expert
+    template: |
+      Hi {{firstName}}, your background in {{sharedInterest}} caught my eye.
+      I'm working on AI/automation projects in the {{company}} space — let's connect!
+    requiredFields: [firstName, sharedInterest]
+    optionalFields: [company]
+
+  connection-request-referral-source:
+    id: conn-referral
+    name: "Potential Referral Partner"
+    type: connection-request
+    maxChars: 300
+    persona: referral-source
+    template: |
+      Hi {{firstName}}, I noticed your strong network in {{sharedInterest}}.
+      We have {{mutualCount}} mutual connections — would be great to connect and explore synergies.
+    requiredFields: [firstName, mutualCount]
+    optionalFields: [sharedInterest]
+
+  # ====================
+  # FOLLOW-UP MESSAGES
+  # ====================
+
+  followup-warm:
+    id: msg-followup-warm
+    name: "Warm Follow-up After Connection"
+    type: followup
+    template: |
+      Hi {{firstName}},
+
+      Thanks for connecting! {{mutualConnection}} speaks highly of your work at {{company}}.
+
+      I'd love to learn more about {{company}}'s approach to {{sharedInterest}}.
+      Would you be open to a brief 15-minute chat next week?
+
+      Best regards
+    requiredFields: [firstName, company]
+    optionalFields: [mutualConnection, sharedInterest]
+
+  followup-value-add:
+    id: msg-value-add
+    name: "Value-Add Content Share"
+    type: followup
+    template: |
+      Hi {{firstName}},
+
+      Thanks for connecting! I came across this article on {{sharedInterest}} and thought of your work at {{company}}.
+
+      {{personalNote}}
+
+      Would love to hear your thoughts or discuss how we're seeing similar trends in the space.
+    requiredFields: [firstName, sharedInterest, company]
+    optionalFields: [personalNote]
+
+  followup-meeting-request:
+    id: msg-meeting
+    name: "Meeting Request"
+    type: followup
+    template: |
+      Hi {{firstName}},
+
+      I've been following {{company}}'s growth in the {{sharedInterest}} space — impressive work!
+
+      I help companies like yours leverage AI to automate workflows and scale operations.
+      Would you be open to a 20-minute call to explore how we might collaborate?
+
+      I'm free Tuesday/Wednesday afternoons if that works for you.
+
+      Best,
+    requiredFields: [firstName, company]
+    optionalFields: [sharedInterest]
+
+  # ====================
+  # INTRODUCTION REQUESTS
+  # ====================
+
+  intro-request-mutual:
+    id: intro-request
+    name: "Introduction Request to Mutual Connection"
+    type: intro-request
+    template: |
+      Hi {{firstName}},
+
+      I hope you're doing well! I noticed you're connected with {{targetName}} at {{targetCompany}}.
+
+      Given our shared interest in {{sharedInterest}}, I'd love to connect with {{targetName}} to discuss potential collaboration opportunities.
+
+      Would you be willing to make a warm introduction? I'd be happy to provide context or a brief note you could forward.
+
+      Thanks so much!
+    requiredFields: [firstName, targetName, targetCompany]
+    optionalFields: [sharedInterest]
+
+  intro-request-specific-context:
+    id: intro-context
+    name: "Introduction Request with Specific Context"
+    type: intro-request
+    template: |
+      Hi {{firstName}},
+
+      I saw that you know {{targetName}} at {{targetCompany}}. {{personalNote}}
+
+      I'm exploring partnerships in the {{sharedInterest}} space and think there could be great synergy.
+      Would you feel comfortable making an introduction?
+
+      Happy to keep you in the loop on any outcomes!
+    requiredFields: [firstName, targetName, targetCompany]
+    optionalFields: [personalNote, sharedInterest]
+
+  # ====================
+  # RE-ENGAGEMENT
+  # ====================
+
+  reengage-dormant:
+    id: reengage
+    name: "Re-engage Dormant Contact"
+    type: reengage
+    template: |
+      Hi {{firstName}},
+
+      It's been a while since we connected! I wanted to reach out because I've been thinking about our conversation on {{sharedInterest}}.
+
+      A lot has changed at {{company}} since then — would love to catch up and hear what you've been working on.
+
+      Are you free for a quick call in the next week or two?
+    requiredFields: [firstName]
+    optionalFields: [sharedInterest, company]
+
+  reengage-news-hook:
+    id: reengage-news
+    name: "Re-engage with News Hook"
+    type: reengage
+    template: |
+      Hi {{firstName}},
+
+      I saw the recent news about {{company}} — congratulations!
+
+      {{personalNote}}
+
+      I'd love to reconnect and hear how things are evolving. Let me know if you have time for a quick call.
+    requiredFields: [firstName, company]
+    optionalFields: [personalNote]
+
+  # ====================
+  # EVENT/WEBINAR INVITES
+  # ====================
+
+  event-invite:
+    id: event-invite
+    name: "Event/Webinar Invitation"
+    type: event
+    template: |
+      Hi {{firstName}},
+
+      We're hosting a virtual roundtable on {{sharedInterest}} next week with leaders from companies like {{company}}.
+
+      Given your background, I thought you'd find the discussion valuable. Would you like me to send you the registration link?
+
+      It's 45 minutes, very interactive, no pitch — just peer learning.
+    requiredFields: [firstName, sharedInterest]
+    optionalFields: [company]
+
+# ====================
+# TEMPLATE METADATA
+# ====================
+metadata:
+  version: "1.0"
+  lastUpdated: "2026-03-12"
+  totalTemplates: 16
+  categories:
+    - connection-request
+    - followup
+    - intro-request
+    - reengage
+    - event
