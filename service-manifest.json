@@ -1,24 +1,58 @@
 {
   "project": {
-    "name": "networknav",
-    "description": "",
-    "version": "0.1.0",
+    "name": "network-navigator",
+    "description": "LinkedIn networking intelligence platform with contact enrichment, ICP scoring, and AI outreach",
+    "version": "2.0.0",
     "client": "weavelogic"
   },
   "services": [
     {
-      "name": "",
-      "description": "",
-      "port": 0,
+      "name": "app",
+      "description": "Next.js web dashboard for contact management, enrichment, scoring, and outreach",
+      "port": 3000,
       "protocol": "http",
-      "start_command": "",
-      "health_check": "",
+      "start_command": "docker compose up app -d",
+      "health_check": "http://localhost:3000/api/health",
+      "dependencies": [
+        "db"
+      ],
+      "environment": {
+        "DATABASE_URL": "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}",
+        "NODE_ENV": "production",
+        "ANTHROPIC_API_KEY": "",
+        "PDL_API_KEY": "",
+        "APOLLO_API_KEY": "",
+        "LUSHA_API_KEY": "",
+        "THEIRSTACK_API_KEY": ""
+      }
+    },
+    {
+      "name": "db",
+      "description": "PostgreSQL with pgvector for contact storage, vector embeddings, and graph sync",
+      "port": 5432,
+      "protocol": "tcp",
+      "start_command": "docker compose up db -d",
+      "health_check": "pg_isready -U ${POSTGRES_USER:-ctox} -d ${POSTGRES_DB:-ctox}",
+      "dependencies": [],
+      "environment": {
+        "POSTGRES_USER": "ctox",
+        "POSTGRES_PASSWORD": "",
+        "POSTGRES_DB": "ctox"
+      }
+    },
+    {
+      "name": "docs",
+      "description": "Fumadocs documentation site with configuration guides and API reference",
+      "port": 3001,
+      "protocol": "http",
+      "start_command": "cd docs && npm run dev",
+      "health_check": "http://localhost:3001",
       "dependencies": [],
       "environment": {}
     }
   ],
   "networking": {
-    "internal_dns": "",
+    "internal_dns": "ctox-app",
     "external_dns": "",
     "load_balancer": false,
     "ssl_required": false
@@ -27,9 +61,9 @@
     "strategy": "rolling",
     "replicas": 1,
     "resources": {
-      "cpu": "500m",
-      "memory": "512Mi"
+      "cpu": "1000m",
+      "memory": "1Gi"
     }
   },
-  "notes": "Edit this file to define services, ports, and deployment configuration."
+  "notes": "App and DB run via docker-compose. Docs site runs standalone on port 3001. Browser extension is built separately (cd browser && npm run build)."
 }
