@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     // Fire-and-forget: process in background
     (async () => {
       try {
-        await runImportPipeline(client, filePaths, selfContactId, selfName || '');
+        await runImportPipeline(client, filePaths, selfContactId, selfName || '', sessionId);
       } catch (err) {
         await updateImportSession(sessionId, {
           status: 'failed',
