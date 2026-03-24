@@ -1,11 +1,55 @@
-// Graph metrics computation using SQL aggregation
+// Graph metrics computation — RuVector native with Node.js fallback
 
-import * as graphQueries from '../db/queries/graph';
-import { GraphMetrics } from './types';
+import * as graphQueries from "../db/queries/graph";
+import {
+  syncContactsGraph,
+  computeRuVectorPageRank,
+  computeRuVectorCentrality,
+  ensureEdgeIndex,
+} from "./ruvector-sync";
+import { GraphMetrics } from "./types";
 
 /**
- * Compute PageRank approximation using iterative SQL aggregation.
- * This is a simplified power-iteration approach.
+ * Compute all graph metrics using RuVector native graph engine.
+ * Falls back to Node.js computation if RuVector sync fails.
+ */
+export async function computeAllMetrics(): Promise<GraphMetrics[]> {
+  try {
+    return await computeAllMetricsRuVector();
+  } catch (error) {
+    console.warn(
+      "[metrics] RuVector computation failed, falling back to Node.js:",
+      error instanceof Error ? error.message : error
+    );
+    return await computeAllMetricsNodeJS();
+  }
+}
+
+/**
+ * RuVector-based computation: sync graph, then run native PageRank + centrality.
+ * Runs in-DB — dramatically faster than Node.js for large graphs.
+ */
+async function computeAllMetricsRuVector(): Promise<GraphMetrics[]> {
+  // Ensure index for edge queries
+  await ensureEdgeIndex();
+
+  // Sync contacts graph (excludes synthetic edges)
+  const nodeIdMap = await syncContactsGraph();
+
+  // Run RuVector native computations
+  await computeRuVectorPageRank(nodeIdMap);
+  await computeRuVectorCentrality("betweenness", nodeIdMap);
+  await computeRuVectorCentrality("degree", nodeIdMap);
+
+  // Read back results from graph_metrics
+  const metricsResult = await graphQueries.listGraphMetrics(1, 10000);
+  return metricsResult.data;
+}
+
+// ---- Node.js fallback (original implementation) ----
+
+/**
+ * Compute PageRank approximation using iterative power iteration in Node.js.
  */
 export async function computePageRank(
   dampingFactor: number = 0.85,
@@ -14,7 +58,6 @@ export async function computePageRank(
   const edges = await graphQueries.getAllEdges();
   if (edges.length === 0) return new Map();
 
-  // Build adjacency list
   const outLinks = new Map<string, Set<string>>();
   const allNodes = new Set<string>();
 
@@ -33,19 +76,16 @@ export async function computePageRank(
   const nodeList = Array.from(allNodes);
   const ranks = new Map<string, number>();
 
-  // Initialize equal rank
   for (const node of nodeList) {
     ranks.set(node, 1.0 / n);
   }
 
-  // Iterate
   for (let iter = 0; iter < iterations; iter++) {
     const newRanks = new Map<string, number>();
 
     for (const node of nodeList) {
       let incomingRank = 0;
 
-      // Sum contributions from nodes that link to this node
       for (const [source, targets] of outLinks.entries()) {
         if (targets.has(node)) {
           const outDegree = targets.size;
@@ -53,10 +93,12 @@ export async function computePageRank(
         }
       }
 
-      newRanks.set(node, (1 - dampingFactor) / n + dampingFactor * incomingRank);
+      newRanks.set(
+        node,
+        (1 - dampingFactor) / n + dampingFactor * incomingRank
+      );
     }
 
-    // Update ranks
     for (const [node, rank] of newRanks) {
       ranks.set(node, rank);
     }
@@ -66,8 +108,7 @@ export async function computePageRank(
 }
 
 /**
- * Compute betweenness centrality approximation.
- * Uses BFS from sampled nodes for scalability.
+ * Compute betweenness centrality approximation (Node.js fallback).
  */
 export async function computeBetweenness(
   sampleSize: number = 50
@@ -75,7 +116,6 @@ export async function computeBetweenness(
   const edges = await graphQueries.getAllEdges();
   if (edges.length === 0) return new Map();
 
-  // Build adjacency list (undirected)
   const adj = new Map<string, Set<string>>();
   const allNodes = new Set<string>();
 
@@ -84,8 +124,10 @@ export async function computeBetweenness(
     allNodes.add(edge.sourceContactId);
     allNodes.add(edge.targetContactId);
 
-    if (!adj.has(edge.sourceContactId)) adj.set(edge.sourceContactId, new Set());
-    if (!adj.has(edge.targetContactId)) adj.set(edge.targetContactId, new Set());
+    if (!adj.has(edge.sourceContactId))
+      adj.set(edge.sourceContactId, new Set());
+    if (!adj.has(edge.targetContactId))
+      adj.set(edge.targetContactId, new Set());
     adj.get(edge.sourceContactId)!.add(edge.targetContactId);
     adj.get(edge.targetContactId)!.add(edge.sourceContactId);
   }
@@ -96,11 +138,9 @@ export async function computeBetweenness(
     betweenness.set(node, 0);
   }
 
-  // Sample source nodes for approximation
   const sources = nodeList.slice(0, Math.min(sampleSize, nodeList.length));
 
   for (const s of sources) {
-    // BFS from s (Brandes algorithm simplified)
     const stack: string[] = [];
     const predecessors = new Map<string, string[]>();
     const sigma = new Map<string, number>();
@@ -138,7 +178,11 @@ export async function computeBetweenness(
     while (stack.length > 0) {
       const w = stack.pop()!;
       for (const v of predecessors.get(w)!) {
-        delta.set(v, delta.get(v)! + (sigma.get(v)! / sigma.get(w)!) * (1 + delta.get(w)!));
+        delta.set(
+          v,
+          delta.get(v)! +
+            (sigma.get(v)! / sigma.get(w)!) * (1 + delta.get(w)!)
+        );
       }
       if (w !== s) {
         betweenness.set(w, betweenness.get(w)! + delta.get(w)!);
@@ -146,7 +190,6 @@ export async function computeBetweenness(
     }
   }
 
-  // Normalize
   const n = nodeList.length;
   if (n > 2) {
     const norm = 2.0 / ((n - 1) * (n - 2));
@@ -159,9 +202,9 @@ export async function computeBetweenness(
 }
 
 /**
- * Compute all graph metrics and store them.
+ * Node.js fallback: compute all metrics and store them.
  */
-export async function computeAllMetrics(): Promise<GraphMetrics[]> {
+async function computeAllMetricsNodeJS(): Promise<GraphMetrics[]> {
   const degreeCounts = await graphQueries.getDegreeCounts();
   const pageranks = await computePageRank();
   const betweenness = await computeBetweenness();

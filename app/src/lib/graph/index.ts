@@ -4,4 +4,11 @@ export { computeAllMetrics, computePageRank, computeBetweenness } from './metric
 export { detectCommunities } from './communities';
 export { findPath, findReachable } from './paths';
 export { discoverIcps } from './icp-discovery';
+export {
+  syncContactsGraph,
+  getGraphStats,
+  computeRuVectorPageRank,
+  computeRuVectorCentrality,
+  ensureEdgeIndex,
+} from './ruvector-sync';
 export * from './types';
