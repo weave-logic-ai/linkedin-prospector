@@ -70,12 +70,16 @@ export default function DiscoverPage() {
   const [selectedOfferings, setSelectedOfferings] = useState<string[]>([]);
   const [offeringInput, setOfferingInput] = useState("");
 
+  // Track whether user has manually changed selections
+  const [userOverrode, setUserOverrode] = useState(false);
+
   const loadData = useCallback(async () => {
     try {
-      const [wedgeRes, offeringsRes, nichesRes] = await Promise.all([
+      const [wedgeRes, offeringsRes, nichesRes, desiredRes] = await Promise.all([
         fetch("/api/discover/wedge-data"),
         fetch("/api/offerings"),
         fetch("/api/niches"),
+        fetch("/api/profile/desired-icp"),
       ]);
       if (wedgeRes.ok) {
         const json = await wedgeRes.json();
@@ -91,12 +95,27 @@ export default function DiscoverPage() {
         const json = await nichesRes.json();
         setNicheProfiles(json.data || []);
       }
+      // C4: Pre-select saved desired ICP defaults (only on initial load)
+      if (desiredRes.ok) {
+        const json = await desiredRes.json();
+        const config = json.data as {
+          nicheId: string | null;
+          icpId: string | null;
+          offeringIds: string[];
+          isDefault: boolean;
+        } | null;
+        if (config?.isDefault && !userOverrode) {
+          if (config.nicheId) setSelectedNiche(config.nicheId);
+          if (config.icpId) setSelectedIcp(config.icpId);
+          if (config.offeringIds?.length) setSelectedOfferings(config.offeringIds);
+        }
+      }
     } catch {
       // Empty state
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userOverrode]);
 
   useEffect(() => {
     loadData();
@@ -152,7 +171,7 @@ export default function DiscoverPage() {
           <label className="text-xs font-medium text-muted-foreground mb-1 block">Niche</label>
           <Select
             value={selectedNiche ?? "all"}
-            onValueChange={(v) => setSelectedNiche(v === "all" ? null : v)}
+            onValueChange={(v) => { setUserOverrode(true); setSelectedNiche(v === "all" ? null : v); }}
           >
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="All niches" />
@@ -173,7 +192,7 @@ export default function DiscoverPage() {
           <label className="text-xs font-medium text-muted-foreground mb-1 block">ICP Profile</label>
           <Select
             value={selectedIcp ?? "all"}
-            onValueChange={(v) => setSelectedIcp(v === "all" ? null : v)}
+            onValueChange={(v) => { setUserOverrode(true); setSelectedIcp(v === "all" ? null : v); }}
           >
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="All ICPs" />

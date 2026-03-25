@@ -1,24 +1,162 @@
-// Community detection - cluster contacts by company, industry, scoring similarity
+// Community detection — RuVector spectral clustering with company-grouping fallback
 
-import * as graphQueries from '../db/queries/graph';
-import { query } from '../db/client';
-import { CommunityResult } from './types';
+import * as graphQueries from "../db/queries/graph";
+import { query } from "../db/client";
+import { CommunityResult } from "./types";
 
 /**
- * Detect communities by grouping contacts by company and industry.
- * A pragmatic approach that uses existing relational data rather than
- * complex graph algorithms.
+ * Detect communities using RuVector spectral clustering on real edge topology.
+ * Falls back to company-based grouping if spectral clustering fails.
  */
 export async function detectCommunities(): Promise<CommunityResult[]> {
-  // Clear existing clusters before recomputing
+  try {
+    return await detectCommunitiesSpectral();
+  } catch (error) {
+    console.warn(
+      "[communities] Spectral clustering failed, falling back to company grouping:",
+      error instanceof Error ? error.message : error
+    );
+    return await detectCommunitiesCompany();
+  }
+}
+
+/**
+ * Spectral clustering via RuVector.
+ * Builds adjacency JSON from real edges and passes to ruvector_spectral_cluster.
+ */
+async function detectCommunitiesSpectral(): Promise<CommunityResult[]> {
+  await graphQueries.clearClusters();
+
+  // Build adjacency JSON for spectral clustering
+  // ruvector_spectral_cluster expects: { "edges": [[src_idx, dst_idx, weight], ...] }
+  // We need to map contact UUIDs to integer indices
+  const edgesRes = await query<{
+    source_contact_id: string;
+    target_contact_id: string;
+    weight: number;
+  }>(
+    `SELECT source_contact_id, target_contact_id, weight
+     FROM edges
+     WHERE target_contact_id IS NOT NULL
+       AND edge_type IN ('CONNECTED_TO','MESSAGED','same-company','INVITED_BY','ENDORSED','RECOMMENDED')
+     LIMIT 10000`
+  );
+
+  if (edgesRes.rows.length < 10) {
+    console.log("[communities] Too few real edges for spectral clustering");
+    return await detectCommunitiesCompany();
+  }
+
+  // Build node index map
+  const nodeSet = new Set<string>();
+  for (const edge of edgesRes.rows) {
+    nodeSet.add(edge.source_contact_id);
+    nodeSet.add(edge.target_contact_id);
+  }
+  const nodeList = Array.from(nodeSet);
+  const nodeIndex = new Map<string, number>();
+  nodeList.forEach((id, idx) => nodeIndex.set(id, idx));
+
+  // Build adjacency JSON
+  const adjEdges: number[][] = [];
+  for (const edge of edgesRes.rows) {
+    const srcIdx = nodeIndex.get(edge.source_contact_id)!;
+    const dstIdx = nodeIndex.get(edge.target_contact_id)!;
+    adjEdges.push([srcIdx, dstIdx, edge.weight || 1.0]);
+  }
+
+  // Auto-detect k (number of clusters): sqrt(n) capped at 20
+  const k = Math.max(2, Math.min(20, Math.round(Math.sqrt(nodeList.length))));
+
+  const adjJson = JSON.stringify({ edges: adjEdges, n: nodeList.length });
+
+  const clusterRes = await query<{ ruvector_spectral_cluster: number[] }>(
+    `SELECT ruvector_spectral_cluster($1::jsonb, $2)`,
+    [adjJson, k]
+  );
+
+  const assignments = clusterRes.rows[0]?.ruvector_spectral_cluster || [];
+
+  if (assignments.length === 0) {
+    console.log("[communities] Spectral clustering returned empty assignments");
+    return await detectCommunitiesCompany();
+  }
+
+  // Group contacts by cluster assignment
+  const clusterGroups = new Map<number, string[]>();
+  for (let i = 0; i < assignments.length && i < nodeList.length; i++) {
+    const clusterId = assignments[i];
+    if (!clusterGroups.has(clusterId)) {
+      clusterGroups.set(clusterId, []);
+    }
+    clusterGroups.get(clusterId)!.push(nodeList[i]);
+  }
+
+  // Create cluster records
+  const communities: CommunityResult[] = [];
+  let clusterIdx = 0;
+
+  for (const [, members] of clusterGroups) {
+    if (members.length < 2) continue;
+    clusterIdx++;
+
+    // Try to label the cluster by most common company or industry
+    const labelRes = await query<{ label: string; cnt: string }>(
+      `SELECT COALESCE(c.current_company, 'Mixed') as label, COUNT(*)::text as cnt
+       FROM contacts c
+       WHERE c.id = ANY($1)
+       GROUP BY c.current_company
+       ORDER BY COUNT(*) DESC
+       LIMIT 1`,
+      [members]
+    );
+
+    const topLabel = labelRes.rows[0]?.label || `Cluster ${clusterIdx}`;
+    const label =
+      members.length > 5
+        ? `${topLabel} (+${members.length - 1})`
+        : `Community: ${topLabel}`;
+
+    const cluster = await graphQueries.createCluster({
+      label,
+      description: `Spectral cluster with ${members.length} members`,
+      algorithm: "spectral-ruvector",
+      memberCount: members.length,
+      metadata: { clusterIndex: clusterIdx },
+    });
+
+    for (const contactId of members) {
+      await graphQueries.addClusterMembership(contactId, cluster.id, 1.0);
+    }
+
+    communities.push({
+      clusterId: cluster.id,
+      label,
+      members,
+      memberCount: members.length,
+      cohesion: 1.0,
+    });
+  }
+
+  console.log(
+    `[communities] Spectral clustering found ${communities.length} communities from ${nodeList.length} nodes`
+  );
+  return communities;
+}
+
+/**
+ * Fallback: Cluster by company and industry (original implementation).
+ */
+async function detectCommunitiesCompany(): Promise<CommunityResult[]> {
   await graphQueries.clearClusters();
 
   const communities: CommunityResult[] = [];
 
-  // Cluster by company
   const companyResult = await query<{
-    company_name: string; industry: string | null;
-    contact_count: string; contact_ids: string[];
+    company_name: string;
+    industry: string | null;
+    contact_count: string;
+    contact_ids: string[];
   }>(
     `SELECT
        c.current_company AS company_name,
@@ -43,7 +181,7 @@ export async function detectCommunities(): Promise<CommunityResult[]> {
     const cluster = await graphQueries.createCluster({
       label,
       description: `Contacts at ${row.company_name}`,
-      algorithm: 'company-grouping',
+      algorithm: "company-grouping",
       memberCount: count,
       metadata: { company: row.company_name, industry: row.industry },
     });
@@ -61,9 +199,10 @@ export async function detectCommunities(): Promise<CommunityResult[]> {
     });
   }
 
-  // Cluster by industry (for contacts without a company cluster)
   const industryResult = await query<{
-    industry: string; contact_count: string; contact_ids: string[];
+    industry: string;
+    contact_count: string;
+    contact_ids: string[];
   }>(
     `SELECT
        co.industry,
@@ -85,7 +224,7 @@ export async function detectCommunities(): Promise<CommunityResult[]> {
     const cluster = await graphQueries.createCluster({
       label,
       description: `Contacts in ${row.industry} industry`,
-      algorithm: 'industry-grouping',
+      algorithm: "industry-grouping",
       memberCount: count,
       metadata: { industry: row.industry },
     });
