@@ -40,6 +40,10 @@ services:
       ECC_IMPULSES: ${ECC_IMPULSES:-false}
       ECC_COGNITIVE_TICK: ${ECC_COGNITIVE_TICK:-false}
       ECC_CROSS_REFS: ${ECC_CROSS_REFS:-false}
+      RESEARCH_TARGETS: ${RESEARCH_TARGETS:-false}
+      RESEARCH_SNIPPETS: ${RESEARCH_SNIPPETS:-false}
+      RESEARCH_PARSER_TELEMETRY: ${RESEARCH_PARSER_TELEMETRY:-false}
+      RESEARCH_SOURCES: ${RESEARCH_SOURCES:-false}
     depends_on:
       db:
         condition: service_healthy
