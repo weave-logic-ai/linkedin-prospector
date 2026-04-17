@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { isShiftClick, setSecondaryTargetViaShiftClick } from "./shift-click";
 
 interface SigmaNode {
   key: string;
@@ -93,6 +94,13 @@ export function SigmaGraph({
   const [selectedNode, setSelectedNode] = useState<SigmaNode | null>(null);
   const [edgeTypes, setEdgeTypes] = useState<string[]>(
     initialEdgeTypes || EDGE_TYPE_OPTIONS.map((o) => o.value)
+  );
+  // WS-4 §3.2 — shift-click amber flash. Node ids in this set are rendered
+  // amber for ~600 ms after the user shift-clicks them to set the secondary
+  // target. Mutations happen in the clickNode handler; a matching setTimeout
+  // drains the set. The node reducer below reads this to override color.
+  const [secondarySetFlash, setSecondarySetFlash] = useState<Set<string>>(
+    () => new Set()
   );
 
   const loadData = useCallback(async () => {
@@ -212,9 +220,48 @@ export function SigmaGraph({
           maxCameraRatio: 10,
         });
 
-        // Click handler
-        sigmaInstance.on("clickNode", ({ node }: { node: string }) => {
+        // Click handler. Plain click selects/re-roots (existing behavior);
+        // shift-click sets the clicked node as the SECONDARY research target
+        // (WS-4 §3.2). The picker modal handles regular "pick a target" flows,
+        // so shift-click is the graph-native shortcut — no modal appears.
+        // We briefly flash the node amber to signal "secondary set"
+        // (Phase 4 Track I: 600 ms fade, via a setTimeout + node reducer).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        sigmaInstance.on("clickNode", (payload: any) => {
+          const { node, event } = payload as {
+            node: string;
+            event?: { original?: MouseEvent | TouchEvent };
+          };
+          const isShift = isShiftClick(event);
           const attrs = graph.getNodeAttributes(node);
+
+          if (isShift) {
+            // Fire-and-forget; POST creates (or fetches) the contact target
+            // row, then PUT writes it as `secondary_target_id`. Silent on
+            // failure — we still flash the node so the user sees the
+            // interaction landed client-side, and the breadcrumb will
+            // refresh on next state poll.
+            void setSecondaryTargetViaShiftClick(node);
+
+            // Amber highlight pulse — the node reducer reads this Set to
+            // override the node's color for a short window.
+            setSecondarySetFlash((prev) => {
+              const next = new Set(prev);
+              next.add(node);
+              return next;
+            });
+            window.setTimeout(() => {
+              setSecondarySetFlash((prev) => {
+                if (!prev.has(node)) return prev;
+                const next = new Set(prev);
+                next.delete(node);
+                return next;
+              });
+            }, 600);
+            sigmaInstance.refresh();
+            return;
+          }
+
           setSelectedNode({
             key: node,
             attributes: attrs as SigmaNode["attributes"],
@@ -249,35 +296,46 @@ export function SigmaGraph({
     };
   }, [data, onNodeClick]);
 
-  // Search: highlight matching nodes
+  // Search + shift-click flash: the single node reducer combines both
+  // signals so the amber flash survives even when a search is active.
   useEffect(() => {
     const sigma = sigmaRef.current;
     const graph = graphRef.current;
 
     if (!sigma || !graph) return;
 
-    if (!searchQuery.trim()) {
+    const hasSearch = Boolean(searchQuery.trim());
+    const hasFlash = secondarySetFlash.size > 0;
+
+    if (!hasSearch && !hasFlash) {
       sigma.setSetting("nodeReducer", null);
       sigma.setSetting("edgeReducer", null);
       sigma.refresh();
       return;
     }
 
-    const q = searchQuery.toLowerCase();
     const matchingNodes = new Set<string>();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    graph.forEachNode((node: string, attrs: any) => {
-      const label = (attrs.label as string) || "";
-      if (label.toLowerCase().includes(q)) {
-        matchingNodes.add(node);
-      }
-    });
+    if (hasSearch) {
+      const q = searchQuery.toLowerCase();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      graph.forEachNode((node: string, attrs: any) => {
+        const label = (attrs.label as string) || "";
+        if (label.toLowerCase().includes(q)) {
+          matchingNodes.add(node);
+        }
+      });
+    }
 
     sigma.setSetting(
       "nodeReducer",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (node: string, data: any) => {
-        if (matchingNodes.size === 0) return data;
+        // Shift-click amber flash wins over search dimming — the user
+        // needs immediate visual confirmation that the secondary was set.
+        if (secondarySetFlash.has(node)) {
+          return { ...data, color: "#F59E0B", highlighted: true };
+        }
+        if (!hasSearch) return data;
         if (matchingNodes.has(node)) {
           return { ...data, highlighted: true };
         }
@@ -285,7 +343,7 @@ export function SigmaGraph({
       }
     );
     sigma.refresh();
-  }, [searchQuery]);
+  }, [searchQuery, secondarySetFlash]);
 
   const toggleEdgeType = (type: string) => {
     setEdgeTypes((prev) =>
