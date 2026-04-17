@@ -10,8 +10,31 @@ export const ECC_FLAGS = {
 };
 
 // --- CausalGraph Types ---
-export type CausalRelation = 'caused' | 'enabled' | 'weighted_by' | 'derived_from' | 'merged_into' | 'counterfactual';
-export type CausalEntityType = 'score' | 'dimension' | 'input' | 'weight' | 'enrichment' | 'graph_metric';
+export type CausalRelation =
+  | 'caused'
+  | 'enabled'
+  | 'weighted_by'
+  | 'derived_from'
+  | 'merged_into'
+  | 'counterfactual'
+  // Research-tools sprint (`.planning/research-tools-sprint/06-evidence-and-provenance.md` §4)
+  | 'evidence_for'
+  | 'mentions'
+  | 'cited_from'
+  | 'fetched_from'
+  | 'identifies'
+  | 'recentered_from';
+export type CausalEntityType =
+  | 'score'
+  | 'dimension'
+  | 'input'
+  | 'weight'
+  | 'enrichment'
+  | 'graph_metric'
+  // Research-tools sprint (`.planning/research-tools-sprint/06-evidence-and-provenance.md` §3)
+  | 'snippet'
+  | 'source_record'
+  | 'target';
 
 export interface CausalNode {
   id: string;
@@ -50,7 +73,12 @@ export type ChainOperation =
   | 'enrich_call'
   | 'enrich_result'
   | 'budget_debit'
-  | 'waterfall_complete';
+  | 'waterfall_complete'
+  // Research-tools sprint — snippet operations
+  // (`06-evidence-and-provenance.md` §3.1, ADR-029)
+  | 'snippet_captured'
+  | 'snippet_edited'
+  | 'snippet_deleted';
 
 export interface ExoChainEntry {
   id: string;

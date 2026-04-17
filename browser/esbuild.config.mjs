@@ -23,6 +23,9 @@ const pageBuild = {
   ...sharedOptions,
   entryPoints: [
     { in: 'src/content/index.ts', out: 'content' },
+    // Phase 1 Track C — snippet content script, injected on-demand from the
+    // side panel after the user grants the origin permission (ADR-028).
+    { in: 'src/content-snippet/index.ts', out: 'content-snippet' },
     { in: 'src/popup/popup.ts', out: 'popup' },
     { in: 'src/sidepanel/sidepanel.ts', out: 'sidepanel' },
   ],
