@@ -1,0 +1,16 @@
+{
+  "pageType": "MESSAGES",
+  "scenario": "Messaging list with group thread, 1:1 thread exposing a /in/ link, archived thread with no preview, and a connection-request invitation. 4 threads total.",
+  "sourceUrlRedacted": "https://www.linkedin.com/messaging/",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "conversations[].participantName",
+    "conversations[].participantProfileUrl",
+    "conversations[].lastMessagePreview",
+    "conversations[].timestamp",
+    "conversations[].unread"
+  ],
+  "notes": "Thread 2 is the positive case for the participantProfileUrl heuristic (anchor to /in/ inside the name header). Thread 3 has no preview — parser should emit null, not empty string. Thread 4 (invitation) carries a body snippet."
+}

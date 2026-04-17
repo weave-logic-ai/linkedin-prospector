@@ -1,0 +1,20 @@
+{
+  "pageType": "FEED",
+  "scenario": "Feed with 4 post types: original, repost, article share, and poll. Exercises postType classification work called out in 01-parser-audit.md §5.6.",
+  "sourceUrlRedacted": "https://www.linkedin.com/feed/",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "posts[].authorName",
+    "posts[].authorHeadline",
+    "posts[].authorProfileUrl",
+    "posts[].content",
+    "posts[].likes",
+    "posts[].comments",
+    "posts[].reposts",
+    "posts[].postedTimeAgo",
+    "posts[].postType"
+  ],
+  "notes": "update-v2-social-activity__reshared-by is the repost marker. feed-shared-article child is the article marker. feed-shared-poll child is the poll marker."
+}

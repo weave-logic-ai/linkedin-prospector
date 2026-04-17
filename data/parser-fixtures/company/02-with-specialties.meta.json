@@ -1,0 +1,21 @@
+{
+  "pageType": "COMPANY",
+  "scenario": "Large public company: full About-us dl with founded year, comma-delimited specialties list, and a members count link.",
+  "sourceUrlRedacted": "https://www.linkedin.com/company/redacted-slug/",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "name",
+    "industry",
+    "companySize",
+    "headquarters",
+    "founded",
+    "specialties",
+    "about",
+    "website",
+    "followerCount",
+    "employeesOnLinkedIn"
+  ],
+  "notes": "Exercises the comma-split specialties transform; also carries the `NNN associated members` link that a future employeesOnLinkedIn heuristic can consume."
+}

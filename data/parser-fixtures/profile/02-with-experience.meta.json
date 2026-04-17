@@ -1,0 +1,20 @@
+{
+  "pageType": "PROFILE",
+  "scenario": "Profile with About, 3 experience positions, 1 education entry, and 5 skill chips. Exercises deeper nested sections and multi-position experience merge.",
+  "sourceUrlRedacted": "https://www.linkedin.com/in/redacted-slug/",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "name",
+    "headline",
+    "location",
+    "about",
+    "profileImageUrl",
+    "connectionsCount",
+    "experience",
+    "education",
+    "skills"
+  ],
+  "notes": "Section headings use aria-labelledby + <h2> inner text so the section-heading-about heuristic fires. Experience entries are <li> siblings, not newline-split text."
+}

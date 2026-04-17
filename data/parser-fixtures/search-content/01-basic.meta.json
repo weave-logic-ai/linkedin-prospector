@@ -1,0 +1,18 @@
+{
+  "pageType": "SEARCH_CONTENT",
+  "scenario": "Content-search results: 2 posts wrapped in search-result containers. Each carries author, headline, content text, and engagement counts. Exercises the feed-like post-in-search-results shape.",
+  "sourceUrlRedacted": "https://www.linkedin.com/search/results/content/?keywords=redacted",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "results[].authorName",
+    "results[].authorHeadline",
+    "results[].authorProfileUrl",
+    "results[].content",
+    "results[].likes",
+    "results[].comments",
+    "totalResultsEstimate"
+  ],
+  "notes": "SEARCH_CONTENT shares no dedicated parser today; the search-parser currently targets SEARCH_PEOPLE. This fixture is a placeholder for when content-search support is added — the feed parser may be reused with scoping."
+}

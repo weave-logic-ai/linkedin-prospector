@@ -1,0 +1,16 @@
+{
+  "pageType": "SEARCH_PEOPLE",
+  "scenario": "Obfuscated search results: none of the primary selector classes are present, forcing href-pattern Strategy 2 fallback. 3 real results + noise anchors.",
+  "sourceUrlRedacted": "https://www.linkedin.com/search/results/people/?keywords=redacted",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "results[].name",
+    "results[].profileUrl",
+    "results[].connectionDegree",
+    "results[].mutualConnections",
+    "totalResultsEstimate"
+  ],
+  "notes": "The 'View profile' duplicate anchor at the bottom is intentional: the fallback dedups by /in/ slug, so it must not produce a duplicate entry. Parser should log a fallback diagnostic in result.errors."
+}

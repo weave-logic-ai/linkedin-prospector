@@ -1,0 +1,19 @@
+{
+  "pageType": "SEARCH_CONTENT",
+  "scenario": "Content-search results mixing 2 long-form articles and 1 video post. Articles carry <h3> titles and subtitles; video reuses feed-shared-update-v2 shell.",
+  "sourceUrlRedacted": "https://www.linkedin.com/search/results/content/?keywords=redacted&contentType=articles",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "results[].authorName",
+    "results[].authorHeadline",
+    "results[].authorProfileUrl",
+    "results[].postType",
+    "results[].title",
+    "results[].content",
+    "results[].likes",
+    "results[].comments"
+  ],
+  "notes": "Exercises the 'post type varies per result' case. Future SEARCH_CONTENT parser should distinguish article vs video by data-urn prefix (urn:li:article vs urn:li:activity) and/or presence of a <h3 class=\"feed-shared-article__title\">."
+}
