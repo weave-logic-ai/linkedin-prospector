@@ -16,9 +16,15 @@ import {
 import { TargetBreadcrumbs } from "./target-breadcrumbs";
 import { TargetPickerModal } from "./target-picker-modal";
 import { LensSelector } from "./lens-selector";
+import { LensDeepLink } from "./lens-deep-link";
 
 export async function TargetSurface() {
-  if (!RESEARCH_FLAGS.targets) return null;
+  if (!RESEARCH_FLAGS.targets) {
+    // Phase 4 Track H: when the flag is off we still render a minimal,
+    // non-interactive breadcrumb so layouts relying on the bar's presence
+    // don't shift. Deep-link param is ignored, hover / back-stack disabled.
+    return null;
+  }
 
   const ownerId = await getCurrentOwnerProfileId();
   if (!ownerId) return null;
@@ -48,9 +54,12 @@ export async function TargetSurface() {
         initialSecondaryTargetId={state.secondaryTargetId}
       />
       {state.primaryTargetId ? (
-        <div className="flex items-center justify-end border-b border-border/40 bg-muted/10 px-4 py-1">
-          <LensSelector primaryTargetId={state.primaryTargetId} />
-        </div>
+        <>
+          <LensDeepLink primaryTargetId={state.primaryTargetId} />
+          <div className="flex items-center justify-end border-b border-border/40 bg-muted/10 px-4 py-1">
+            <LensSelector primaryTargetId={state.primaryTargetId} />
+          </div>
+        </>
       ) : null}
       <TargetPickerModal />
     </>
