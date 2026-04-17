@@ -1,32 +1,65 @@
 import { scoreContact as originalScoreContact } from '../../scoring/pipeline';
 import { createCausalNode, createCausalEdge, updateCausalNodeOutput } from './service';
 import { ECC_FLAGS } from '../types';
+import { getDefaultTenantId, getTargetById } from '../../targets/service';
 import type { ScoringRunResult } from '../../scoring/types';
 import type { CausalGraphTrace } from '../types';
 
-const DEFAULT_TENANT_ID = 'default'; // TODO: resolve from request context
+/**
+ * Resolve the tenant id for an ECC causal-graph scoring run.
+ *
+ * Resolution order (per WS-4 Phase 1 Track B — replaces the old
+ * `DEFAULT_TENANT_ID = 'default'` hardcoded stub listed as P0 in
+ * `docs/development_notes/stub-inventory.md`):
+ *
+ *   1. Caller-supplied override (`tenantIdOverride`) — used by tests and
+ *      internal multi-tenant dispatchers that already resolved the tenant.
+ *   2. The `tenant_id` on the target row referenced by `targetId`.
+ *   3. Fallback to the default tenant (single-tenant local mode).
+ */
+async function resolveTenantId(
+  targetId?: string,
+  tenantIdOverride?: string
+): Promise<string> {
+  if (tenantIdOverride) return tenantIdOverride;
+  if (targetId) {
+    const target = await getTargetById(targetId);
+    if (target) return target.tenantId;
+  }
+  return getDefaultTenantId();
+}
 
 /**
  * Score a contact with CausalGraph provenance tracking.
  * When ECC_CAUSAL_GRAPH is disabled, falls through to the original pipeline.
+ *
+ * Signature compatibility: existing callers pass only `(contactId, profileName?)`.
+ * The new `targetId` parameter is a passthrough — it is forwarded to the
+ * underlying scoring pipeline and used to resolve the tenant id so causal
+ * nodes are written under the correct tenant rather than the prior hardcoded
+ * `'default'` literal. `tenantIdOverride` is reserved for test setups and
+ * internal callers that already know the tenant.
  */
 export async function scoreContactWithProvenance(
   contactId: string,
   profileName?: string,
-  tenantId: string = DEFAULT_TENANT_ID
+  targetId?: string,
+  tenantIdOverride?: string
 ): Promise<ScoringRunResult & { _causal?: CausalGraphTrace }> {
   if (!ECC_FLAGS.causalGraph) {
-    return originalScoreContact(contactId, profileName);
+    return originalScoreContact(contactId, profileName, targetId);
   }
+
+  const tenantId = await resolveTenantId(targetId, tenantIdOverride);
 
   // Create root causal node
   const rootNode = await createCausalNode(
     tenantId, 'score', contactId, 'score_contact',
-    { contactId, profileName: profileName ?? 'default' }
+    { contactId, profileName: profileName ?? 'default', targetId: targetId ?? null }
   );
 
   // Run the original scoring pipeline
-  const result = await originalScoreContact(contactId, profileName);
+  const result = await originalScoreContact(contactId, profileName, targetId);
 
   // Create causal nodes for each dimension
   const nodes = [rootNode];

@@ -36,8 +36,15 @@ const ALL_SCORERS: DimensionScorer[] = [
 
 export async function scoreContact(
   contactId: string,
-  profileName?: string
+  profileName?: string,
+  targetId?: string
 ): Promise<ScoringRunResult> {
+  // targetId is a passthrough parameter introduced in WS-4 (Phase 1 Track B).
+  // Today's callers do not pass it; when omitted we fall through to the
+  // owner's self-target. The parameter is reserved for the Phase 1.5 ICP
+  // plumbing per target — keeping the signature stable now avoids a breaking
+  // change when that lands. See `.planning/research-tools-sprint/04-targets-and-graph.md` §3.1.
+  void targetId;
   const weightManager = new WeightManager();
   await weightManager.loadProfile(profileName);
 
