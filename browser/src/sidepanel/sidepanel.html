@@ -93,7 +93,10 @@
 
     <!-- Snippet Widget (Phase 1 Track C + Phase 1.5 image) -->
     <section class="panel-section" id="sp-snippet-section" style="display: none;">
-      <h2>Snip to target</h2>
+      <div class="snippet-header-row">
+        <h2>Snip to target</h2>
+        <span id="sp-snippet-queue-depth" class="snippet-queue-depth" style="display: none;" aria-live="polite"></span>
+      </div>
       <div class="snippet-tabs" role="tablist">
         <button id="sp-snippet-tab-text" class="snippet-tab active" role="tab" aria-selected="true">Text</button>
         <button id="sp-snippet-tab-image" class="snippet-tab" role="tab" aria-selected="false">Image</button>
@@ -124,6 +127,7 @@
       </div>
 
       <div id="sp-snippet-card" class="snippet-card" style="display: none; margin-top: 10px;">
+        <div id="sp-snippet-pii-banner" class="snippet-pii-banner" role="alert" style="display: none;"></div>
         <div class="snippet-field">
           <label>Preview</label>
           <div id="sp-snippet-preview" class="snippet-preview"></div>
