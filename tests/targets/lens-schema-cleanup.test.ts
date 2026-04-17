@@ -16,10 +16,10 @@ import path from 'path';
 
 const MIGRATION_PATH = path.resolve(
   __dirname,
-  '../../data/db/init/045-lens-schema-cleanup.sql'
+  '../../data/db/init/046-lens-schema-cleanup.sql'
 );
 
-describe('migration 045 — lens schema cleanup', () => {
+describe('migration 046 — lens schema cleanup', () => {
   const sql = fs.readFileSync(MIGRATION_PATH, 'utf8');
 
   it('adds research_target_icps.lens_id as a nullable FK to research_lenses', () => {

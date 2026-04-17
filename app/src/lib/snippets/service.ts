@@ -37,7 +37,7 @@ interface SaveTextSnippetInput {
  * snippet's `evidence_for` edge to the target's most-recent causal node, or
  * lazily create a `target.primary_set` node if none exists yet.
  */
-async function resolveTargetNodeId(
+export async function resolveTargetNodeId(
   tenantId: string,
   targetKind: SnippetTargetKind,
   targetId: string
@@ -68,7 +68,7 @@ async function resolveTargetNodeId(
  * are silently filtered (we surface a warning) so a stale extension build
  * cannot block a save.
  */
-async function filterKnownTagSlugs(
+export async function filterKnownTagSlugs(
   tenantId: string,
   slugs: string[]
 ): Promise<{ valid: string[]; unknown: string[] }> {

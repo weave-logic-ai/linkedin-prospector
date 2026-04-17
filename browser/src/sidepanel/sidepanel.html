@@ -100,6 +100,7 @@
       <div class="snippet-tabs" role="tablist">
         <button id="sp-snippet-tab-text" class="snippet-tab active" role="tab" aria-selected="true">Text</button>
         <button id="sp-snippet-tab-image" class="snippet-tab" role="tab" aria-selected="false">Image</button>
+        <button id="sp-snippet-tab-link" class="snippet-tab" role="tab" aria-selected="false">Link</button>
       </div>
 
       <!-- Text tab (Phase 1) -->
@@ -124,6 +125,28 @@
           aria-label="Image URL to capture"
         />
         <button id="sp-snippet-image-fetch-btn" class="btn btn-secondary btn-full">Fetch image from URL</button>
+      </div>
+
+      <!-- Link tab (Phase 1.5 — WS-3 closure) -->
+      <div id="sp-snippet-link-pane" class="snippet-pane" style="display: none;">
+        <div id="sp-snippet-link-status" class="placeholder-text">
+          Paste a URL and (optionally) the link text. We'll fetch it through the shared source-records pipeline.
+        </div>
+        <input
+          id="sp-snippet-link-href-input"
+          class="snippet-image-url-input"
+          type="url"
+          placeholder="https://example.com/page"
+          aria-label="Link URL to capture"
+        />
+        <input
+          id="sp-snippet-link-text-input"
+          class="snippet-image-url-input"
+          type="text"
+          placeholder="Optional link text"
+          aria-label="Optional link text"
+        />
+        <button id="sp-snippet-link-prep-btn" class="btn btn-secondary btn-full">Prepare link snippet</button>
       </div>
 
       <div id="sp-snippet-card" class="snippet-card" style="display: none; margin-top: 10px;">
