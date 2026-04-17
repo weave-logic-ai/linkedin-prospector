@@ -26,6 +26,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { DimensionRadar } from "@/components/contacts/dimension-radar";
+import { SourceConflictBanner } from "@/components/targets/source-conflict-banner";
 
 interface ContactDetail {
   id: string;
@@ -171,6 +172,27 @@ export default function ContactDetailPage() {
     gatedFields: string[]; // fields PDL has but are behind Person tier paywall
   } | null>(null);
   const [applying, setApplying] = useState(false);
+  // research_targets.id for the current contact — drives the source-conflict
+  // banner (ADR-032). Resolved lazily once the contact row is loaded.
+  const [targetId, setTargetId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!contact?.id) return;
+    let cancelled = false;
+    fetch('/api/targets', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'contact', id: contact.id }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j?.data?.id) setTargetId(j.data.id as string);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [contact?.id]);
 
   const [enrichConfirm, setEnrichConfirm] = useState<{
     fields: Array<{
@@ -505,6 +527,16 @@ export default function ContactDetailPage() {
           </div>
         }
       />
+
+      {targetId && (
+        <div className="mb-3">
+          <SourceConflictBanner
+            targetId={targetId}
+            subjectLabel={contact.firstName ?? displayName}
+            fields={["title", "company", "location", "headline"]}
+          />
+        </div>
+      )}
 
       <div className="mb-4">
         <p className="text-sm text-muted-foreground">
