@@ -10,7 +10,12 @@
 // equals the self-target for the requesting user. Secondary is nullable.
 
 import { query } from '../db/client';
+import { getDefaultTenantId } from '../db/tenants';
 import type { ResearchTarget, ResearchTargetState, TargetKind } from './types';
+
+// Re-export so existing `import { getDefaultTenantId } from '@/lib/targets/service'`
+// call-sites keep working. Canonical implementation lives in `@/lib/db/tenants`.
+export { getDefaultTenantId };
 
 function rowToTarget(row: Record<string, unknown>): ResearchTarget {
   return {
@@ -36,20 +41,6 @@ function rowToState(row: Record<string, unknown>): ResearchTargetState {
     secondaryTargetId: (row.secondary_target_id as string | null) ?? null,
     updatedAt: String(row.updated_at),
   };
-}
-
-/**
- * Resolve the default tenant id. Single-tenant local mode — matches the
- * `default` slug seeded in `020-tenant-schema.sql`.
- */
-export async function getDefaultTenantId(): Promise<string> {
-  const res = await query<{ id: string }>(
-    `SELECT id FROM tenants WHERE slug = 'default' LIMIT 1`
-  );
-  if (!res.rows[0]) {
-    throw new Error('Default tenant not found — run migrations');
-  }
-  return res.rows[0].id;
 }
 
 /**

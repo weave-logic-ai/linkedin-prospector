@@ -9,11 +9,17 @@ import type { SelectorConfig, SelectorConfigRow, LinkedInPageType } from '@/type
 import { parserRegistry } from './parser-registry';
 import { ProfileParser } from './parsers/profile-parser';
 import { SearchParser } from './parsers/search-parser';
+import { SearchContentParser } from './parsers/search-content-parser';
 import { FeedParser } from './parsers/feed-parser';
 import { CompanyParser } from './parsers/company-parser';
 import { ConnectionsParser } from './parsers/connections-parser';
 import { MessagesParser } from './parsers/messages-parser';
-import type { ParseResult, SearchParseData, ProfileParseData } from './types';
+import type {
+  ParseResult,
+  SearchParseData,
+  SearchContentParseData,
+  ProfileParseData,
+} from './types';
 import { upsertContactFromProfile, upsertContactsFromSearch } from './contact-upsert';
 import { populateUnmatchedDom } from './unmatched-dom';
 import { recordParseResult } from './telemetry';
@@ -21,6 +27,7 @@ import { recordParseResult } from './telemetry';
 // Register all parsers
 parserRegistry.register(new ProfileParser());
 parserRegistry.register(new SearchParser());
+parserRegistry.register(new SearchContentParser());
 parserRegistry.register(new FeedParser());
 parserRegistry.register(new CompanyParser());
 parserRegistry.register(new ConnectionsParser());
@@ -153,11 +160,37 @@ export async function parseCachedPage(cacheId: string): Promise<ParseResult> {
   // Upsert contacts from parsed data (fire-and-forget for non-blocking)
   if (result.success && result.data) {
     try {
-      if (pageType === 'SEARCH_PEOPLE' || pageType === 'SEARCH_CONTENT') {
+      if (pageType === 'SEARCH_PEOPLE') {
         const searchData = result.data as SearchParseData;
         if (searchData.results && searchData.results.length > 0) {
           const upsertResult = await upsertContactsFromSearch(searchData.results, row.url);
           // Store import counts in result metadata
+          result.errors = result.errors || [];
+          if (upsertResult.created > 0 || upsertResult.updated > 0) {
+            result.errors.push(
+              `Imported: ${upsertResult.created} new, ${upsertResult.updated} updated, ${upsertResult.skipped} skipped`
+            );
+          }
+        }
+      } else if (pageType === 'SEARCH_CONTENT') {
+        // SEARCH_CONTENT results are posts/articles, not people. Map each
+        // result onto the SearchResultEntry shape just enough to upsert the
+        // author as a contact (authorName + profile URL). The content body
+        // stays out of the contact record; a future track will attach
+        // post-level metadata separately.
+        const contentData = result.data as SearchContentParseData;
+        const authors = contentData.results
+          .filter((r) => r.authorName && r.authorProfileUrl)
+          .map((r) => ({
+            name: r.authorName,
+            headline: r.authorHeadline,
+            profileUrl: r.authorProfileUrl as string,
+            location: null,
+            connectionDegree: null,
+            mutualConnections: null,
+          }));
+        if (authors.length > 0) {
+          const upsertResult = await upsertContactsFromSearch(authors, row.url);
           result.errors = result.errors || [];
           if (upsertResult.created > 0 || upsertResult.updated > 0) {
             result.errors.push(

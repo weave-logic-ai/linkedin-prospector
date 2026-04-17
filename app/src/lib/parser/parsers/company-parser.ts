@@ -36,6 +36,8 @@ export class CompanyParser implements PageParser {
       'website',
       'followerCount',
       'specialties',
+      'founded',
+      'employeesOnLinkedIn',
     ];
 
     for (const fieldName of fieldNames) {
@@ -82,17 +84,48 @@ export class CompanyParser implements PageParser {
       return [];
     };
 
+    // `founded` is a year string like "1947". Keep as string to match the
+    // `CompanyParseData.founded: string | null` contract; tolerate noisy text
+    // by extracting the first 4-digit year when present.
+    const foundedRaw = getValue('founded');
+    let founded: string | null = foundedRaw;
+    if (foundedRaw) {
+      const yearMatch = foundedRaw.match(/\b(1[89]\d{2}|20\d{2}|21\d{2})\b/);
+      if (yearMatch) founded = yearMatch[1];
+    }
+
+    // `employeesOnLinkedIn` is rendered as a members-count anchor, e.g.
+    // "5,232 associated members on LinkedIn". Prefer parsing the integer
+    // prefix off the selector hit; otherwise leave null.
+    let employeesOnLinkedIn: number | null = null;
+    const employeesField = fields.find((f) => f.field === 'employeesOnLinkedIn');
+    if (employeesField && employeesField.value !== null) {
+      const raw =
+        typeof employeesField.value === 'string'
+          ? employeesField.value
+          : typeof employeesField.value === 'number'
+            ? String(employeesField.value)
+            : null;
+      if (raw) {
+        const m = raw.match(/([\d,]+)/);
+        if (m) {
+          const n = parseInt(m[1].replace(/,/g, ''), 10);
+          if (!isNaN(n)) employeesOnLinkedIn = n;
+        }
+      }
+    }
+
     const data: CompanyParseData = {
       name: getValue('companyName'),
       industry: getValue('industry'),
       companySize: getValue('companySize'),
       headquarters: getValue('headquarters'),
-      founded: null,
+      founded,
       specialties: getArrayValue('specialties'),
       about: getValue('about'),
       website: getValue('website'),
       followerCount: getNumValue('followerCount'),
-      employeesOnLinkedIn: null,
+      employeesOnLinkedIn,
     };
 
     const fieldsExtracted = fields.filter(

@@ -1,21 +1,9 @@
-// Local tenant resolution for the snippets module.
+// Tenant resolution for the snippets module.
 //
-// Track C ships independently of Track B (targets). Track B introduces a
-// shared `@/lib/targets/service.ts` that exports `getDefaultTenantId`; in
-// Track C we duplicate only the one helper we need so the snippet service
-// does not take a compile-time dependency on Track B's module. When Track B
-// lands on main, this file stays — Track B callers use their own module,
-// Track C callers keep using this one. The helper resolves the same seeded
-// `tenants.slug='default'` row either way (see `020-tenant-schema.sql`).
+// Phase 1 Track C originally duplicated `getDefaultTenantId` here so the
+// snippet service would not take a compile-time dependency on Track B's
+// targets module. Phase 1.5 consolidated both callers onto a single
+// canonical implementation in `@/lib/db/tenants`; this module now simply
+// re-exports it so existing imports keep working.
 
-import { query } from '../db/client';
-
-export async function getDefaultTenantId(): Promise<string> {
-  const res = await query<{ id: string }>(
-    `SELECT id FROM tenants WHERE slug = 'default' LIMIT 1`
-  );
-  if (!res.rows[0]) {
-    throw new Error('Default tenant not found — run migrations');
-  }
-  return res.rows[0].id;
-}
+export { getDefaultTenantId } from '../db/tenants';

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-17T15:00:12.788Z",
+  "generatedAt": "2026-04-17T15:30:21.987Z",
   "rows": [
     {
       "pageType": "COMPANY",
@@ -22,10 +22,10 @@
     {
       "pageType": "COMPANY",
       "field": "employeesOnLinkedIn",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 1,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 1,
+      "avgConfidence": 1,
       "fallbackShareOfHits": 0
     },
     {
@@ -40,10 +40,10 @@
     {
       "pageType": "COMPANY",
       "field": "founded",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 1,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 1,
+      "avgConfidence": 1,
       "fallbackShareOfHits": 0
     },
     {
@@ -184,10 +184,10 @@
     {
       "pageType": "FEED",
       "field": "posts[].postedTimeAgo",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 1,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 1,
+      "avgConfidence": 0.7,
       "fallbackShareOfHits": 0
     },
     {
@@ -202,10 +202,10 @@
     {
       "pageType": "FEED",
       "field": "posts[].reposts",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 1,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 1,
+      "avgConfidence": 0.7,
       "fallbackShareOfHits": 0
     },
     {
@@ -337,82 +337,82 @@
     {
       "pageType": "SEARCH_CONTENT",
       "field": "results[].authorHeadline",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 2,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
       "fallbackShareOfHits": 0
     },
     {
       "pageType": "SEARCH_CONTENT",
       "field": "results[].authorName",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 2,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
       "fallbackShareOfHits": 0
     },
     {
       "pageType": "SEARCH_CONTENT",
       "field": "results[].authorProfileUrl",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 2,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
       "fallbackShareOfHits": 0
     },
     {
       "pageType": "SEARCH_CONTENT",
       "field": "results[].comments",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 2,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
       "fallbackShareOfHits": 0
     },
     {
       "pageType": "SEARCH_CONTENT",
       "field": "results[].content",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 2,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
       "fallbackShareOfHits": 0
     },
     {
       "pageType": "SEARCH_CONTENT",
       "field": "results[].likes",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 2,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
       "fallbackShareOfHits": 0
     },
     {
       "pageType": "SEARCH_CONTENT",
       "field": "results[].postType",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 1,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 1,
+      "avgConfidence": 0.7,
       "fallbackShareOfHits": 0
     },
     {
       "pageType": "SEARCH_CONTENT",
       "field": "results[].title",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 1,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 1,
+      "avgConfidence": 0.7,
       "fallbackShareOfHits": 0
     },
     {
       "pageType": "SEARCH_CONTENT",
       "field": "totalResultsEstimate",
-      "yield": 0,
+      "yield": 1,
       "nSamples": 1,
-      "nPresent": 0,
-      "avgConfidence": 0,
+      "nPresent": 1,
+      "avgConfidence": 0.7,
       "fallbackShareOfHits": 0
     },
     {

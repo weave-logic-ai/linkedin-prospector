@@ -229,7 +229,9 @@ VALUES
     "about": {"name": "About", "selectors": [".org-about-us-organization-description__text p", "section.org-about-module p", ".org-page-details__definition-text"], "transform": "trim"},
     "website": {"name": "Website", "selectors": [".org-about-us-company-module__website a", "a.org-about-module__link", ".link-without-visited-state"], "attribute": "href"},
     "followerCount": {"name": "Follower Count", "selectors": [".org-top-card-summary-info-list__info-item.t-normal span", ".org-top-card-primary-actions__followers"], "transform": "parseInt"},
-    "specialties": {"name": "Specialties", "selectors": [".org-about-module__specialities dd", ".org-page-details__specialities-text"], "transform": "trim"}
+    "specialties": {"name": "Specialties", "selectors": [".org-about-module__specialities dd", ".org-page-details__specialities-text"], "transform": "trim"},
+    "founded": {"name": "Founded", "selectors": ["dt:contains(''Founded'') + dd", ".org-about-company-module__founded-text", ".org-about-module__founded-text"], "transform": "trim"},
+    "employeesOnLinkedIn": {"name": "Employees on LinkedIn", "selectors": ["a[href*=''/people/''][href*=''/company/'']", ".org-top-card-secondary-content__see-all-link", ".ember-view.link-without-visited-state[href*=''/people'']"], "transform": "trim"}
   }'::jsonb,
   '[]'::jsonb,
   'system', 'Initial LinkedIn COMPANY selectors v1'),

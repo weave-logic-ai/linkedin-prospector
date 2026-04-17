@@ -85,6 +85,27 @@ export interface SearchResultEntry {
   mutualConnections: number | null;
 }
 
+/** Content-search (SEARCH_CONTENT) parsed data — posts and articles
+ *  wrapped in `.reusable-search__result-container` envelopes. */
+export interface SearchContentParseData {
+  results: SearchContentResultEntry[];
+  totalResultsEstimate: number | null;
+  currentPage: number | null;
+}
+
+export interface SearchContentResultEntry {
+  authorName: string;
+  authorHeadline: string | null;
+  authorProfileUrl: string | null;
+  content: string;
+  /** Article title when the result wraps `.feed-shared-article`. */
+  title: string | null;
+  postUrl: string | null;
+  likes: number | null;
+  comments: number | null;
+  postType: 'article' | 'post' | 'video' | 'unknown';
+}
+
 /** Feed/activity parsed data */
 export interface FeedParseData {
   posts: FeedPostEntry[];
@@ -152,6 +173,7 @@ export interface ConversationEntry {
 export type PageParseData =
   | ProfileParseData
   | SearchParseData
+  | SearchContentParseData
   | FeedParseData
   | CompanyParseData
   | ConnectionsParseData
