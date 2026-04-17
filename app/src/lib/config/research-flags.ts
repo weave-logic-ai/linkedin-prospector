@@ -19,6 +19,18 @@ export interface ResearchFlags {
   parserTelemetry: boolean;
   /** WS-5 — source_records + connectors (Wayback, EDGAR, RSS, news, blog, podcast). */
   sources: boolean;
+  /** Phase 3 Track G — targeted news scrapers master switch. */
+  connectorNews: boolean;
+  /** Phase 3 Track G — per-site news sub-flags (default off individually). */
+  connectorNewsSites: {
+    wsj: boolean;
+    bloomberg: boolean;
+    reuters: boolean;
+    techcrunch: boolean;
+    cnbc: boolean;
+  };
+  /** Phase 3 Track G — podcast RSS + transcript connector. */
+  connectorPodcast: boolean;
 }
 
 export const RESEARCH_FLAGS: ResearchFlags = {
@@ -26,4 +38,22 @@ export const RESEARCH_FLAGS: ResearchFlags = {
   snippets: process.env.RESEARCH_SNIPPETS === 'true',
   parserTelemetry: process.env.RESEARCH_PARSER_TELEMETRY === 'true',
   sources: process.env.RESEARCH_SOURCES === 'true',
+  connectorNews: process.env.RESEARCH_CONNECTOR_NEWS === 'true',
+  connectorNewsSites: {
+    wsj: process.env.RESEARCH_CONNECTOR_NEWS_WSJ === 'true',
+    bloomberg: process.env.RESEARCH_CONNECTOR_NEWS_BLOOMBERG === 'true',
+    reuters: process.env.RESEARCH_CONNECTOR_NEWS_REUTERS === 'true',
+    techcrunch: process.env.RESEARCH_CONNECTOR_NEWS_TECHCRUNCH === 'true',
+    cnbc: process.env.RESEARCH_CONNECTOR_NEWS_CNBC === 'true',
+  },
+  connectorPodcast: process.env.RESEARCH_CONNECTOR_PODCAST === 'true',
 };
+
+/** News site flag lookup keyed by connector origin name. */
+export function isNewsSiteEnabled(
+  origin: 'wsj' | 'bloomberg' | 'reuters' | 'techcrunch' | 'cnbc'
+): boolean {
+  return (
+    RESEARCH_FLAGS.connectorNews && RESEARCH_FLAGS.connectorNewsSites[origin]
+  );
+}
