@@ -49,6 +49,14 @@ interface SigmaGraphProps {
   edgeTypes?: string[];
   limit?: number;
   onNodeClick?: (nodeId: string) => void;
+  /**
+   * Phase 4 Track I — when true, the graph fetches ECC provenance edges
+   * (`evidence_for`, `derived_from`) along with the ordinary real edges.
+   * Controlled by the "Show provenance edges" toggle below, which persists
+   * to the active lens's `config.showProvenanceEdges` field.
+   */
+  showProvenanceEdges?: boolean;
+  onShowProvenanceEdgesChange?: (next: boolean) => void;
 }
 
 const EDGE_TYPE_OPTIONS = [
@@ -65,7 +73,14 @@ export function SigmaGraph({
   edgeTypes: initialEdgeTypes,
   limit = 500,
   onNodeClick,
+  showProvenanceEdges = false,
+  onShowProvenanceEdgesChange,
 }: SigmaGraphProps) {
+  // Local copy of the toggle: mirrors the parent's value when controlled,
+  // otherwise acts as uncontrolled state. Either way, flipping it triggers
+  // a refetch (see loadData dep array below) with cache-bust via
+  // includeProvenanceEdges=true — matching the Phase 4 §6 behavior.
+  const [provenanceOn, setProvenanceOn] = useState<boolean>(showProvenanceEdges);
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sigmaRef = useRef<any>(null);
@@ -88,6 +103,7 @@ export function SigmaGraph({
       params.set("limit", String(limit));
       if (nicheId) params.set("nicheId", nicheId);
       if (edgeTypes.length > 0) params.set("edgeTypes", edgeTypes.join(","));
+      if (provenanceOn) params.set("includeProvenanceEdges", "true");
 
       const res = await fetch(`/api/graph/sigma-data?${params}`);
       if (!res.ok) throw new Error("Failed to load graph data");
@@ -98,7 +114,20 @@ export function SigmaGraph({
     } finally {
       setLoading(false);
     }
-  }, [limit, nicheId, edgeTypes]);
+  }, [limit, nicheId, edgeTypes, provenanceOn]);
+
+  const handleProvenanceToggle = useCallback(() => {
+    setProvenanceOn((prev) => {
+      const next = !prev;
+      onShowProvenanceEdgesChange?.(next);
+      return next;
+    });
+  }, [onShowProvenanceEdgesChange]);
+
+  // Sync with parent-controlled prop if the caller updates it.
+  useEffect(() => {
+    setProvenanceOn(showProvenanceEdges);
+  }, [showProvenanceEdges]);
 
   useEffect(() => {
     loadData();
@@ -325,7 +354,7 @@ export function SigmaGraph({
       </div>
 
       {/* Edge type filters */}
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1 items-center">
         {EDGE_TYPE_OPTIONS.map((opt) => (
           <button
             key={opt.value}
@@ -340,6 +369,23 @@ export function SigmaGraph({
             {opt.label}
           </button>
         ))}
+        {/* Phase 4 Track I: provenance-edges lens toggle. Provenance edges
+            (evidence_for, derived_from) are hidden by default so the graph
+            matches the day-to-day research view. Flipping this on
+            cache-busts the graph-data endpoint. */}
+        <label
+          className="flex items-center gap-1 text-[10px] text-muted-foreground ml-auto cursor-pointer"
+          title="Show ECC provenance edges (evidence_for, derived_from)"
+        >
+          <input
+            type="checkbox"
+            checked={provenanceOn}
+            onChange={handleProvenanceToggle}
+            className="h-3 w-3"
+            data-testid="show-provenance-edges-toggle"
+          />
+          Show provenance edges
+        </label>
       </div>
 
       {/* Graph container */}

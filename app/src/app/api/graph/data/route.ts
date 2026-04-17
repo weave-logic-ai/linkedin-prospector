@@ -5,10 +5,31 @@
 // (`08-phased-delivery.md` §3.2) even though functionally it's the "root node"
 // — future work may rename. When missing, behavior is unchanged: top-scored
 // contacts are returned.
+//
+// Phase 4 Track I (`08-phased-delivery.md` §6):
+//   - In-memory LRU cache (10 slots, 60s TTL) keyed on
+//     (ownerId, primaryTargetId, limit, includeProvenanceEdges). Invalidated
+//     from the targets state endpoint and the lens activation endpoint.
+//   - `?includeProvenanceEdges=true` lens-toggle lets callers pull the
+//     `evidence_for` / `derived_from` edges into the response. Default is
+//     false so the graph stays uncluttered for day-to-day research.
+//   - Re-root SQL uses the indexed `source_contact_id` / `target_contact_id`
+//     columns from `002-core-schema.sql` so EXPLAIN shows
+//     `Index Scan using idx_edges_(source|target)_contact_id`, not a Seq
+//     Scan.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db/client';
-import { getTargetById, getTargetEntityId } from '@/lib/targets/service';
+import {
+  getCurrentOwnerProfileId,
+  getTargetById,
+  getTargetEntityId,
+} from '@/lib/targets/service';
+import {
+  buildCacheKey,
+  getCached,
+  setCached,
+} from '@/lib/graph/data-cache';
 
 interface GraphNode {
   id: string;
@@ -36,11 +57,52 @@ interface GraphDataResponse {
   edges: GraphEdge[];
 }
 
+// Non-provenance edge types the graph renders for day-to-day research. This
+// is the existing list from the pre-Phase-4 route.
+const REAL_EDGE_TYPES = [
+  'CONNECTED_TO',
+  'MESSAGED',
+  'same-company',
+  'INVITED_BY',
+  'ENDORSED',
+  'RECOMMENDED',
+  'FOLLOWS_COMPANY',
+  'WORKED_AT',
+  'EDUCATED_AT',
+  'WORKS_AT',
+];
+
+// Provenance / evidence edge types from the ECC causal graph. Hidden by
+// default per `04-targets-and-graph.md` §11.1 and the Phase 4 scope.
+const PROVENANCE_EDGE_TYPES = ['evidence_for', 'derived_from'];
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(1000, Math.max(1, parseInt(searchParams.get('limit') || '500', 10)));
+    const limit = Math.min(
+      1000,
+      Math.max(1, parseInt(searchParams.get('limit') || '500', 10))
+    );
     const primaryTargetId = searchParams.get('primaryTargetId');
+    const includeProvenanceEdges =
+      searchParams.get('includeProvenanceEdges') === 'true';
+
+    // Owner id is used for cache scoping so state-change invalidations
+    // target the right tenant's entries. Null when no owner exists yet (bare
+    // fixture install); we still cache under the null-owner key.
+    const ownerId = await getCurrentOwnerProfileId();
+
+    const cacheKey = buildCacheKey(
+      { primaryTargetId, limit, includeProvenanceEdges },
+      ownerId
+    );
+    const cached = getCached<GraphDataResponse>(cacheKey);
+    if (cached) {
+      return NextResponse.json(
+        { data: cached.value },
+        { headers: { 'x-graph-data-cache': 'hit' } }
+      );
+    }
 
     // Resolve the root-node entity. When a primaryTargetId is passed and
     // resolves to a contact/company, we re-center the query on the edges
@@ -60,6 +122,12 @@ export async function GET(request: NextRequest) {
     // contact's immediate neighborhood. Company/self targets fall through to
     // the top-scored listing for v1 — richer company-centric layouts ship in
     // Phase 4 polish (`08-phased-delivery.md` §6).
+    //
+    // The neighborhood CTE uses `source_contact_id = $1 OR target_contact_id
+    // = $1` which EXPLAIN resolves to a `BitmapOr` over the two btree
+    // indexes (`idx_edges_source_contact_id`, `idx_edges_target_contact_id`)
+    // — not a Seq Scan. See `tests/perf/graph-data.test.ts` for the EXPLAIN
+    // assertion.
     let nodesResult;
     if (rootKind === 'contact' && rootEntityId) {
       nodesResult = await query<{
@@ -113,14 +181,24 @@ export async function GET(request: NextRequest) {
     }
 
     if (nodesResult.rows.length === 0) {
-      return NextResponse.json({ data: { nodes: [], edges: [] } });
+      const empty: GraphDataResponse = { nodes: [], edges: [] };
+      setCached(cacheKey, empty, ownerId, primaryTargetId);
+      return NextResponse.json(
+        { data: empty },
+        { headers: { 'x-graph-data-cache': 'miss' } }
+      );
     }
 
     // Collect node IDs for edge filtering
     const nodeIds = nodesResult.rows.map((r) => r.id);
 
-    // Fetch REAL edges only (exclude synthetic mutual-proximity and same-cluster)
-    const REAL_EDGE_TYPES = ['CONNECTED_TO', 'MESSAGED', 'same-company', 'INVITED_BY', 'ENDORSED', 'RECOMMENDED', 'FOLLOWS_COMPANY', 'WORKED_AT', 'EDUCATED_AT', 'WORKS_AT'];
+    // Fetch REAL edges plus (optionally) provenance edges. Provenance is
+    // filtered out by default so the default graph view matches the pre-
+    // Phase-4 UX — research-mode users can flip the lens toggle to pull
+    // `evidence_for` / `derived_from` into the response.
+    const activeEdgeTypes = includeProvenanceEdges
+      ? [...REAL_EDGE_TYPES, ...PROVENANCE_EDGE_TYPES]
+      : REAL_EDGE_TYPES;
 
     const edgesResult = await query<{
       id: string;
@@ -134,7 +212,7 @@ export async function GET(request: NextRequest) {
        WHERE e.target_contact_id = ANY($1)
          AND e.target_contact_id IS NOT NULL
          AND e.edge_type = ANY($2)`,
-      [nodeIds, REAL_EDGE_TYPES]
+      [nodeIds, activeEdgeTypes]
     );
 
     // Add any source nodes that aren't already in the set (e.g., self-contact)
@@ -188,11 +266,18 @@ export async function GET(request: NextRequest) {
     }));
 
     const response: GraphDataResponse = { nodes, edges };
+    setCached(cacheKey, response, ownerId, primaryTargetId);
 
-    return NextResponse.json({ data: response });
+    return NextResponse.json(
+      { data: response },
+      { headers: { 'x-graph-data-cache': 'miss' } }
+    );
   } catch (error) {
     return NextResponse.json(
-      { error: 'Failed to load graph data', details: error instanceof Error ? error.message : undefined },
+      {
+        error: 'Failed to load graph data',
+        details: error instanceof Error ? error.message : undefined,
+      },
       { status: 500 }
     );
   }

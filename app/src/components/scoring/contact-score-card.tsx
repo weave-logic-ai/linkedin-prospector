@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { TierBadge } from "@/components/scoring/tier-badge";
+import { DeltaBadge, useDeltaThreshold } from "@/components/scoring/delta-badge";
 import {
   Tooltip,
   TooltipContent,
@@ -70,14 +71,25 @@ export function ContactScoreCard({
   onRescore,
 }: ContactScoreCardProps) {
   const [data, setData] = useState<ScoreData | null>(null);
+  // Previous value snapshot — captured on first successful load after a
+  // rescore so the delta badge compares "new" vs. "what was shown before."
+  const [previousData, setPreviousData] = useState<ScoreData | null>(null);
+  const prevRef = useRef<ScoreData | null>(null);
   const [loading, setLoading] = useState(true);
   const [rescoring, setRescoring] = useState(false);
+  const deltaThreshold = useDeltaThreshold();
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/contacts/${contactId}/scores`);
       if (res.ok) {
         const json = await res.json();
+        // Move the previously-displayed snapshot into `previousData` so the
+        // delta badge can compare against it. First load has no previous.
+        if (prevRef.current) {
+          setPreviousData(prevRef.current);
+        }
+        prevRef.current = json.data;
         setData(json.data);
       }
     } catch {
@@ -168,6 +180,13 @@ export function ContactScoreCard({
           <div className="flex-1 min-w-0 space-y-1.5">
             <div className="flex items-center gap-2">
               <TierBadge tier={data.tier} />
+              {previousData && (
+                <DeltaBadge
+                  currentValue={data.compositeScore}
+                  previousValue={previousData.compositeScore}
+                  threshold={deltaThreshold}
+                />
+              )}
               {data.persona && (
                 <TooltipProvider>
                   <Tooltip>
