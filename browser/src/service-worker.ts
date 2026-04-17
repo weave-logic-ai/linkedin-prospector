@@ -100,7 +100,10 @@ async function checkCaptureRateLimit(): Promise<{ allowed: boolean; remaining: n
 // Capture Processing
 // ============================================================
 
-async function processCapture(payload: CapturePayload): Promise<void> {
+async function processCapture(
+  payload: CapturePayload,
+  sourceTabId?: number,
+): Promise<void> {
   // Phase 6: Check rate limit before processing
   const rateCheck = await checkCaptureRateLimit();
   if (!rateCheck.allowed) {
@@ -127,7 +130,8 @@ async function processCapture(payload: CapturePayload): Promise<void> {
     await incrementDailyCaptureCount();
     await incrementDailyCaptureTracking();
 
-    // Refresh tasks -- server auto-completes matching tasks on capture
+    // Refresh tasks -- server auto-completes matching tasks on capture and
+    // creates a follow-up task for the next search page (up to MAX_SEARCH_PAGES).
     try {
       const tasksData = await client.fetchTasks('pending', 50);
       const allTasks = tasksData.goals.flatMap((g: { tasks: unknown[] }) => g.tasks);
@@ -137,6 +141,11 @@ async function processCapture(payload: CapturePayload): Promise<void> {
     }
 
     await updateBadge();
+
+    // Task #11: browser-side auto-pagination click-through
+    if (sourceTabId !== undefined) {
+      await maybeAutoPaginate(payload, sourceTabId);
+    }
   } catch (error) {
     logger.warn(`Capture failed, queuing: ${(error as Error).message}`);
     await enqueueCapturePayload(payload);
@@ -152,6 +161,112 @@ async function processCapture(payload: CapturePayload): Promise<void> {
       // Non-critical -- already queued via enqueueCapturePayload
     }
     await updateBadge();
+  }
+}
+
+/**
+ * Task #11 — browser-side auto-pagination click-through.
+ *
+ * After a successful capture of a SEARCH_PEOPLE / SEARCH_CONTENT page, the
+ * server has already inserted a pending task for `?page=N+1` (capped at
+ * MAX_SEARCH_PAGES in app/src/app/api/extension/capture/route.ts). If the
+ * user enabled `autoPaginate`, navigate the tab to that next-page URL and
+ * re-fire CAPTURE_REQUEST once the page finishes loading. The chain
+ * self-terminates at MAX_SEARCH_PAGES because the server stops creating
+ * follow-up tasks at that point.
+ */
+async function maybeAutoPaginate(
+  payload: CapturePayload,
+  tabId: number,
+): Promise<void> {
+  if (payload.pageType !== 'SEARCH_PEOPLE' && payload.pageType !== 'SEARCH_CONTENT') {
+    return;
+  }
+
+  const { autoPaginate } = await new Promise<{ autoPaginate?: boolean }>((r) =>
+    chrome.storage.local.get('autoPaginate', (v) => r(v)),
+  );
+  if (!autoPaginate) return;
+
+  let currentPage: number;
+  let nextPageUrl: string;
+  try {
+    const u = new URL(payload.url);
+    currentPage = parseInt(u.searchParams.get('page') || '1', 10);
+    u.searchParams.set('page', String(currentPage + 1));
+    nextPageUrl = u.toString();
+  } catch {
+    return;
+  }
+
+  // The server only creates a task when next < MAX_SEARCH_PAGES. Look for it
+  // in the refreshed tasks list; if it isn't there, we've hit the cap — stop.
+  const pendingTasks = await new Promise<Array<{ targetUrl?: string | null }>>(
+    (r) =>
+      chrome.storage.local.get('pendingTasks', (v) =>
+        r(((v.pendingTasks as Array<{ targetUrl?: string | null }>) || [])),
+      ),
+  );
+  const hasFollowup = pendingTasks.some((t) => {
+    if (!t.targetUrl) return false;
+    try {
+      const a = new URL(t.targetUrl);
+      const b = new URL(nextPageUrl);
+      return a.pathname === b.pathname &&
+        a.searchParams.get('page') === b.searchParams.get('page');
+    } catch {
+      return false;
+    }
+  });
+  if (!hasFollowup) {
+    logger.info(`Auto-paginate: no follow-up task for page ${currentPage + 1}; chain complete.`);
+    return;
+  }
+
+  // Small delay so LinkedIn's rate limiter doesn't see back-to-back requests
+  await new Promise((r) => setTimeout(r, 2000));
+
+  logger.info(`Auto-paginate: navigating tab ${tabId} to page ${currentPage + 1}`);
+
+  // Wait for the tab to finish loading the new URL before re-firing capture.
+  const navigationComplete = new Promise<void>((resolve) => {
+    const listener = (updatedTabId: number, info: chrome.tabs.TabChangeInfo) => {
+      if (updatedTabId === tabId && info.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+    // Safety timeout: if load never completes in 20s, resolve anyway and let capture fail
+    setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, 20000);
+  });
+
+  try {
+    await chrome.tabs.update(tabId, { url: nextPageUrl });
+  } catch (err) {
+    logger.warn(`Auto-paginate: tab.update failed: ${(err as Error).message}`);
+    return;
+  }
+
+  await navigationComplete;
+  // Give the content script a moment to re-initialize on the new page
+  await new Promise((r) => setTimeout(r, 1500));
+
+  try {
+    chrome.tabs.sendMessage(
+      tabId,
+      { type: 'CAPTURE_REQUEST' } satisfies ExtensionMessage,
+      (response) => {
+        if (response?.payload) {
+          void processCapture(response.payload as CapturePayload, tabId);
+        }
+      },
+    );
+  } catch (err) {
+    logger.warn(`Auto-paginate: re-fire CAPTURE_REQUEST failed: ${(err as Error).message}`);
   }
 }
 
@@ -296,12 +411,13 @@ chrome.runtime.onMessage.addListener(
 
           if (sender.tab?.id) {
             // Content script initiated capture - process the result
+            const sourceTabId = sender.tab.id;
             chrome.tabs.sendMessage(
-              sender.tab.id,
+              sourceTabId,
               { type: 'CAPTURE_REQUEST' } satisfies ExtensionMessage,
               (response) => {
                 if (response?.payload) {
-                  processCapture(response.payload as CapturePayload).then(() => {
+                  processCapture(response.payload as CapturePayload, sourceTabId).then(() => {
                     sendResponse({ status: 'ok' });
                   });
                 }
@@ -313,12 +429,13 @@ chrome.runtime.onMessage.addListener(
               { active: true, currentWindow: true },
               (tabs) => {
                 if (tabs[0]?.id) {
+                  const sourceTabId = tabs[0].id;
                   chrome.tabs.sendMessage(
-                    tabs[0].id,
+                    sourceTabId,
                     { type: 'CAPTURE_REQUEST' } satisfies ExtensionMessage,
                     (response) => {
                       if (response?.payload) {
-                        processCapture(response.payload as CapturePayload).then(
+                        processCapture(response.payload as CapturePayload, sourceTabId).then(
                           () => {
                             sendResponse({ status: 'ok' });
                           }
