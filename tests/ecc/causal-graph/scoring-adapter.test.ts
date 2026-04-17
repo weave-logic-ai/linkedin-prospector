@@ -67,7 +67,7 @@ describe('CausalGraph scoring-adapter', () => {
     const { scoreContactWithProvenance } = await import('@/lib/ecc/causal-graph/scoring-adapter');
 
     const result = await scoreContactWithProvenance('contact-1');
-    expect(mockScoreContact).toHaveBeenCalledWith('contact-1', undefined);
+    expect(mockScoreContact).toHaveBeenCalledWith('contact-1', undefined, undefined);
     expect(result).not.toHaveProperty('_causal');
     expect(mockQuery).not.toHaveBeenCalled();
   });
@@ -86,6 +86,9 @@ describe('CausalGraph scoring-adapter', () => {
     let edgeCounter = 0;
     mockQuery.mockImplementation((sql: unknown) => {
       const text = String(sql);
+      if (text.includes('FROM tenants WHERE slug')) {
+        return mockRows([{ id: 'default' }]) as ReturnType<typeof dbModule.query>;
+      }
       if (text.includes('INSERT INTO causal_nodes')) {
         nodeCounter++;
         return mockRows([{
@@ -109,7 +112,7 @@ describe('CausalGraph scoring-adapter', () => {
     const result = await scoreContactWithProvenance('contact-1');
     expect(result).toHaveProperty('_causal');
     expect(result._causal?.rootNode).toBeDefined();
-    expect(mockScoreContact).toHaveBeenCalledWith('contact-1', undefined);
+    expect(mockScoreContact).toHaveBeenCalledWith('contact-1', undefined, undefined);
 
     // 1 root + 3 nodes per dim (input, dimension, weight) * 2 dims = 7 node inserts
     const nodeInserts = mockQuery.mock.calls.filter(c => String(c[0]).includes('INSERT INTO causal_nodes'));
@@ -133,6 +136,6 @@ describe('CausalGraph scoring-adapter', () => {
 
     const { scoreContactWithProvenance } = await import('@/lib/ecc/causal-graph/scoring-adapter');
     await scoreContactWithProvenance('c1', 'Sales-focused');
-    expect(mockScoreContact).toHaveBeenCalledWith('c1', 'Sales-focused');
+    expect(mockScoreContact).toHaveBeenCalledWith('c1', 'Sales-focused', undefined);
   });
 });
