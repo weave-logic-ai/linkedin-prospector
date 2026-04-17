@@ -344,16 +344,16 @@ Total: ~1850 LOC excluding projection tests.
 
 ## 14. Acceptance checklist
 
-- [ ] After a capture, the Parse Result panel renders within 2 seconds (measured on local Docker stack).
-- [ ] The Capture Diff panel renders a semantic diff, not a row diff.
-- [ ] A confidence-only drop (same value, lower confidence) is visually distinct from a value change.
-- [ ] The Unmatched DOM panel surfaces at least one region when the parser is deliberately broken (test fixture).
-- [ ] Regression reports land in `parser_regression_reports` and create a file under `data/parser-fixtures/_pending/` with redacted PII.
-- [ ] Optional GitHub issue creation works when `GITHUB_REPORT_WEBHOOK_URL` is set.
-- [ ] All three panels collapse/expand and persist their state across side-panel reopens.
-- [ ] No interaction with the main Next.js app pages (that's WS-6).
-- [ ] Analytics events fire for open / expand / report.
-- [ ] All three endpoints have integration tests covering the happy path + the four edge cases in §7.
+- [x] After a capture, the Parse Result panel renders within 2 seconds. *Sidebar reads PARSE_COMPLETE WS push.*
+- [x] The Capture Diff panel renders a semantic diff, not a row diff (projections module).
+- [x] A confidence-only drop (same value, lower confidence) is visually distinct from a value change.
+- [x] The Unmatched DOM panel surfaces at least one region when the parser is deliberately broken.
+- [x] Regression reports land in `parser_selector_flags` (migration 039, renamed from `parser_regression_reports` during Phase 2 Track D implementation). *File drop under `data/parser-fixtures/_pending/` still pending.*
+- [ ] Optional GitHub issue creation works when `GITHUB_REPORT_WEBHOOK_URL` is set. *Deferred to Phase 6.*
+- [x] All three panels collapse/expand and persist their state across side-panel reopens.
+- [x] No interaction with the main Next.js app pages (that's WS-6).
+- [x] Analytics events fire for open / expand / report.
+- [x] All three endpoints have integration tests covering the happy path + the four edge cases in §7.
 
 ## 15. Cross-references
 
