@@ -13,6 +13,7 @@ import crypto from 'crypto';
 import { query } from '../db/client';
 import { acquire, DEFAULT_BUCKETS, type BucketConfig } from './rate-limiter';
 import { isAllowed } from './robots';
+import { checkHostSafe, type PrivateIpReason } from './private-ip';
 import { canonicalizeUrl, hostOf } from './url-normalize';
 
 export interface FetchOptions {
@@ -25,9 +26,18 @@ export interface FetchOptions {
   bucketConfig?: BucketConfig;
   maxBytes?: number;
   timeoutMs?: number;
+  /** Inject a DNS lookup override (tests only). Returns all resolved IPs. */
+  dnsLookup?: (host: string) => Promise<Array<{ address: string; family: number }>>;
 }
 
 export class SourceFetchError extends Error {
+  /**
+   * When `code === 'BLOCKED_IP'`, `reason` carries the classified range.
+   * Consumers that surface structured errors read this field; existing
+   * call-sites that only branch on `code` are unaffected.
+   */
+  public reason?: PrivateIpReason;
+
   constructor(
     message: string,
     public code:
@@ -35,11 +45,14 @@ export class SourceFetchError extends Error {
       | 'HTTP_ERROR'
       | 'TOO_LARGE'
       | 'TIMEOUT'
-      | 'INVALID_URL',
-    public status?: number
+      | 'INVALID_URL'
+      | 'BLOCKED_IP',
+    public status?: number,
+    reason?: PrivateIpReason
   ) {
     super(message);
     this.name = 'SourceFetchError';
+    if (reason) this.reason = reason;
   }
 }
 
@@ -57,6 +70,21 @@ export async function gatedFetch(
 ): Promise<{ bytes: Buffer; status: number; contentType: string; finalUrl: string }> {
   const host = hostOf(url);
   if (!host) throw new SourceFetchError(`Invalid URL: ${url}`, 'INVALID_URL');
+
+  // SSRF guard: resolve host (or inspect literal IP) and reject
+  // private / loopback / link-local / multicast ranges. Runs BEFORE robots
+  // + rate limit so attackers cannot consume tokens on a target that will
+  // never be fetched. See `private-ip.ts` for the full range table and the
+  // `SOURCES_ALLOW_LOCALHOST` dev-convenience flag.
+  const ipCheck = await checkHostSafe(host, opts.dnsLookup);
+  if (ipCheck.blocked) {
+    throw new SourceFetchError(
+      `Blocked fetch to ${host}${ipCheck.resolvedIp ? ` (${ipCheck.resolvedIp})` : ''}: ${ipCheck.reason}`,
+      'BLOCKED_IP',
+      undefined,
+      ipCheck.reason
+    );
+  }
 
   if (!opts.skipRobots) {
     const robots = await isAllowed(url);
