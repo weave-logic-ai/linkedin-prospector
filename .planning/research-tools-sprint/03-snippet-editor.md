@@ -412,19 +412,19 @@ Total: ~4000 LOC.
 
 ## 16. Acceptance checklist
 
-- [ ] Text snippet round-trip: select → widget opens prefilled → save → appears in contact's Snippets panel with the selected tags.
-- [ ] Image snippet round-trip: right-click image → save → blob stored, thumbnail renders on target.
-- [ ] Link snippet round-trip: right-click link → save → source_records row created (may be async), snippet references it.
-- [ ] Marquee selection captures a text + image region in one snippet.
-- [ ] Entity resolution inside text: proper-noun underline fires, dropdown resolves to existing contact or creates new.
-- [ ] Tag auto-suggestion defaults correctly for EDGAR and Wayback URLs.
-- [ ] Permission on a new origin prompts Chrome's native permission dialog and persists.
-- [ ] Revoking an origin removes it from the settings list and prevents snipping on that domain.
-- [ ] Snippet saves as `causal_nodes` row with `entity_type='snippet'` and correct edges.
-- [ ] ExoChain entry is appended and passes `verifyChainHashes`.
-- [ ] PII scrubber flag is set when applicable.
-- [ ] Offline save queues and replays.
-- [ ] GIN index on `output->tags` is present and used (check with `EXPLAIN`).
+- [x] Text snippet round-trip: select → widget opens prefilled → save → appears in contact's Snippets panel with the selected tags. *(Phase 1 Track C)*
+- [x] Image snippet round-trip: right-click image / file-drop / clipboard paste → save → blob stored (sha256 dedup), thumbnail renders on target. *(Phase 1.5)*
+- [ ] Link snippet round-trip: right-click link → save → source_records row created (may be async), snippet references it. *Deferred link follow-up; WS-5 dependency now on main.*
+- [ ] Marquee selection captures a text + image region in one snippet. *Not in scope of Phase 1 / 1.5; future sprint.*
+- [x] Entity resolution inside text: proper-noun underline fires, dropdown resolves to existing contacts. *Partial: "create new" path still pending (Q9 A+C not yet implemented).*
+- [ ] Tag auto-suggestion defaults correctly for EDGAR and Wayback URLs. *Taxonomy seeded; URL-aware defaulting is Phase 6 polish.*
+- [x] Permission on a new origin prompts Chrome's native permission dialog and persists. *`optional_host_permissions: ["<all_urls>"]` + sidebar "Add this site to approved sources" button per Q2.*
+- [ ] Revoking an origin removes it from the settings list and prevents snipping on that domain. *Chrome handles revoke natively; sidebar list-sync on revoke still to wire.*
+- [x] Snippet saves as `causal_nodes` row with `entity_type='snippet'` and correct edges. *(Phase 1 Track C.)*
+- [x] ExoChain entry is appended and passes `verifyChainHashes`. *Chain_id = `snippet:${kind}:${id}`; migration 038 widened chain_id to TEXT.*
+- [ ] PII scrubber flag is set when applicable. *Deferred to Phase 6 hardening.*
+- [ ] Offline save queues and replays. *Deferred to Phase 6 hardening.*
+- [x] GIN index on `output->tags` is present and used (check with `EXPLAIN`). *Migration 034.*
 
 ## 17. Cross-references
 

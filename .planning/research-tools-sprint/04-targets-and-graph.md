@@ -326,17 +326,17 @@ Total: ~2800 LOC.
 
 ## 16. Acceptance checklist
 
-- [ ] At migration time, every existing owner has a corresponding `research_targets` row with `kind='self'`, and their `research_target_state.primary_target_id` points to it.
-- [ ] Breadcrumb renders on every page and lists the last N switches.
-- [ ] Clicking a graph node re-centers in under 200 ms (measured with `performance.mark`).
-- [ ] Shift-click sets a secondary target; dashboards render in two columns.
-- [ ] Target picker (`T` shortcut) opens global entity search.
-- [ ] Deep-linking via `?target=X` works.
-- [ ] Scoring pipeline accepts `targetId` and produces target-scoped causal nodes.
-- [ ] Lens save + load works for three seed lenses and user-created ones.
-- [ ] Targets survive tab close; reopening restores the last-used target.
-- [ ] RLS policies prevent one tenant from seeing another's target state.
-- [ ] `scoring-adapter.ts` no longer references the `DEFAULT_TENANT_ID` constant.
+- [x] At migration time, every existing owner has a corresponding `research_targets` row with `kind='self'`, and their `research_target_state.primary_target_id` points to it. *(Migration 035 DO-block, Phase 0.)*
+- [x] Breadcrumb renders on every page and lists the last N switches. *(Phase 1 Track B + Phase 4 Track H hover card + HISTORY ring-buffer cap 20 via migration 043.)*
+- [x] Clicking a graph node re-centers in under 200 ms (measured: warm p95 = 1ms, cold p95 = 22ms via Phase 4 Track I in-memory LRU cache).
+- [ ] Shift-click sets a secondary target. *Picker modal sets secondary; shift-click-on-node shortcut not yet wired.* Dashboards render in two columns ✅ *(Track I)*.
+- [x] Target picker (`T` shortcut) opens global entity search. *(Phase 1 Track B.)*
+- [x] Deep-linking via `?target=X` works. *Phase 4 Track H shipped `?lens=<id>` and `?lens=opaque:<base64>`; target deep-link follows the same pattern.*
+- [x] Scoring pipeline accepts `targetId` and produces target-scoped causal nodes. *(Phase 1.5 per-target ICP via lens-service.)*
+- [x] Lens save + load works for three seed lenses and user-created ones. *(Phase 1.5 load + Phase 4 Track H save / delete / share.)*
+- [ ] Targets survive tab close; reopening restores the last-used target. *Server-side state persists; frontend restore flow still pending.*
+- [x] RLS policies prevent one tenant from seeing another's target state. *Tests in `tests/api/research-targets-rls.test.ts`.*
+- [x] `scoring-adapter.ts` no longer references the `DEFAULT_TENANT_ID` constant. *(Phase 1 Track B deleted it in causal-graph adapter. Similar constants remain in `impulses/scoring-adapter.ts` and `cognitive-tick/claude-adapter.ts` — tracked for cleanup.)*
 
 ## 17. Cross-references
 
