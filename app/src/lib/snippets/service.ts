@@ -16,6 +16,7 @@ import { appendChainEntry } from '../ecc/exo-chain/service';
 import { snippetChainId, type SnippetTargetKind } from './chain';
 import { extractPersonMentionCandidates } from './mentions';
 import { upsertBlob } from './blob-store';
+import { detectAndScrubPii, type PiiKind } from './pii-scrubber';
 import type { SnippetKind, SnippetSaveResponse } from './types';
 
 interface SaveTextSnippetInput {
@@ -127,9 +128,22 @@ export async function saveTextSnippet(
 ): Promise<SnippetSaveResponse> {
   const warnings: string[] = [];
 
-  const trimmedText = input.text?.trim() ?? '';
-  if (!trimmedText) {
+  const rawTrimmed = input.text?.trim() ?? '';
+  if (!rawTrimmed) {
     throw new Error('saveTextSnippet: text must be a non-empty string');
+  }
+
+  // WS-3 Phase 6 §9: scrub obvious PII before we persist anything.
+  // The returned `piiScrubbed` flag lives on `snippets.metadata` (stored on
+  // `causal_nodes.output.meta.piiScrubbed`) so downstream consumers (share,
+  // export, audit) can reason about sanitisation provenance.
+  const piiPass = detectAndScrubPii(rawTrimmed);
+  const trimmedText = piiPass.scrubbedText;
+  if (piiPass.hit) {
+    const kinds = (Object.keys(piiPass.hits) as PiiKind[]).filter(
+      (k) => piiPass.hits[k] > 0
+    );
+    warnings.push(`PII scrubbed (${kinds.join(', ')})`);
   }
 
   const normalizedMentionIds = Array.from(
@@ -164,6 +178,10 @@ export async function saveTextSnippet(
       note: input.note ?? null,
       extractedMentionCandidates: extractedMentions,
       linkedContactIds: normalizedMentionIds,
+      meta: {
+        piiScrubbed: piiPass.hit,
+        piiHits: piiPass.hit ? piiPass.hits : undefined,
+      },
     },
     input.sessionId
   );

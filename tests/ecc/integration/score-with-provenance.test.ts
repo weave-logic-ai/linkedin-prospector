@@ -91,6 +91,15 @@ describe('Score with provenance (integration)', () => {
           }], command: '', rowCount: 1, oid: 0, fields: [],
         }) as unknown as ReturnType<typeof dbModule.query>;
       }
+      // WS-4 polish: the impulses adapter no longer hardcodes
+      // 'default' as the tenant id. It calls `getDefaultTenantId()` which
+      // looks up `tenants.slug='default'` — feed it a synthetic row so the
+      // resolver returns a value.
+      if (text.includes(`FROM tenants WHERE slug = 'default'`)) {
+        return Promise.resolve({
+          rows: [{ id: 'default' }], command: '', rowCount: 1, oid: 0, fields: [],
+        }) as unknown as ReturnType<typeof dbModule.query>;
+      }
       // Dispatcher: load impulse then handlers then ack
       return Promise.resolve({ rows: [], command: '', rowCount: 0, oid: 0, fields: [] }) as unknown as ReturnType<typeof dbModule.query>;
     });

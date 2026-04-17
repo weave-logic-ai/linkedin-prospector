@@ -28,6 +28,13 @@ import {
   QUEUE_FLUSH_ALARM,
 } from './shared/constants';
 import { logger } from './utils/logger';
+import {
+  flushSnippetQueue,
+  getSnippetQueueDepth,
+  SNIPPET_QUEUE_FLUSH_ALARM,
+  SNIPPET_QUEUE_FLUSH_INTERVAL_MIN,
+} from './shared/snippet-queue';
+import { syncApprovedOriginsFromChrome } from './shared/approved-origins';
 
 // ============================================================
 // Constants
@@ -552,6 +559,63 @@ chrome.runtime.onMessage.addListener(
 );
 
 // ============================================================
+// Snippet Offline Queue (WS-3 Phase 6 §10)
+// ============================================================
+
+async function processSnippetQueue(): Promise<void> {
+  const depth = await getSnippetQueueDepth();
+  if (depth === 0) return;
+  const [appUrl, token] = await Promise.all([
+    getStorage('appUrl'),
+    getStorage('extensionToken'),
+  ]);
+  try {
+    const result = await flushSnippetQueue({
+      appUrl: appUrl || DEFAULT_APP_URL,
+      extensionToken: token,
+    });
+    if (result.processed > 0) {
+      logger.info(
+        `Snippet queue: flushed ${result.processed} items, ${result.remaining} remaining`
+      );
+    }
+  } catch (err) {
+    logger.warn(
+      `Snippet queue flush failed: ${(err as Error).message ?? err}`
+    );
+  }
+}
+
+// ============================================================
+// Permission Change Listeners (WS-3 Phase 6 §7)
+// ============================================================
+
+// Listen for origin revokes from chrome://extensions so the sidebar's
+// `approvedOrigins` storage key stays aligned. The sidebar subscribes to
+// `storage.onChanged` and re-renders automatically when we rewrite the key.
+chrome.permissions.onRemoved.addListener(async (perms) => {
+  const origins = perms?.origins ?? [];
+  if (origins.length === 0) return;
+  const next = await import('./shared/approved-origins').then((m) =>
+    m.removeApprovedOrigins(origins)
+  );
+  logger.info(
+    `Permissions revoked: ${origins.join(', ')}; approved list now ${next.length}`
+  );
+});
+
+chrome.permissions.onAdded.addListener(async (perms) => {
+  const origins = perms?.origins ?? [];
+  if (origins.length === 0) return;
+  const next = await import('./shared/approved-origins').then((m) =>
+    m.addApprovedOrigins(origins)
+  );
+  logger.info(
+    `Permissions granted: ${origins.join(', ')}; approved list now ${next.length}`
+  );
+});
+
+// ============================================================
 // WebSocket Event Handlers
 // ============================================================
 
@@ -560,6 +624,8 @@ async function setupWebSocketHandlers(): Promise<void> {
 
   client.onWsEvent('CAPTURE_CONFIRMED', (msg: WsMessage) => {
     logger.info('Capture confirmed:', msg.payload);
+    // WS-3 Phase 6 §10 — connectivity returned; try to flush offline snippets.
+    void processSnippetQueue();
   });
 
   client.onWsEvent('TASK_CREATED', async (msg: WsMessage) => {
@@ -624,6 +690,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === RETRY_QUEUE_ALARM) {
     await processRetryQueue();
   }
+  if (alarm.name === SNIPPET_QUEUE_FLUSH_ALARM) {
+    await processSnippetQueue();
+  }
 });
 
 // ============================================================
@@ -643,6 +712,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     });
     await chrome.alarms.create(RETRY_QUEUE_ALARM, {
       periodInMinutes: 2, // Every 2 minutes
+    });
+    await chrome.alarms.create(SNIPPET_QUEUE_FLUSH_ALARM, {
+      periodInMinutes: SNIPPET_QUEUE_FLUSH_INTERVAL_MIN, // 30 seconds
     });
   }
 });
@@ -664,12 +736,22 @@ chrome.runtime.onStartup.addListener(async () => {
   await chrome.alarms.create(RETRY_QUEUE_ALARM, {
     periodInMinutes: 2,
   });
+  await chrome.alarms.create(SNIPPET_QUEUE_FLUSH_ALARM, {
+    periodInMinutes: SNIPPET_QUEUE_FLUSH_INTERVAL_MIN,
+  });
 
   // Run health check immediately
   await performHealthCheck();
 
   // Process retry queue on startup (Phase 6)
   await processRetryQueue();
+
+  // Reconcile approved-origins with Chrome's native permission state in case
+  // the user revoked an origin while the SW was asleep (WS-3 Phase 6 §7).
+  await syncApprovedOriginsFromChrome();
+
+  // Drain any pending snippets from the previous session (WS-3 Phase 6 §10).
+  await processSnippetQueue();
 });
 
 // Run initial health check to set connection state (HTTP-based, always works)
@@ -677,6 +759,12 @@ performHealthCheck().catch(() => {});
 
 // Process retry queue on initial load (Phase 6)
 processRetryQueue().catch(() => {});
+
+// WS-3 Phase 6 §7 — reconcile approved origins on SW load.
+syncApprovedOriginsFromChrome().catch(() => {});
+
+// WS-3 Phase 6 §10 — drain offline snippet queue on SW load.
+processSnippetQueue().catch(() => {});
 
 // WebSocket is optional -- only attempt if explicitly enabled
 // Next.js standalone doesn't support WS upgrade, so skip by default
