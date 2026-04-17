@@ -1,8 +1,10 @@
 /**
  * Hash utility for ExoChain entry integrity.
- * Uses SHA-256 via Web Crypto API (available in Node.js 18+).
- * Future: swap to BLAKE3 via @noble/hashes when installed.
+ * Uses BLAKE3 via @noble/hashes. Deterministic: same input -> same output.
+ * Output is a lowercase hex-encoded 32-byte (256-bit) digest.
  */
+
+import { blake3 } from '@noble/hashes/blake3.js';
 
 export async function computeEntryHash(
   prevHash: string | null,
@@ -18,8 +20,8 @@ export async function computeEntryHash(
   ].join('|');
 
   const encoder = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(input));
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashBytes = blake3(encoder.encode(input));
+  const hashArray = Array.from(hashBytes);
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
