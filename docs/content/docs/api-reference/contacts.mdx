@@ -75,7 +75,7 @@ Returns a paginated list of contacts with optional filtering and sorting.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/contacts?page=1&limit=10&tier=gold
+curl http://localhost:3750/api/contacts?page=1&limit=10&tier=gold
 ```
 
 **Error Codes:** `500`
@@ -143,7 +143,7 @@ Creates a new contact. The `linkedin_url` field is required and must be unique.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/contacts \
+curl -X POST http://localhost:3750/api/contacts \
   -H "Content-Type: application/json" \
   -d '{"linkedin_url":"https://linkedin.com/in/jdoe","first_name":"Jane","last_name":"Doe"}'
 ```
@@ -185,7 +185,7 @@ Returns a single contact by UUID.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/contacts/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+curl http://localhost:3750/api/contacts/a1b2c3d4-e5f6-7890-abcd-ef1234567890
 ```
 
 **Error Codes:** `400` (invalid UUID), `404` (not found), `500`
@@ -228,7 +228,7 @@ Allowed fields: `first_name`, `last_name`, `full_name`, `headline`, `title`,
 **curl:**
 
 ```bash
-curl -X PATCH http://localhost:3000/api/contacts/UUID \
+curl -X PATCH http://localhost:3750/api/contacts/UUID \
   -H "Content-Type: application/json" \
   -d '{"tags":["gold-prospect"]}'
 ```
@@ -258,7 +258,7 @@ Permanently deletes a contact.
 **curl:**
 
 ```bash
-curl -X DELETE http://localhost:3000/api/contacts/UUID
+curl -X DELETE http://localhost:3750/api/contacts/UUID
 ```
 
 **Error Codes:** `400` (invalid UUID), `404` (not found), `500`
@@ -306,7 +306,7 @@ PostgreSQL trigram matching.
 **curl:**
 
 ```bash
-curl "http://localhost:3000/api/contacts/search?q=engineering&limit=5"
+curl "http://localhost:3750/api/contacts/search?q=engineering&limit=5"
 ```
 
 **Error Codes:** `400` (missing/long query), `500`
@@ -361,7 +361,7 @@ keyword-only fallback mode, `vectorScore` is `0` and `fusionScore` equals
 **curl:**
 
 ```bash
-curl "http://localhost:3000/api/contacts/hybrid-search?q=machine+learning&limit=10"
+curl "http://localhost:3750/api/contacts/hybrid-search?q=machine+learning&limit=10"
 ```
 
 **Error Codes:** `400` (missing/long query), `500`
@@ -399,7 +399,7 @@ persona, and individual dimension scores.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/contacts/UUID/scores
+curl http://localhost:3750/api/contacts/UUID/scores
 ```
 
 **Error Codes:** `400` (missing ID), `404` (no scores), `500`
@@ -450,7 +450,7 @@ Each list is limited to the 50 most recent entries.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/contacts/UUID/activity
+curl http://localhost:3750/api/contacts/UUID/activity
 ```
 
 **Error Codes:** `400` (invalid UUID), `500`
@@ -495,7 +495,7 @@ Each list is limited to 20 entries.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/contacts/UUID/network
+curl http://localhost:3750/api/contacts/UUID/network
 ```
 
 **Error Codes:** `400` (invalid UUID), `500`
@@ -537,7 +537,7 @@ returned which fields and at what cost.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/contacts/UUID/enrichment-history
+curl http://localhost:3750/api/contacts/UUID/enrichment-history
 ```
 
 **Error Codes:** `400` (invalid UUID), `500`

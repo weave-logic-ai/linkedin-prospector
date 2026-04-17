@@ -66,7 +66,7 @@ docker compose ps
 You should see both `ctox-db` and `ctox-app` with status `healthy`. You can also verify with a direct health check:
 
 ```bash title="Terminal"
-curl http://localhost:3000/api/health
+curl http://localhost:3750/api/health
 ```
 
 <Callout>
@@ -75,7 +75,7 @@ If the app container is not yet healthy, wait 30 seconds and try again. The data
 
 ### Open the dashboard
 
-Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
+Navigate to [http://localhost:3750](http://localhost:3750) in your browser.
 
 <Callout>
 Screenshot: Dashboard before any data is imported — empty state with import prompt.
@@ -94,7 +94,7 @@ Screenshot: Import page showing upload progress and parsed contact count.
 You can also import via the API:
 
 ```bash title="Terminal"
-curl -X POST http://localhost:3000/api/import/csv \
+curl -X POST http://localhost:3750/api/import/csv \
   -F "file=@/path/to/Connections.csv"
 ```
 

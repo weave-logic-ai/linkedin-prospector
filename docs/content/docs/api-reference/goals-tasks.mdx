@@ -51,7 +51,7 @@ Returns all goals, optionally filtered by status.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/goals?status=active
+curl http://localhost:3750/api/goals?status=active
 ```
 
 **Error Codes:** `500`
@@ -97,7 +97,7 @@ POST /api/goals
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/goals \
+curl -X POST http://localhost:3750/api/goals \
   -H "Content-Type: application/json" \
   -d '{"title":"Enrich all silver contacts","priority":2}'
 ```
@@ -127,7 +127,7 @@ Returns a single goal with associated task data.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/goals/UUID
+curl http://localhost:3750/api/goals/UUID
 ```
 
 **Error Codes:** `400` (invalid UUID), `404`, `500`
@@ -232,7 +232,7 @@ Returns tasks with optional filtering.
 **curl:**
 
 ```bash
-curl "http://localhost:3000/api/tasks?status=pending&limit=10"
+curl "http://localhost:3750/api/tasks?status=pending&limit=10"
 ```
 
 **Error Codes:** `500`
@@ -387,7 +387,7 @@ operations (enrichment, scoring, imports, updates) for audit and undo purposes.
 **curl:**
 
 ```bash
-curl "http://localhost:3000/api/actions?actionType=enrich&limit=20"
+curl "http://localhost:3750/api/actions?actionType=enrich&limit=20"
 ```
 
 **Error Codes:** `500`
@@ -454,7 +454,7 @@ action log entry.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/actions/UUID
+curl -X POST http://localhost:3750/api/actions/UUID
 ```
 
 **Error Codes:** `404` (not found or already reverted), `500`
@@ -497,7 +497,7 @@ Returns the single highest-value next action to take. The system evaluates, in o
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/actions/next
+curl http://localhost:3750/api/actions/next
 ```
 
 **Error Codes:** `500`

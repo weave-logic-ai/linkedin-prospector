@@ -18,7 +18,7 @@ docker compose up -d
 
 # Verify health
 docker compose ps
-curl http://localhost:3000/api/health
+curl http://localhost:3750/api/health
 ```
 
 ## Docker Compose Configuration
@@ -183,7 +183,7 @@ NetworkNav does not terminate SSL directly. Use a reverse proxy for HTTPS:
 
 ```
 networknav.yourdomain.com {
-    reverse_proxy localhost:3000
+    reverse_proxy localhost:3750
 }
 ```
 
@@ -311,7 +311,7 @@ docker compose logs -f db
 ### Application health
 
 ```bash
-curl -s http://localhost:3000/api/health | jq .
+curl -s http://localhost:3750/api/health | jq .
 ```
 
 ### Database statistics

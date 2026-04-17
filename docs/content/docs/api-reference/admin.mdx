@@ -70,7 +70,7 @@ Status values: `healthy` or `degraded`.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/admin/health
+curl http://localhost:3750/api/admin/health
 ```
 
 **Error Codes:** `503` (degraded)
@@ -100,7 +100,7 @@ the downloaded file according to your data protection policy.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/admin/export -o contacts-export.csv
+curl http://localhost:3750/api/admin/export -o contacts-export.csv
 ```
 
 **Error Codes:** `500`
@@ -137,7 +137,7 @@ Returns the default scoring weight profile.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/admin/scoring
+curl http://localhost:3750/api/admin/scoring
 ```
 
 **Error Codes:** `404` (no default profile), `500`
@@ -196,7 +196,7 @@ Update scoring weights with an option to trigger a batch rescore.
 **curl:**
 
 ```bash
-curl -X PUT http://localhost:3000/api/admin/scoring \
+curl -X PUT http://localhost:3750/api/admin/scoring \
   -H "Content-Type: application/json" \
   -d '{"weights":{"icp_fit":0.2,"network_hub":0.15,"relationship_strength":0.15,"signal_boost":0.1,"skills_relevance":0.1,"network_proximity":0.1,"behavioral":0.05,"content_relevance":0.05,"graph_centrality":0.1},"triggerRescore":true}'
 ```
@@ -262,7 +262,7 @@ to the `contacts` and `all` scopes).
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/purge \
+curl -X POST http://localhost:3750/api/admin/purge \
   -H "Content-Type: application/json" \
   -d '{"scope":"scoring","confirmToken":"CONFIRM_PURGE"}'
 ```
@@ -322,7 +322,7 @@ is required on this endpoint -- restrict access at the network/proxy layer in pr
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/erasure \
+curl -X POST http://localhost:3750/api/admin/erasure \
   -H "Content-Type: application/json" \
   -d '{"contactId":"UUID","confirmToken":"CONFIRM_ERASURE"}'
 ```
@@ -376,7 +376,7 @@ Returns `{ "pair": null }` if fewer than 2 scored contacts exist.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/admin/rvf
+curl http://localhost:3750/api/admin/rvf
 ```
 
 **Error Codes:** `500`
@@ -421,7 +421,7 @@ Submit a comparison result indicating which contact is more valuable.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/rvf \
+curl -X POST http://localhost:3750/api/admin/rvf \
   -H "Content-Type: application/json" \
   -d '{"winnerId":"UUID1","loserId":"UUID2","isEqual":false}'
 ```

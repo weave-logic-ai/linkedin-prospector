@@ -79,7 +79,7 @@ Batch results are capped at 100 entries in the response.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/scoring/run \
+curl -X POST http://localhost:3750/api/scoring/run \
   -H "Content-Type: application/json" \
   -d '{"contactId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890"}'
 ```
@@ -128,7 +128,7 @@ Returns all saved weight profiles.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/scoring/weights
+curl http://localhost:3750/api/scoring/weights
 ```
 
 **Error Codes:** `500`
@@ -189,7 +189,7 @@ Create or update a weight profile. Weights must sum to 1.0 (within 0.01 toleranc
 **curl:**
 
 ```bash
-curl -X PUT http://localhost:3000/api/scoring/weights \
+curl -X PUT http://localhost:3750/api/scoring/weights \
   -H "Content-Type: application/json" \
   -d '{"name":"balanced","weights":{"icp_fit":0.2,"network_hub":0.15,"relationship_strength":0.15,"signal_boost":0.1,"skills_relevance":0.1,"network_proximity":0.1,"behavioral":0.05,"content_relevance":0.05,"graph_centrality":0.1}}'
 ```
@@ -233,7 +233,7 @@ Preview how changing weights would affect contact scores without persisting.
 **curl:**
 
 ```bash
-curl "http://localhost:3000/api/scoring/preview?weights=%7B%22icp_fit%22%3A0.3%7D&limit=5"
+curl "http://localhost:3750/api/scoring/preview?weights=%7B%22icp_fit%22%3A0.3%7D&limit=5"
 ```
 
 **Error Codes:** `400` (missing/invalid weights JSON), `500`
@@ -268,7 +268,7 @@ polled via the status endpoint.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/scoring/rescore-all
+curl -X POST http://localhost:3750/api/scoring/rescore-all
 ```
 
 **Error Codes:** `500`
@@ -311,7 +311,7 @@ Returns `{ "data": null }` if no scoring runs exist.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/scoring/status?runId=UUID
+curl http://localhost:3750/api/scoring/status?runId=UUID
 ```
 
 **Error Codes:** `500`

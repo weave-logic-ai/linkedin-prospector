@@ -91,3 +91,7 @@ agent/linkedin-prospector/app/data/
 
 tasks.md
 .claude/settings.json
+
+# WeftOS
+.weftos/
+graphify-out/

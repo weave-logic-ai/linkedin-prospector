@@ -165,7 +165,7 @@ Scores update automatically in response to certain Discover page actions:
 Manage niches and ICPs programmatically:
 
 ```bash title="Create a niche"
-curl -X POST http://localhost:3000/api/niches \
+curl -X POST http://localhost:3750/api/niches \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Mid-Market SaaS",
@@ -177,7 +177,7 @@ curl -X POST http://localhost:3000/api/niches \
 ```
 
 ```bash title="Create an ICP"
-curl -X POST http://localhost:3000/api/icps \
+curl -X POST http://localhost:3750/api/icps \
   -H "Content-Type: application/json" \
   -d '{
     "nicheId": "niche-uuid",
@@ -192,7 +192,7 @@ curl -X POST http://localhost:3000/api/icps \
 ```
 
 ```bash title="List contacts matching an ICP"
-curl http://localhost:3000/api/icps/icp-uuid/contacts
+curl http://localhost:3750/api/icps/icp-uuid/contacts
 ```
 
 ## Best Practices

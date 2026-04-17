@@ -210,7 +210,7 @@ registerBtn.addEventListener('click', async () => {
   try {
     const appUrl = await new Promise<string>((resolve) => {
       chrome.storage.local.get('appUrl', (result) => {
-        resolve((result.appUrl as string) || 'http://localhost:3000');
+        resolve((result.appUrl as string) || 'http://localhost:3750');
       });
     });
 
@@ -298,7 +298,7 @@ async function loadTemplates(): Promise<void> {
   try {
     const appUrl = await new Promise<string>((resolve) => {
       chrome.storage.local.get('appUrl', (result) => {
-        resolve((result.appUrl as string) || 'http://localhost:3000');
+        resolve((result.appUrl as string) || 'http://localhost:3750');
       });
     });
 
@@ -378,7 +378,7 @@ personalizeBtn.addEventListener('click', async () => {
   try {
     const appUrl = await new Promise<string>((resolve) => {
       chrome.storage.local.get('appUrl', (result) => {
-        resolve((result.appUrl as string) || 'http://localhost:3000');
+        resolve((result.appUrl as string) || 'http://localhost:3750');
       });
     });
 
@@ -419,7 +419,7 @@ async function loadSettings(): Promise<void> {
     chrome.storage.local.get(
       ['appUrl', 'autoCapture', 'autoPaginate', 'captureLimit', 'overlayPosition'],
       (result) => {
-        settingAppUrl.value = (result.appUrl as string) || 'http://localhost:3000';
+        settingAppUrl.value = (result.appUrl as string) || 'http://localhost:3750';
         settingAutoCapture.checked = !!result.autoCapture;
         settingAutoPaginate.checked = !!result.autoPaginate;
         settingCaptureLimit.value = String(result.captureLimit ?? 50);

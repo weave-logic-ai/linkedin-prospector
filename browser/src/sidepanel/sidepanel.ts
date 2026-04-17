@@ -236,7 +236,7 @@ async function loadSidepanelTemplates(): Promise<void> {
   try {
     const appUrl = await new Promise<string>((resolve) => {
       chrome.storage.local.get('appUrl', (result) => {
-        resolve((result.appUrl as string) || 'http://localhost:3000');
+        resolve((result.appUrl as string) || 'http://localhost:3750');
       });
     });
 
@@ -375,7 +375,7 @@ spPersonalizeBtn.addEventListener('click', async () => {
   try {
     const appUrl = await new Promise<string>((resolve) => {
       chrome.storage.local.get('appUrl', (result) => {
-        resolve((result.appUrl as string) || 'http://localhost:3000');
+        resolve((result.appUrl as string) || 'http://localhost:3750');
       });
     });
 
@@ -464,7 +464,7 @@ let lastRenderedLock: string = '';
 async function getAppUrlBase(): Promise<string> {
   return new Promise((resolve) => {
     chrome.storage.local.get('appUrl', (result) => {
-      resolve((result.appUrl as string) || 'http://localhost:3000');
+      resolve((result.appUrl as string) || 'http://localhost:3750');
     });
   });
 }

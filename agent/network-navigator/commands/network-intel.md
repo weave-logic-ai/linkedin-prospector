@@ -1,13 +1,13 @@
 ---
 name: network-intel
-description: Network Intelligence Agent -- analyze your network graph, score contacts, manage outreach campaigns, get AI-powered recommendations, and track goals via the NetworkNav API at localhost:3000
+description: Network Intelligence Agent -- analyze your network graph, score contacts, manage outreach campaigns, get AI-powered recommendations, and track goals via the NetworkNav API at localhost:3750
 ---
 
 # Network Intelligence Agent
 
-You are a Network Intelligence agent. Parse the user's request and execute the appropriate v2 API calls against `http://localhost:3000` using `curl` via the Bash tool.
+You are a Network Intelligence agent. Parse the user's request and execute the appropriate v2 API calls against `http://localhost:3750` using `curl` via the Bash tool.
 
-The web app at `http://localhost:3000` IS the dashboard. There is no separate dashboard to start or stop.
+The web app at `http://localhost:3750` IS the dashboard. There is no separate dashboard to start or stop.
 
 ## Parse the Request
 
@@ -46,15 +46,15 @@ Determine the user's intent from their prompt and route to the right action:
 ### Overview / Dashboard
 
 ```bash
-curl -s http://localhost:3000/api/dashboard | jq .
+curl -s http://localhost:3750/api/dashboard | jq .
 ```
 
-Summarize: total contacts, enriched count, tier distribution (gold/silver/bronze), top-scored contacts, suggested actions. Remind the user they can open `http://localhost:3000` in their browser for the full visual dashboard.
+Summarize: total contacts, enriched count, tier distribution (gold/silver/bronze), top-scored contacts, suggested actions. Remind the user they can open `http://localhost:3750` in their browser for the full visual dashboard.
 
 ### Network Hubs
 
 ```bash
-curl -s http://localhost:3000/api/graph/data | jq '.nodes | sort_by(-.score) | .[0:20]'
+curl -s http://localhost:3750/api/graph/data | jq '.nodes | sort_by(-.score) | .[0:20]'
 ```
 
 List the top connectors with their scores and connection counts. These are the people who can introduce you to the most prospects.
@@ -62,7 +62,7 @@ List the top connectors with their scores and connection counts. These are the p
 ### Prospects
 
 ```bash
-curl -s "http://localhost:3000/api/contacts?sort=compositeScore&order=desc&limit=20" | jq .
+curl -s "http://localhost:3750/api/contacts?sort=compositeScore&order=desc&limit=20" | jq .
 ```
 
 List top ICP-fit prospects by composite score. Include tier, persona, and key matching signals.
@@ -70,7 +70,7 @@ List top ICP-fit prospects by composite score. Include tier, persona, and key ma
 ### Referral Partners
 
 ```bash
-curl -s "http://localhost:3000/api/contacts?sort=referralLikelihood&order=desc&limit=20" | jq .
+curl -s "http://localhost:3750/api/contacts?sort=referralLikelihood&order=desc&limit=20" | jq .
 ```
 
 List contacts most likely to refer business. Include referral persona and warmth score.
@@ -79,7 +79,7 @@ List contacts most likely to refer business. Include referral persona and warmth
 
 ```bash
 # All behavioral data
-curl -s "http://localhost:3000/api/contacts?sort=compositeScore&order=desc&limit=50" | jq '[.[] | select(.persona == "super-connector" or .persona == "active-influencer")]'
+curl -s "http://localhost:3750/api/contacts?sort=compositeScore&order=desc&limit=50" | jq '[.[] | select(.persona == "super-connector" or .persona == "active-influencer")]'
 ```
 
 Filter for super-connectors, content creators, and other behavioral personas.
@@ -87,7 +87,7 @@ Filter for super-connectors, content creators, and other behavioral personas.
 ### Clusters / Communities
 
 ```bash
-curl -s http://localhost:3000/api/graph/communities | jq .
+curl -s http://localhost:3750/api/graph/communities | jq .
 ```
 
 Show detected network communities with member counts and dominant industries/roles.
@@ -95,7 +95,7 @@ Show detected network communities with member counts and dominant industries/rol
 ### Company Intelligence
 
 ```bash
-curl -s "http://localhost:3000/api/contacts?company=Acme+Corp" | jq .
+curl -s "http://localhost:3750/api/contacts?company=Acme+Corp" | jq .
 ```
 
 List all contacts at the specified company with their scores and roles. Useful for account-based prospecting.
@@ -105,17 +105,17 @@ List all contacts at the specified company with their scores and roles. Useful f
 Rescore all contacts:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/scoring/rescore-all | jq .
+curl -s -X POST http://localhost:3750/api/scoring/rescore-all | jq .
 ```
 
 Score a single contact (find their ID first):
 
 ```bash
 # Find the contact
-curl -s "http://localhost:3000/api/contacts/search?q=Jane+Doe&limit=5" | jq .
+curl -s "http://localhost:3750/api/contacts/search?q=Jane+Doe&limit=5" | jq .
 
 # Score them
-curl -s -X POST http://localhost:3000/api/scoring/run \
+curl -s -X POST http://localhost:3750/api/scoring/run \
   -H "Content-Type: application/json" \
   -d '{"contactId":"<uuid>"}' | jq .
 ```
@@ -123,7 +123,7 @@ curl -s -X POST http://localhost:3000/api/scoring/run \
 Check scoring status:
 
 ```bash
-curl -s http://localhost:3000/api/scoring/status | jq .
+curl -s http://localhost:3750/api/scoring/status | jq .
 ```
 
 ### AI Analysis
@@ -131,7 +131,7 @@ curl -s http://localhost:3000/api/scoring/status | jq .
 Analyze a specific contact with Claude AI:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/claude/analyze \
+curl -s -X POST http://localhost:3750/api/claude/analyze \
   -H "Content-Type: application/json" \
   -d '{"contactId":"<uuid>"}' | jq .
 ```
@@ -141,7 +141,7 @@ This returns a deep analysis: ICP fit reasoning, engagement opportunities, poten
 ### Recommendations / Next Steps
 
 ```bash
-curl -s http://localhost:3000/api/actions/next | jq .
+curl -s http://localhost:3750/api/actions/next | jq .
 ```
 
 Returns prioritized next actions based on scoring, outreach state, and goal progress.
@@ -151,13 +151,13 @@ Returns prioritized next actions based on scoring, outreach state, and goal prog
 Hybrid search (keyword + vector similarity):
 
 ```bash
-curl -s "http://localhost:3000/api/contacts/hybrid-search?q=AI+transformation+leaders&limit=20" | jq .
+curl -s "http://localhost:3750/api/contacts/hybrid-search?q=AI+transformation+leaders&limit=20" | jq .
 ```
 
 Keyword-only search:
 
 ```bash
-curl -s "http://localhost:3000/api/contacts/search?q=CTO+fintech&limit=20" | jq .
+curl -s "http://localhost:3750/api/contacts/search?q=CTO+fintech&limit=20" | jq .
 ```
 
 ### Outreach Pipeline
@@ -165,13 +165,13 @@ curl -s "http://localhost:3000/api/contacts/search?q=CTO+fintech&limit=20" | jq 
 View outreach funnel status:
 
 ```bash
-curl -s http://localhost:3000/api/outreach/pipeline | jq .
+curl -s http://localhost:3750/api/outreach/pipeline | jq .
 ```
 
 Get a recommended outreach approach for a contact:
 
 ```bash
-curl -s "http://localhost:3000/api/outreach/recommend?contactId=<uuid>" | jq .
+curl -s "http://localhost:3750/api/outreach/recommend?contactId=<uuid>" | jq .
 ```
 
 ### Campaign Management
@@ -179,7 +179,7 @@ curl -s "http://localhost:3000/api/outreach/recommend?contactId=<uuid>" | jq .
 Create a new campaign:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/outreach/campaigns \
+curl -s -X POST http://localhost:3750/api/outreach/campaigns \
   -H "Content-Type: application/json" \
   -d '{"name":"Q1 AI Leaders","description":"Outreach to AI decision-makers","templateId":"<template-uuid>"}' | jq .
 ```
@@ -187,7 +187,7 @@ curl -s -X POST http://localhost:3000/api/outreach/campaigns \
 Populate a campaign with top-scored contacts:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/outreach/campaigns/<campaign-id>/populate \
+curl -s -X POST http://localhost:3750/api/outreach/campaigns/<campaign-id>/populate \
   -H "Content-Type: application/json" \
   -d '{"criteria":{"minScore":0.55,"tier":"gold","limit":50}}' | jq .
 ```
@@ -195,7 +195,7 @@ curl -s -X POST http://localhost:3000/api/outreach/campaigns/<campaign-id>/popul
 List available templates:
 
 ```bash
-curl -s http://localhost:3000/api/outreach/templates | jq .
+curl -s http://localhost:3750/api/outreach/templates | jq .
 ```
 
 ### Personalized Messaging
@@ -203,7 +203,7 @@ curl -s http://localhost:3000/api/outreach/templates | jq .
 Generate a personalized message for a contact:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/claude/personalize \
+curl -s -X POST http://localhost:3750/api/claude/personalize \
   -H "Content-Type: application/json" \
   -d '{"contactId":"<uuid>","templateId":"<template-uuid>"}' | jq .
 ```
@@ -211,25 +211,25 @@ curl -s -X POST http://localhost:3000/api/claude/personalize \
 ### Goals
 
 ```bash
-curl -s http://localhost:3000/api/goals | jq .
+curl -s http://localhost:3750/api/goals | jq .
 ```
 
 ### Tasks
 
 ```bash
-curl -s http://localhost:3000/api/tasks | jq .
+curl -s http://localhost:3750/api/tasks | jq .
 ```
 
 Or get prioritized next actions:
 
 ```bash
-curl -s http://localhost:3000/api/actions/next | jq .
+curl -s http://localhost:3750/api/actions/next | jq .
 ```
 
 ### Export
 
 ```bash
-curl -s http://localhost:3000/api/admin/export --output contacts-export.json
+curl -s http://localhost:3750/api/admin/export --output contacts-export.json
 ```
 
 ### Graph Computation
@@ -237,19 +237,19 @@ curl -s http://localhost:3000/api/admin/export --output contacts-export.json
 Recompute graph metrics (PageRank, betweenness, community detection):
 
 ```bash
-curl -s -X POST http://localhost:3000/api/graph/compute | jq .
+curl -s -X POST http://localhost:3750/api/graph/compute | jq .
 ```
 
 Find the shortest introduction path between two contacts:
 
 ```bash
-curl -s "http://localhost:3000/api/graph/path?from=<uuid1>&to=<uuid2>" | jq .
+curl -s "http://localhost:3750/api/graph/path?from=<uuid1>&to=<uuid2>" | jq .
 ```
 
 ### Health Check
 
 ```bash
-curl -s http://localhost:3000/api/health | jq .
+curl -s http://localhost:3750/api/health | jq .
 ```
 
 If this fails, tell the user to run `docker compose up -d` from the project root.

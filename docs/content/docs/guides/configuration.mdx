@@ -239,11 +239,11 @@ ICP criteria define who your Ideal Customer Profile is. These criteria directly 
 ICPs are managed from the Discover page (see [Discover guide](/docs/guides/discover)). You can also manage them via API:
 
 ```bash title="List all ICPs"
-curl http://localhost:3000/api/icps
+curl http://localhost:3750/api/icps
 ```
 
 ```bash title="Update ICP criteria"
-curl -X PATCH http://localhost:3000/api/icps/icp-uuid \
+curl -X PATCH http://localhost:3750/api/icps/icp-uuid \
   -H "Content-Type: application/json" \
   -d '{
     "criteria": {
@@ -260,7 +260,7 @@ curl -X PATCH http://localhost:3000/api/icps/icp-uuid \
 Each ICP can override the global scoring weights. This lets you emphasize different dimensions for different buyer profiles:
 
 ```bash title="Set weight overrides for an ICP"
-curl -X PATCH http://localhost:3000/api/icps/icp-uuid \
+curl -X PATCH http://localhost:3750/api/icps/icp-uuid \
   -H "Content-Type: application/json" \
   -d '{
     "weightOverrides": {
@@ -286,11 +286,11 @@ Outreach templates are managed from the Outreach page. For configuration purpose
 ### Managing Templates via API
 
 ```bash title="List templates"
-curl http://localhost:3000/api/outreach/templates
+curl http://localhost:3750/api/outreach/templates
 ```
 
 ```bash title="Update a template"
-curl -X PATCH http://localhost:3000/api/outreach/templates/template-uuid \
+curl -X PATCH http://localhost:3750/api/outreach/templates/template-uuid \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Updated Template Name",
@@ -299,7 +299,7 @@ curl -X PATCH http://localhost:3000/api/outreach/templates/template-uuid \
 ```
 
 ```bash title="Delete a template"
-curl -X DELETE http://localhost:3000/api/outreach/templates/template-uuid
+curl -X DELETE http://localhost:3750/api/outreach/templates/template-uuid
 ```
 
 ## Configuration Checklist

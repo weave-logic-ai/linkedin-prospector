@@ -1,6 +1,6 @@
-# Release v1.0.0 — Development Notes
+# Release v0.5.0 — Development Notes
 
-**Tag**: `v1.0.0` (proposed — first tagged release on this repo; `app/package.json` realigned from `2.0.0` → `1.0.0` for this cadence)
+**Tag**: `v0.5.0` (proposed — first tagged release on this repo; `app/package.json` and `service-manifest.json` both realigned from `2.0.0` → `0.5.0` to signal pre-1.0 cadence)
 **Branch at prep time**: `feat/ecc-hardening-b6-port`
 **Target merge base**: `main` (`6a72d17`)
 **Date drafted**: 2026-04-17
@@ -51,7 +51,7 @@ Totals: 43 files changed, ~4200 insertions, ~60 deletions (mostly test code + do
 
 ## Version choices
 
-- Public cadence starts at `v1.0.0` per user direction ("stay in 1.x.x for now"). `app/package.json` was realigned from `2.0.0` → `1.0.0` as part of this prep; only the Next.js toolchain reads it and nothing at runtime keys off that literal. Extension-handshake version (`app/src/app/api/extension/health/route.ts`) and parser schema version (`app/src/lib/parser/parsers/profile-parser.ts`) are separate tracks and were intentionally left at `'2.0.0'`.
+- Public cadence starts at `v0.5.0`. `app/package.json` and `service-manifest.json` realigned from `2.0.0` → `0.5.0` as part of this prep. `service-manifest.json`'s app port also corrected from `3000` → `3750` to match the new docker-compose binding. Only the Next.js toolchain and the service manifest read these values; nothing at runtime keys off the literal strings. Extension-handshake version (`app/src/app/api/extension/health/route.ts`) and parser schema version (`app/src/lib/parser/parsers/profile-parser.ts`) are separate tracks and were intentionally left at `'2.0.0'`.
 - `browser/package.json` stays at `0.1.0`. The extension hasn't been published to the Chrome Web Store and isn't a separately consumed artifact; its version bump can come with a distinct extension release when that happens.
 - `docs/package.json` stays at `1.0.0`. Fumadocs site, separate deployment.
 
@@ -70,16 +70,16 @@ cd browser && npm run build && cd ..
 gh pr create \
   --base main \
   --head feat/ecc-hardening-b6-port \
-  --title "Release v1.0.0 — ECC hardening, B6 gauges, extension target panel" \
-  --body-file docs/development_notes/release-v1.0.0.md
+  --title "Release v0.5.0 — ECC hardening, B6 gauges, extension target panel" \
+  --body-file docs/development_notes/release-v0.5.0.md
 
 # 3. Once merged, tag on main
 git checkout main
 git pull
-git tag -a v1.0.0 -m "$(cat <<'TAGMSG'
-Release v1.0.0 — ECC Phase 2 hardening + B6 gauges + extension target panel
+git tag -a v0.5.0 -m "$(cat <<'TAGMSG'
+Release v0.5.0 — ECC Phase 2 hardening + B6 gauges + extension target panel
 
-See CHANGELOG.md and docs/development_notes/release-v1.0.0.md for details.
+See CHANGELOG.md and docs/development_notes/release-v0.5.0.md for details.
 
 Highlights:
 - ExoChain BLAKE3 swap, impulse stubs finished, 128 new ECC tests
@@ -89,12 +89,12 @@ Highlights:
 - App container port moved to 3750
 TAGMSG
 )"
-git push origin v1.0.0
+git push origin v0.5.0
 
 # 4. Create the GitHub Release from the tag
-gh release create v1.0.0 \
-  --title "v1.0.0 — ECC hardening, B6 gauges, extension target panel" \
-  --notes-file docs/development_notes/release-v1.0.0.md \
+gh release create v0.5.0 \
+  --title "v0.5.0 — ECC hardening, B6 gauges, extension target panel" \
+  --notes-file docs/development_notes/release-v0.5.0.md \
   --target main
 ```
 

@@ -18,8 +18,8 @@ The project has three services orchestrated with Docker Compose:
 
 | Service | Port | Description |
 |---------|------|-------------|
-| **app** | 3000 | Next.js web dashboard (contact management, enrichment, scoring, outreach) |
-| **db** | 5432 | PostgreSQL with pgvector (19 schema migrations, vector search, graph sync triggers) |
+| **app** | 3750 | Next.js web dashboard (contact management, enrichment, scoring, outreach) |
+| **db** | 5432 | PostgreSQL with pgvector (32+ schema migrations, vector search, graph sync triggers) |
 | **docs** | 3001 | Fumadocs documentation site (Next.js, KaTeX math support) |
 
 Additional components:
@@ -71,8 +71,8 @@ docker compose up -d
 
 This starts the database (with automatic schema initialization) and the app. The app waits for the database health check to pass before starting.
 
-- **App**: http://localhost:3000
-- **API health check**: http://localhost:3000/api/health
+- **App**: http://localhost:3750
+- **API health check**: http://localhost:3750/api/health
 
 ### 4. Start the docs site (optional)
 

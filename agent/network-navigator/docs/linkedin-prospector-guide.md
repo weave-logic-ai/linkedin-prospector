@@ -38,7 +38,7 @@ LinkedIn Prospector is a network intelligence tool built on a Next.js applicatio
 ```
 +-------------------+     +-------------------+     +-------------------+
 |  Browser          |     |  Next.js App      |     |  PostgreSQL       |
-|  Extension        |     |  (localhost:3000)  |     |  + ruvector       |
+|  Extension        |     |  (localhost:3750)  |     |  + ruvector       |
 |                   |     |                   |     |                   |
 |  Capture profiles |---->|  REST API layer   |---->|  Contacts, scores |
 |  Side panel UI    |     |  Scoring engine   |     |  Embeddings (HNSW)|
@@ -174,7 +174,7 @@ node agent/network-navigator/skills/linkedin-prospector/scripts/configure.mjs va
 
 # 5. Capture contacts via browser extension (browse LinkedIn)
 
-# 6. Review results in the dashboard at http://localhost:3000
+# 6. Review results in the dashboard at http://localhost:3750
 ```
 
 ---
@@ -204,7 +204,7 @@ The `/linkedin-prospector` slash command handles configuration, capture guidance
 
 1. **Checks existing data first** -- Before suggesting actions, the agent calls the API to see current contact counts and scoring status.
 2. **Guides capture via extension** -- Instructs the user on how to use the browser extension to capture profiles.
-3. **Calls APIs directly** -- All data operations go through the REST API at localhost:3000.
+3. **Calls APIs directly** -- All data operations go through the REST API at localhost:3750.
 
 ---
 
@@ -347,7 +347,7 @@ New contacts captured via the browser extension are automatically scored. Manual
 
 ### Reviewing Distributions
 
-Use the dashboard at `http://localhost:3000` to see tier distributions, or ask the agent:
+Use the dashboard at `http://localhost:3750` to see tier distributions, or ask the agent:
 
 ```
 /network-intel give me an overview
@@ -372,8 +372,8 @@ After updating weights, trigger `POST /api/scoring/rescore-all`.
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| App not responding at localhost:3000 | Docker containers not running | Run `docker compose up -d` and check `docker compose logs app` |
-| Extension shows "Not connected" | App not running or wrong URL | Ensure the app is up; check extension settings point to localhost:3000 |
+| App not responding at localhost:3750 | Docker containers not running | Run `docker compose up -d` and check `docker compose logs app` |
+| Extension shows "Not connected" | App not running or wrong URL | Ensure the app is up; check extension settings point to localhost:3750 |
 | No contacts appearing | Extension not capturing | Verify extension is loaded; check the side panel while browsing LinkedIn |
 | Contacts not scored | Scoring pipeline not triggered | Call `POST /api/scoring/rescore-all` |
 | "Failed to create ICP" | Invalid criteria format | Ensure `criteria` is an object with valid fields (roles, industries, signals) |
@@ -419,7 +419,7 @@ All v2 agent scripts are in `agent/network-navigator/skills/linkedin-prospector/
 - `put(path, body)` -- PUT request with JSON body
 - `del(path)` -- DELETE request
 
-Base URL defaults to `http://localhost:3000`. Override with `NETWORKNAV_URL` env var.
+Base URL defaults to `http://localhost:3750`. Override with `NETWORKNAV_URL` env var.
 
 ### configure.mjs
 

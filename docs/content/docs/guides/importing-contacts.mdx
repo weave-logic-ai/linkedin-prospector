@@ -111,7 +111,7 @@ Screenshot: Import page upload wizard showing file selection and contact preview
 Upload a CSV file directly via the REST API:
 
 ```bash title="Terminal"
-curl -X POST http://localhost:3000/api/import/csv \
+curl -X POST http://localhost:3750/api/import/csv \
   -F "file=@Connections.csv" \
   -F "type=connections"
 ```
@@ -135,7 +135,7 @@ Response:
 If you have an unzipped LinkedIn export folder, you can import all supported CSVs at once:
 
 ```bash title="Terminal"
-curl -X POST http://localhost:3000/api/import/from-directory \
+curl -X POST http://localhost:3750/api/import/from-directory \
   -H "Content-Type: application/json" \
   -d '{"path": "/data/linkedin/LinkedinExport"}'
 ```

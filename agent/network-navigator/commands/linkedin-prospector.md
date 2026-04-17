@@ -1,11 +1,11 @@
 ---
 name: linkedin-prospector
-description: Configure ICP profiles, import contacts via CSV or extension, enrich profiles via waterfall pipeline, search and score contacts -- all through the NetworkNav API at localhost:3000
+description: Configure ICP profiles, import contacts via CSV or extension, enrich profiles via waterfall pipeline, search and score contacts -- all through the NetworkNav API at localhost:3750
 ---
 
 # LinkedIn Prospector
 
-You are a LinkedIn prospecting assistant. Parse the user's request and execute the appropriate v2 API calls against `http://localhost:3000` using `curl` via the Bash tool.
+You are a LinkedIn prospecting assistant. Parse the user's request and execute the appropriate v2 API calls against `http://localhost:3750` using `curl` via the Bash tool.
 
 ## Parse the Request
 
@@ -65,7 +65,7 @@ Include synonyms: "ecommerce" and "e-commerce", "saas" and "software", etc.
 
 ```bash
 # Create ICP profile
-curl -s -X POST http://localhost:3000/api/icps \
+curl -s -X POST http://localhost:3750/api/icps \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Service Name",
@@ -80,7 +80,7 @@ curl -s -X POST http://localhost:3000/api/icps \
   }' | jq .
 
 # Create niche definitions
-curl -s -X POST http://localhost:3000/api/niches \
+curl -s -X POST http://localhost:3750/api/niches \
   -H "Content-Type: application/json" \
   -d '{
     "name": "AI/ML",
@@ -88,7 +88,7 @@ curl -s -X POST http://localhost:3000/api/niches \
   }' | jq .
 
 # Create offering
-curl -s -X POST http://localhost:3000/api/offerings \
+curl -s -X POST http://localhost:3750/api/offerings \
   -H "Content-Type: application/json" \
   -d '{
     "name": "AI Consulting",
@@ -102,13 +102,13 @@ Repeat for each service the user described.
 
 ```bash
 # List all ICP profiles to confirm
-curl -s http://localhost:3000/api/icps | jq .
+curl -s http://localhost:3750/api/icps | jq .
 
 # List all niches
-curl -s http://localhost:3000/api/niches | jq .
+curl -s http://localhost:3750/api/niches | jq .
 
 # List all offerings
-curl -s http://localhost:3000/api/offerings | jq .
+curl -s http://localhost:3750/api/offerings | jq .
 ```
 
 Report back: N profiles created, N niches, N offerings, all saved to the database. Suggest next step: "Import your contacts with `/linkedin-prospector import my CSV` or use the Chrome extension to capture profiles while browsing LinkedIn."
@@ -125,7 +125,7 @@ Report back: N profiles created, N niches, N offerings, all saved to the databas
 Before any operation, verify the app is running:
 
 ```bash
-curl -s http://localhost:3000/api/health | jq .
+curl -s http://localhost:3750/api/health | jq .
 ```
 
 If this fails, tell the user to run `docker compose up -d` from the project root.
@@ -134,14 +134,14 @@ If this fails, tell the user to run `docker compose up -d` from the project root
 
 ```bash
 # Upload a CSV file
-curl -s -X POST http://localhost:3000/api/import/upload \
+curl -s -X POST http://localhost:3750/api/import/upload \
   -F "file=@/path/to/contacts.csv" | jq .
 ```
 
 Or import from the default LinkedIn export directory:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/import/from-directory \
+curl -s -X POST http://localhost:3750/api/import/from-directory \
   -H "Content-Type: application/json" \
   -d '{}' | jq .
 ```
@@ -155,7 +155,7 @@ The Chrome extension captures profiles passively as the user browses LinkedIn. G
 Check extension health:
 
 ```bash
-curl -s http://localhost:3000/api/extension/health | jq .
+curl -s http://localhost:3750/api/extension/health | jq .
 ```
 
 ### Enrich
@@ -163,7 +163,7 @@ curl -s http://localhost:3000/api/extension/health | jq .
 Enrich a single contact:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/enrichment/enrich \
+curl -s -X POST http://localhost:3750/api/enrichment/enrich \
   -H "Content-Type: application/json" \
   -d '{"contactId":"<uuid>"}' | jq .
 ```
@@ -171,7 +171,7 @@ curl -s -X POST http://localhost:3000/api/enrichment/enrich \
 Enrich multiple contacts:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/enrichment/enrich \
+curl -s -X POST http://localhost:3750/api/enrichment/enrich \
   -H "Content-Type: application/json" \
   -d '{"contactIds":["<uuid1>","<uuid2>","<uuid3>"]}' | jq .
 ```
@@ -179,13 +179,13 @@ curl -s -X POST http://localhost:3000/api/enrichment/enrich \
 Estimate cost before enriching:
 
 ```bash
-curl -s "http://localhost:3000/api/enrichment/estimate?contactId=<uuid>" | jq .
+curl -s "http://localhost:3750/api/enrichment/estimate?contactId=<uuid>" | jq .
 ```
 
 Check enrichment budget:
 
 ```bash
-curl -s http://localhost:3000/api/enrichment/budget | jq .
+curl -s http://localhost:3750/api/enrichment/budget | jq .
 ```
 
 ### Search
@@ -193,13 +193,13 @@ curl -s http://localhost:3000/api/enrichment/budget | jq .
 Keyword search:
 
 ```bash
-curl -s "http://localhost:3000/api/contacts/search?q=CTO+SaaS&limit=20" | jq .
+curl -s "http://localhost:3750/api/contacts/search?q=CTO+SaaS&limit=20" | jq .
 ```
 
 Hybrid search (keyword + vector similarity):
 
 ```bash
-curl -s "http://localhost:3000/api/contacts/hybrid-search?q=AI+transformation+leaders&limit=20" | jq .
+curl -s "http://localhost:3750/api/contacts/hybrid-search?q=AI+transformation+leaders&limit=20" | jq .
 ```
 
 ### Score
@@ -207,7 +207,7 @@ curl -s "http://localhost:3000/api/contacts/hybrid-search?q=AI+transformation+le
 Score a single contact:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/scoring/run \
+curl -s -X POST http://localhost:3750/api/scoring/run \
   -H "Content-Type: application/json" \
   -d '{"contactId":"<uuid>"}' | jq .
 ```
@@ -215,22 +215,22 @@ curl -s -X POST http://localhost:3000/api/scoring/run \
 Rescore all contacts:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/scoring/rescore-all | jq .
+curl -s -X POST http://localhost:3750/api/scoring/rescore-all | jq .
 ```
 
 Check scoring status:
 
 ```bash
-curl -s http://localhost:3000/api/scoring/status | jq .
+curl -s http://localhost:3750/api/scoring/status | jq .
 ```
 
 ### Status / Dashboard
 
 ```bash
-curl -s http://localhost:3000/api/dashboard | jq .
+curl -s http://localhost:3750/api/dashboard | jq .
 ```
 
-The web app at `http://localhost:3000` provides a full visual dashboard with charts, tables, and a network graph.
+The web app at `http://localhost:3750` provides a full visual dashboard with charts, tables, and a network graph.
 
 ## Example Interactions
 

@@ -43,7 +43,7 @@ Returns all outreach message templates.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/outreach/templates
+curl http://localhost:3750/api/outreach/templates
 ```
 
 **Error Codes:** `500`
@@ -134,7 +134,7 @@ GET /api/outreach/campaigns
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/outreach/campaigns
+curl http://localhost:3750/api/outreach/campaigns
 ```
 
 **Error Codes:** `500`
@@ -244,7 +244,7 @@ not already in any campaign.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/outreach/campaigns/UUID/populate \
+curl -X POST http://localhost:3750/api/outreach/campaigns/UUID/populate \
   -H "Content-Type: application/json" \
   -d '{"filters":{"tiers":["gold"]},"limit":50}'
 ```
@@ -291,7 +291,7 @@ Pipeline stages: `not_started`, `contacted`, `replied`, `meeting_booked`, `won`,
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/outreach/pipeline?campaign_id=UUID
+curl http://localhost:3750/api/outreach/pipeline?campaign_id=UUID
 ```
 
 **Error Codes:** `500`
@@ -344,7 +344,7 @@ the outreach state. Events feed back into contact scoring.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/outreach/events \
+curl -X POST http://localhost:3750/api/outreach/events \
   -H "Content-Type: application/json" \
   -d '{"contact_id":"UUID","event_type":"sent"}'
 ```
@@ -388,7 +388,7 @@ templates match.
 **curl:**
 
 ```bash
-curl "http://localhost:3000/api/outreach/recommend?contactId=UUID"
+curl "http://localhost:3750/api/outreach/recommend?contactId=UUID"
 ```
 
 **Error Codes:** `400` (missing/invalid contactId), `404` (no scores), `500`

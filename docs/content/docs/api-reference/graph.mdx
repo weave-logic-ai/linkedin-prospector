@@ -63,7 +63,7 @@ top contacts by composite score; edges connect them.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/graph/data?limit=100
+curl http://localhost:3750/api/graph/data?limit=100
 ```
 
 **Error Codes:** `500`
@@ -97,7 +97,7 @@ and community detection for all contacts.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/graph/compute
+curl -X POST http://localhost:3750/api/graph/compute
 ```
 
 **Error Codes:** `500`
@@ -134,7 +134,7 @@ Returns detected community clusters in the network.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/graph/communities
+curl http://localhost:3750/api/graph/communities
 ```
 
 **Error Codes:** `500`
@@ -174,7 +174,7 @@ Returns graph centrality metrics for a specific contact.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/graph/metrics/UUID
+curl http://localhost:3750/api/graph/metrics/UUID
 ```
 
 **Error Codes:** `404` (no metrics), `500`
@@ -227,7 +227,7 @@ Find the shortest path between two contacts in the network graph.
 **curl:**
 
 ```bash
-curl "http://localhost:3000/api/graph/path?source=UUID1&target=UUID2&maxDepth=3"
+curl "http://localhost:3750/api/graph/path?source=UUID1&target=UUID2&maxDepth=3"
 ```
 
 **Error Codes:** `400` (missing source/target), `500`

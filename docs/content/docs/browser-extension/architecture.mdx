@@ -141,7 +141,7 @@ If you deploy the NetworkNav app on a remote server, you must update the `connec
 
 The extension optionally maintains a WebSocket connection for real-time push events:
 
-- **URL format:** `ws://localhost:3000/ws/extension?token=[token]`
+- **URL format:** `ws://localhost:3750/ws/extension?token=[token]`
 - **Reconnection:** Exponential backoff starting at 5 seconds, max 60 seconds, multiplier 2x
 - **Events received:** `CAPTURE_CONFIRMED`, `TASK_CREATED`, `TASK_UPDATED`, `GOAL_PROGRESS`, `TEMPLATE_READY`, `ENRICHMENT_COMPLETE`, `SETTINGS_UPDATED`, `PARSE_COMPLETE`
 - **Events sent:** `PAGE_NAVIGATED`, `TASK_VIEWED`

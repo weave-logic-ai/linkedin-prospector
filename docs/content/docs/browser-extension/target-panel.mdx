@@ -1,0 +1,66 @@
+---
+title: Target Panel
+description: How the side panel orients around the person or company you're working with, and how locks are chosen.
+---
+
+The **Target Panel** is the topmost section of the extension's side panel. Its job is to always tell you *who* or *what* the sidebar is currently oriented around, and *how* that lock was chosen. Downstream features (template personalization, capture routing, research context) read from the target.
+
+## Lock sources
+
+The panel can be locked to an entity through three mechanisms. Priority is **task > page > pinned** — higher-priority sources override lower when both are valid.
+
+| Source | When it fires | Indicator |
+|--------|---------------|-----------|
+| **Task** | The current tab URL matches an open task (status `pending` or `in_progress`) whose `contact_id` is set. The task's title is surfaced as the lock reason. | Yellow pill labeled **Task lock** |
+| **Page** | The current tab is on a LinkedIn profile (`/in/<slug>`) or company page (`/company/<slug>`). The extension calls the app's lookup endpoint to resolve the entity. | Blue pill labeled **Page lock** |
+| **Pinned** | *(not wired in this release — reserved for the follow-up snippet-editor expansion)* A user explicitly pins an entity so it survives tab changes. | Green pill labeled **Pinned** |
+| **None** | No match from any source. | Grey pill labeled **No target** |
+
+When no lock is active, the panel shows an empty-state message directing you to navigate to a profile or open a task.
+
+## What's shown when locked
+
+For a **person** lock:
+
+- Name and headline
+- Composite score tier (gold / silver / bronze / watch / unscored), color-coded
+- Numeric composite score
+- Pending task count for this contact
+- Relative time since last capture
+
+For a **company** lock:
+
+- Company name
+- Industry · size range · headquarters (whichever fields are populated)
+- Count of contacts on file at this company
+- Pending task count referencing a contact at this company
+- Relative time since last capture of the company page
+
+## How the lookups work
+
+The panel calls two endpoints, depending on page type:
+
+| Endpoint | Used for |
+|----------|----------|
+| `GET /api/extension/contact/:url` | LinkedIn profile pages |
+| `GET /api/extension/company/:url` | LinkedIn company pages |
+
+Both endpoints are authenticated with the extension token, match the LinkedIn URL against the app's database, and return `{ found, contact \| company }`. A 404 / `found: false` response falls through to the empty state — the capture button stays enabled so you can still create the first record.
+
+## Clearing a task lock
+
+A small **×** control appears in the panel header only when the lock source is **Task**. Clicking it clears the task-lock for the *current URL* and immediately re-resolves — typically falling back to a Page lock if one is available.
+
+The clear state resets on any tab activation or URL change, so navigating away and back gets you a fresh decision on every page.
+
+## Interaction with other features
+
+- **Template personalization** in the Outreach Templates section uses the person target's name automatically. Switching targets updates the personalize button label.
+- **Capture** button behavior is unchanged — it captures whatever LinkedIn page you're on. The target panel is descriptive, not gating.
+- **Auto-paginate** (see [Settings](/docs/browser-extension/settings#auto-paginate-search-results)) runs independently of the target panel; search pages don't auto-lock a target.
+
+## Troubleshooting
+
+- **"Target not found" after capturing a new profile** — the contact record isn't in the database yet. Give the server a few seconds to finish parsing, then refresh the side panel.
+- **Task-lock stuck on wrong contact** — click the × to clear, or navigate away and back to the page.
+- **Page lock not firing on a profile** — verify the URL matches `linkedin.com/in/<slug>` exactly. URLs with `/detail/` or query-only differences aren't profile pages and won't auto-lock.

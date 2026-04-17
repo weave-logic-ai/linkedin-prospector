@@ -117,7 +117,7 @@ Batch enrichment respects your budget caps and will stop if the cap is reached.
 Enrich a single contact:
 
 ```bash title="Terminal"
-curl -X POST http://localhost:3000/api/enrichment/enrich \
+curl -X POST http://localhost:3750/api/enrichment/enrich \
   -H "Content-Type: application/json" \
   -d '{"contactId": "uuid-here", "providers": ["pdl", "apollo"]}'
 ```
@@ -125,7 +125,7 @@ curl -X POST http://localhost:3000/api/enrichment/enrich \
 Apply enrichment results:
 
 ```bash title="Terminal"
-curl -X POST http://localhost:3000/api/enrichment/apply \
+curl -X POST http://localhost:3750/api/enrichment/apply \
   -H "Content-Type: application/json" \
   -d '{"contactId": "uuid-here", "enrichmentId": "enrich-uuid"}'
 ```

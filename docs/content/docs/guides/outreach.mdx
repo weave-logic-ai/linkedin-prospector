@@ -96,7 +96,7 @@ When Claude AI is configured (via `ANTHROPIC_API_KEY`), templates gain an additi
 - **API**:
 
 ```bash title="Terminal"
-curl -X POST http://localhost:3000/api/outreach/recommend \
+curl -X POST http://localhost:3750/api/outreach/recommend \
   -H "Content-Type: application/json" \
   -d '{"contactId": "uuid-here", "templateId": "template-uuid"}'
 ```
@@ -233,7 +233,7 @@ NetworkNav can recommend which template to use for each contact based on their p
 Access recommendations via the API:
 
 ```bash title="Terminal"
-curl http://localhost:3000/api/outreach/recommend?contactId=uuid-here
+curl http://localhost:3750/api/outreach/recommend?contactId=uuid-here
 ```
 
 ## API Reference
@@ -241,11 +241,11 @@ curl http://localhost:3000/api/outreach/recommend?contactId=uuid-here
 ### Templates
 
 ```bash title="List templates"
-curl http://localhost:3000/api/outreach/templates
+curl http://localhost:3750/api/outreach/templates
 ```
 
 ```bash title="Create template"
-curl -X POST http://localhost:3000/api/outreach/templates \
+curl -X POST http://localhost:3750/api/outreach/templates \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Cold intro to VP Engineering",
@@ -256,7 +256,7 @@ curl -X POST http://localhost:3000/api/outreach/templates \
 ### Campaigns
 
 ```bash title="Create campaign"
-curl -X POST http://localhost:3000/api/outreach/campaigns \
+curl -X POST http://localhost:3750/api/outreach/campaigns \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Q1 SaaS Outreach",
@@ -268,7 +268,7 @@ curl -X POST http://localhost:3000/api/outreach/campaigns \
 ### Pipeline Events
 
 ```bash title="Log outreach event"
-curl -X POST http://localhost:3000/api/outreach/events \
+curl -X POST http://localhost:3750/api/outreach/events \
   -H "Content-Type: application/json" \
   -d '{
     "contactId": "uuid-here",
