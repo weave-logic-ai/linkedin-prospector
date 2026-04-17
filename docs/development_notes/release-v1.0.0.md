@@ -1,6 +1,6 @@
-# Release v2.0.0 — Development Notes
+# Release v1.0.0 — Development Notes
 
-**Tag**: `v2.0.0` (proposed — matches the `app/package.json` version; first tagged release on this repo)
+**Tag**: `v1.0.0` (proposed — first tagged release on this repo; `app/package.json` realigned from `2.0.0` → `1.0.0` for this cadence)
 **Branch at prep time**: `feat/ecc-hardening-b6-port`
 **Target merge base**: `main` (`6a72d17`)
 **Date drafted**: 2026-04-17
@@ -51,11 +51,10 @@ Totals: 43 files changed, ~4200 insertions, ~60 deletions (mostly test code + do
 
 ## Version choices
 
-- `app/package.json` was already at `2.0.0` with no prior git tag. Proposing `v2.0.0` as the first tagged release since that's what the manifest already advertises.
+- Public cadence starts at `v1.0.0` per user direction ("stay in 1.x.x for now"). `app/package.json` was realigned from `2.0.0` → `1.0.0` as part of this prep; only the Next.js toolchain reads it and nothing at runtime keys off that literal. Extension-handshake version (`app/src/app/api/extension/health/route.ts`) and parser schema version (`app/src/lib/parser/parsers/profile-parser.ts`) are separate tracks and were intentionally left at `'2.0.0'`.
 - `browser/package.json` stays at `0.1.0`. The extension hasn't been published to the Chrome Web Store and isn't a separately consumed artifact; its version bump can come with a distinct extension release when that happens.
 - `docs/package.json` stays at `1.0.0`. Fumadocs site, separate deployment.
 
-**Alternative version** if preferred: `v0.2.0` to signal a pre-1.0 cadence, ignoring the internal manifest. Requires bumping `app/package.json` down to match. I'd suggest picking `v2.0.0` to match what's there.
 
 ## Release procedure (on final green-light)
 
@@ -71,16 +70,16 @@ cd browser && npm run build && cd ..
 gh pr create \
   --base main \
   --head feat/ecc-hardening-b6-port \
-  --title "Release v2.0.0 — ECC hardening, B6 gauges, extension target panel" \
-  --body-file docs/development_notes/release-v2.0.0.md
+  --title "Release v1.0.0 — ECC hardening, B6 gauges, extension target panel" \
+  --body-file docs/development_notes/release-v1.0.0.md
 
 # 3. Once merged, tag on main
 git checkout main
 git pull
-git tag -a v2.0.0 -m "$(cat <<'TAGMSG'
-Release v2.0.0 — ECC Phase 2 hardening + B6 gauges + extension target panel
+git tag -a v1.0.0 -m "$(cat <<'TAGMSG'
+Release v1.0.0 — ECC Phase 2 hardening + B6 gauges + extension target panel
 
-See CHANGELOG.md and docs/development_notes/release-v2.0.0.md for details.
+See CHANGELOG.md and docs/development_notes/release-v1.0.0.md for details.
 
 Highlights:
 - ExoChain BLAKE3 swap, impulse stubs finished, 128 new ECC tests
@@ -90,12 +89,12 @@ Highlights:
 - App container port moved to 3750
 TAGMSG
 )"
-git push origin v2.0.0
+git push origin v1.0.0
 
 # 4. Create the GitHub Release from the tag
-gh release create v2.0.0 \
-  --title "v2.0.0 — ECC hardening, B6 gauges, extension target panel" \
-  --notes-file docs/development_notes/release-v2.0.0.md \
+gh release create v1.0.0 \
+  --title "v1.0.0 — ECC hardening, B6 gauges, extension target panel" \
+  --notes-file docs/development_notes/release-v1.0.0.md \
   --target main
 ```
 

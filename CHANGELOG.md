@@ -2,7 +2,11 @@
 
 All notable changes to Network Navigator are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); no strict SemVer contract yet.
 
-## [Unreleased] — Release candidate `v2.0.0`
+## [Unreleased] — Release candidate `v1.0.0`
+
+Scope: first tagged release on this repo. The `app/` package version was
+previously at `2.0.0` locally but the public cadence starts at `1.0.0`
+for this tag.
 
 Release theme: **ECC Phase 2 hardening + owner-profile polish + extension target panel.**
 
