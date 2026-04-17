@@ -674,3 +674,78 @@ body {
   color: #dc2626;
   margin-top: 6px;
 }
+
+/* Phase 1.5 — image snippet tabs + dropzone */
+.snippet-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #e5e5e5;
+}
+.snippet-tab {
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.snippet-tab.active {
+  color: #1a1a1a;
+  border-bottom-color: #3b82f6;
+}
+.snippet-pane {
+  min-height: 48px;
+}
+.snippet-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  margin: 8px 0;
+  border: 1px dashed #cbd5e0;
+  border-radius: 6px;
+  background: #fbfbfb;
+  color: #666;
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.snippet-dropzone.dragover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+.snippet-image-url-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  font-family: inherit;
+}
+.snippet-image-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 4px;
+}
+.snippet-image-preview {
+  max-width: 100%;
+  max-height: 140px;
+  object-fit: contain;
+  border-radius: 3px;
+  background: #f3f4f6;
+}
+.snippet-image-meta {
+  font-size: 11px;
+  color: #666;
+}

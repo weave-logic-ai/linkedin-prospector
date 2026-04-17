@@ -161,6 +161,7 @@ export default async function SnippetsPage({ searchParams }: PageProps) {
               key={s.causalNodeId}
               className="rounded-md border p-4 space-y-2"
               data-testid="snippet-card"
+              data-kind={s.kind}
             >
               <div className="text-sm text-muted-foreground">
                 <a
@@ -174,7 +175,35 @@ export default async function SnippetsPage({ searchParams }: PageProps) {
                 {' · '}
                 {new Date(s.createdAt).toLocaleString()}
               </div>
-              <div className="text-sm whitespace-pre-wrap">{s.text}</div>
+              {s.kind === 'image' && s.blobId ? (
+                <div className="space-y-1">
+                  <a
+                    href={`/api/snippets/blob/${s.blobId}`}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-block"
+                    data-testid="snippet-image-link"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/snippets/blob/${s.blobId}`}
+                      alt={s.note ?? 'Snippet image'}
+                      className="max-w-[240px] max-h-[180px] rounded border bg-muted object-contain"
+                      loading="lazy"
+                      width={s.width ?? undefined}
+                      height={s.height ?? undefined}
+                    />
+                  </a>
+                  {s.width && s.height ? (
+                    <div className="text-xs text-muted-foreground">
+                      {s.width} &times; {s.height}
+                      {s.mimeType ? ` · ${s.mimeType}` : ''}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="text-sm whitespace-pre-wrap">{s.text}</div>
+              )}
               {s.note ? (
                 <div className="text-xs text-muted-foreground italic">
                   Note: {s.note}

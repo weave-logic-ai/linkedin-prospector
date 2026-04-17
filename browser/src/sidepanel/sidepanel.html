@@ -57,21 +57,52 @@
       </button>
     </section>
 
-    <!-- Snippet Widget (Phase 1 Track C) -->
+    <!-- Snippet Widget (Phase 1 Track C + Phase 1.5 image) -->
     <section class="panel-section" id="sp-snippet-section" style="display: none;">
       <h2>Snip to target</h2>
-      <div id="sp-snippet-status" class="placeholder-text">Select text on the page, then click capture.</div>
-      <button id="sp-snippet-capture-btn" class="btn btn-secondary btn-full">Capture selection</button>
+      <div class="snippet-tabs" role="tablist">
+        <button id="sp-snippet-tab-text" class="snippet-tab active" role="tab" aria-selected="true">Text</button>
+        <button id="sp-snippet-tab-image" class="snippet-tab" role="tab" aria-selected="false">Image</button>
+      </div>
+
+      <!-- Text tab (Phase 1) -->
+      <div id="sp-snippet-text-pane" class="snippet-pane">
+        <div id="sp-snippet-status" class="placeholder-text">Select text on the page, then click capture.</div>
+        <button id="sp-snippet-capture-btn" class="btn btn-secondary btn-full">Capture selection</button>
+      </div>
+
+      <!-- Image tab (Phase 1.5) -->
+      <div id="sp-snippet-image-pane" class="snippet-pane" style="display: none;">
+        <div id="sp-snippet-image-status" class="placeholder-text">
+          Drop an image here, paste one, or right-click an image on the page and choose "Copy image address" then paste the URL below.
+        </div>
+        <div id="sp-snippet-image-dropzone" class="snippet-dropzone" tabindex="0">
+          <span>Drop image · Paste · or type URL</span>
+        </div>
+        <input
+          id="sp-snippet-image-url-input"
+          class="snippet-image-url-input"
+          type="url"
+          placeholder="https://example.com/image.png"
+          aria-label="Image URL to capture"
+        />
+        <button id="sp-snippet-image-fetch-btn" class="btn btn-secondary btn-full">Fetch image from URL</button>
+      </div>
+
       <div id="sp-snippet-card" class="snippet-card" style="display: none; margin-top: 10px;">
         <div class="snippet-field">
           <label>Preview</label>
           <div id="sp-snippet-preview" class="snippet-preview"></div>
+          <div id="sp-snippet-image-preview-wrap" class="snippet-image-preview-wrap" style="display: none;">
+            <img id="sp-snippet-image-preview" class="snippet-image-preview" alt="Snippet preview" />
+            <div id="sp-snippet-image-meta" class="snippet-image-meta"></div>
+          </div>
         </div>
         <div class="snippet-field">
           <label>Tags</label>
           <div id="sp-snippet-tags" class="snippet-tags"></div>
         </div>
-        <div class="snippet-field">
+        <div class="snippet-field" id="sp-snippet-mentions-field">
           <label>Mentions</label>
           <div id="sp-snippet-mentions" class="snippet-mentions">No proper nouns detected.</div>
         </div>

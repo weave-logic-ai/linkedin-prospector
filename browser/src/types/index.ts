@@ -239,7 +239,9 @@ export type ExtensionMessageType =
   | 'PERSONALIZE_TEMPLATE'
   // Research-tools sprint (Phase 1 Track C)
   | 'GET_SNIPPET_SELECTION'
-  | 'REQUEST_HOST_PERMISSION';
+  | 'REQUEST_HOST_PERMISSION'
+  // Phase 1.5 — image snippet round-trip
+  | 'GET_SNIPPET_IMAGE_FROM_URL';
 
 // Response shape returned by content-snippet content scripts when the side
 // panel asks them for the currently-selected text.
@@ -248,6 +250,24 @@ export interface SnippetSelectionResponse {
   sourceUrl: string;
   pageTitle: string;
   pageType: string | null;
+}
+
+/**
+ * Response shape for GET_SNIPPET_IMAGE_FROM_URL — the content script fetches
+ * the image from the host page so same-origin rules relax for LinkedIn image
+ * CDNs that reject cross-origin fetches from extension pages.
+ */
+export interface SnippetImageFromUrlResponse {
+  ok: boolean;
+  error?: string;
+  /** base64-encoded bytes (NO `data:` prefix). */
+  imageBytes?: string;
+  mimeType?: string;
+  width?: number;
+  height?: number;
+  sourceUrl?: string;
+  pageUrl?: string;
+  pageTitle?: string;
 }
 
 export interface ExtensionMessage {

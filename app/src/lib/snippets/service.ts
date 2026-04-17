@@ -15,7 +15,8 @@ import { createCausalNode, createCausalEdge } from '../ecc/causal-graph/service'
 import { appendChainEntry } from '../ecc/exo-chain/service';
 import { snippetChainId, type SnippetTargetKind } from './chain';
 import { extractPersonMentionCandidates } from './mentions';
-import type { SnippetSaveResponse } from './types';
+import { upsertBlob } from './blob-store';
+import type { SnippetKind, SnippetSaveResponse } from './types';
 
 interface SaveTextSnippetInput {
   tenantId: string;
@@ -244,6 +245,155 @@ export async function saveTextSnippet(
   };
 }
 
+interface SaveImageSnippetInput {
+  tenantId: string;
+  targetKind: SnippetTargetKind;
+  targetId: string;
+  /** Decoded image bytes (after base64 decode + size/mime validation). */
+  bytes: Buffer;
+  mimeType: string;
+  width?: number | null;
+  height?: number | null;
+  sourceUrl: string;
+  pageType?: string;
+  tagSlugs?: string[];
+  note?: string;
+  sessionId?: string;
+}
+
+/**
+ * Save an image snippet — Phase 1.5 round-trip.
+ *
+ * Flow mirrors `saveTextSnippet`:
+ *   1. UPSERT `snippet_blobs` (dedup by sha256 per tenant).
+ *   2. Insert `causal_nodes` row with `entity_type='snippet'`,
+ *      `output.content = { kind: 'image', blobId, mimeType, ... }`.
+ *   3. Insert `evidence_for` edge to the target node.
+ *   4. Append `exo_chain_entries` on `snippet:<kind>:<target_id>`.
+ *
+ * Chain append remains best-effort (non-fatal) per the text path.
+ */
+export async function saveImageSnippet(
+  input: SaveImageSnippetInput
+): Promise<SnippetSaveResponse> {
+  const warnings: string[] = [];
+
+  if (!input.bytes || input.bytes.byteLength === 0) {
+    throw new Error('saveImageSnippet: bytes must be a non-empty Buffer');
+  }
+
+  const { valid: validTagSlugs, unknown: unknownTagSlugs } =
+    await filterKnownTagSlugs(input.tenantId, input.tagSlugs ?? []);
+  if (unknownTagSlugs.length > 0) {
+    warnings.push(`Ignored unknown tag slugs: ${unknownTagSlugs.join(', ')}`);
+  }
+
+  const blob = await upsertBlob({
+    tenantId: input.tenantId,
+    mimeType: input.mimeType,
+    bytes: input.bytes,
+    width: input.width ?? null,
+    height: input.height ?? null,
+  });
+
+  const snippetId = crypto.randomUUID();
+  const snippetNode = await createCausalNode(
+    input.tenantId,
+    'snippet',
+    snippetId,
+    'captured',
+    {
+      sourceUrl: input.sourceUrl,
+      pageType: input.pageType ?? null,
+      selectionMode: 'image',
+      capturedAt: new Date().toISOString(),
+    },
+    {
+      content: {
+        kind: 'image',
+        blobId: blob.id,
+        mimeType: input.mimeType,
+        byteLength: blob.byteLength,
+        sha256: blob.sha256Hex,
+        width: input.width ?? null,
+        height: input.height ?? null,
+      },
+      tags: validTagSlugs,
+      note: input.note ?? null,
+    },
+    input.sessionId
+  );
+
+  const targetNodeId = await resolveTargetNodeId(
+    input.tenantId,
+    input.targetKind,
+    input.targetId
+  );
+  await createCausalEdge(snippetNode.id, targetNodeId, 'evidence_for');
+
+  const chainId = snippetChainId(input.targetKind, input.targetId);
+  let chainSequence = -1;
+  try {
+    const seqRes = await query<{ max: string | number | null }>(
+      `SELECT MAX(sequence) AS max FROM exo_chain_entries WHERE chain_id = $1`,
+      [chainId]
+    );
+    const nextSeq =
+      seqRes.rows[0] && seqRes.rows[0].max !== null
+        ? Number(seqRes.rows[0].max) + 1
+        : 0;
+    let prevHash: string | null = null;
+    if (nextSeq > 0) {
+      const prev = await query<{ entry_hash: Buffer }>(
+        `SELECT entry_hash FROM exo_chain_entries
+         WHERE chain_id = $1 AND sequence = $2`,
+        [chainId, nextSeq - 1]
+      );
+      if (prev.rows[0]) {
+        prevHash = Buffer.from(prev.rows[0].entry_hash).toString('hex');
+      }
+    }
+    const appended = await appendChainEntry(
+      input.tenantId,
+      chainId,
+      nextSeq,
+      prevHash,
+      'snippet_captured',
+      {
+        snippetId,
+        causalNodeId: snippetNode.id,
+        targetKind: input.targetKind,
+        targetId: input.targetId,
+        sourceUrl: input.sourceUrl,
+        kind: 'image',
+        mimeType: input.mimeType,
+        blobId: blob.id,
+        sha256: blob.sha256Hex,
+        byteLength: blob.byteLength,
+        tags: validTagSlugs,
+      },
+      'extension'
+    );
+    chainSequence = appended.entry.sequence;
+  } catch (err) {
+    warnings.push(
+      `ExoChain append failed (non-fatal): ${
+        (err as Error).message ?? 'unknown'
+      }`
+    );
+  }
+
+  return {
+    snippetId,
+    causalNodeId: snippetNode.id,
+    chainId,
+    chainSequence,
+    warnings,
+    blobId: blob.id,
+    blobReused: blob.reused,
+  };
+}
+
 /**
  * Read snippets attached to a given research target for the snippets panel.
  * Ordered by captured_at DESC.
@@ -257,7 +407,12 @@ export async function listSnippetsForTarget(
   Array<{
     snippetId: string;
     causalNodeId: string;
+    kind: SnippetKind;
     text: string;
+    blobId: string | null;
+    mimeType: string | null;
+    width: number | null;
+    height: number | null;
     sourceUrl: string;
     pageType: string | null;
     tagSlugs: string[];
@@ -304,10 +459,28 @@ export async function listSnippetsForTarget(
     const inputs = (row.inputs ?? {}) as Record<string, unknown>;
     const output = (row.output ?? {}) as Record<string, unknown>;
     const content = (output.content ?? {}) as Record<string, unknown>;
+    const kind: SnippetKind = content.kind === 'image' ? 'image' : 'text';
     return {
       snippetId: String(row.entity_id),
       causalNodeId: String(row.id),
-      text: String(content.text ?? ''),
+      kind,
+      text: kind === 'text' ? String(content.text ?? '') : '',
+      blobId:
+        kind === 'image' && typeof content.blobId === 'string'
+          ? (content.blobId as string)
+          : null,
+      mimeType:
+        kind === 'image' && typeof content.mimeType === 'string'
+          ? (content.mimeType as string)
+          : null,
+      width:
+        kind === 'image' && typeof content.width === 'number'
+          ? (content.width as number)
+          : null,
+      height:
+        kind === 'image' && typeof content.height === 'number'
+          ? (content.height as number)
+          : null,
       sourceUrl: String(inputs.sourceUrl ?? ''),
       pageType: (inputs.pageType as string | null) ?? null,
       tagSlugs: Array.isArray(output.tags) ? (output.tags as string[]) : [],

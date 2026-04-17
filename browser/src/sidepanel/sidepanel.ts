@@ -7,6 +7,7 @@ import type {
   Goal,
   OutreachTemplate,
   SnippetSelectionResponse,
+  SnippetImageFromUrlResponse,
 } from '../types';
 import { logger } from '../utils/logger';
 import { getDailyCaptureCount, getCaptureLimit } from '../utils/storage';
@@ -876,13 +877,32 @@ interface SidebarTagRow {
   isSeeded: boolean;
 }
 
-interface SidebarSnippetPayload {
+interface SidebarSnippetTextPayload {
+  kind: 'text';
   selection: SnippetSelectionResponse;
   selectedTags: Set<string>;
   selectedMentions: Set<string>;
   mentionCandidates: string[];
   note: string;
 }
+
+interface SidebarSnippetImagePayload {
+  kind: 'image';
+  /** base64-encoded bytes (no `data:` prefix). */
+  imageBytes: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  approximateBytes: number;
+  sourceUrl: string;
+  pageUrl: string;
+  pageTitle: string;
+  pageType: string | null;
+  selectedTags: Set<string>;
+  note: string;
+}
+
+type SidebarSnippetPayload = SidebarSnippetTextPayload | SidebarSnippetImagePayload;
 
 const snippetSection = document.getElementById('sp-snippet-section');
 const snippetStatus = document.getElementById('sp-snippet-status');
@@ -891,11 +911,28 @@ const snippetCard = document.getElementById('sp-snippet-card');
 const snippetPreview = document.getElementById('sp-snippet-preview');
 const snippetTagsContainer = document.getElementById('sp-snippet-tags');
 const snippetMentionsContainer = document.getElementById('sp-snippet-mentions');
+const snippetMentionsField = document.getElementById('sp-snippet-mentions-field');
 const snippetNoteEl = document.getElementById('sp-snippet-note') as HTMLTextAreaElement | null;
 const snippetSaveBtn = document.getElementById('sp-snippet-save-btn');
 const snippetCancelBtn = document.getElementById('sp-snippet-cancel-btn');
 const snippetErrorEl = document.getElementById('sp-snippet-error');
 const addHostBtn = document.getElementById('sp-add-host-btn');
+// Phase 1.5 — image tab DOM
+const snippetTabText = document.getElementById('sp-snippet-tab-text');
+const snippetTabImage = document.getElementById('sp-snippet-tab-image');
+const snippetTextPane = document.getElementById('sp-snippet-text-pane');
+const snippetImagePane = document.getElementById('sp-snippet-image-pane');
+const snippetImageStatus = document.getElementById('sp-snippet-image-status');
+const snippetDropzone = document.getElementById('sp-snippet-image-dropzone');
+const snippetImageUrlInput = document.getElementById(
+  'sp-snippet-image-url-input'
+) as HTMLInputElement | null;
+const snippetImageFetchBtn = document.getElementById('sp-snippet-image-fetch-btn');
+const snippetImagePreviewWrap = document.getElementById('sp-snippet-image-preview-wrap');
+const snippetImagePreview = document.getElementById(
+  'sp-snippet-image-preview'
+) as HTMLImageElement | null;
+const snippetImageMeta = document.getElementById('sp-snippet-image-meta');
 
 let availableTags: SidebarTagRow[] = [];
 let currentSnippet: SidebarSnippetPayload | null = null;
@@ -1092,7 +1129,35 @@ function resetSnippetCard(): void {
   if (snippetCard) snippetCard.style.display = 'none';
   if (snippetErrorEl) snippetErrorEl.style.display = 'none';
   if (snippetStatus) snippetStatus.textContent = 'Select text on the page, then click capture.';
+  if (snippetImageStatus) {
+    snippetImageStatus.textContent =
+      'Drop an image here, paste one, or right-click an image on the page and choose "Copy image address" then paste the URL below.';
+  }
+  if (snippetImagePreviewWrap) snippetImagePreviewWrap.style.display = 'none';
+  if (snippetImagePreview) snippetImagePreview.removeAttribute('src');
+  if (snippetPreview) snippetPreview.style.display = '';
+  if (snippetImageUrlInput) snippetImageUrlInput.value = '';
 }
+
+// ----- Tab switching -----
+function activateSnippetTab(kind: 'text' | 'image'): void {
+  if (snippetTabText) {
+    snippetTabText.classList.toggle('active', kind === 'text');
+    snippetTabText.setAttribute('aria-selected', kind === 'text' ? 'true' : 'false');
+  }
+  if (snippetTabImage) {
+    snippetTabImage.classList.toggle('active', kind === 'image');
+    snippetTabImage.setAttribute('aria-selected', kind === 'image' ? 'true' : 'false');
+  }
+  if (snippetTextPane) snippetTextPane.style.display = kind === 'text' ? '' : 'none';
+  if (snippetImagePane) snippetImagePane.style.display = kind === 'image' ? '' : 'none';
+  // Always hide any in-flight card when user flips tabs — avoids saving a
+  // text payload while showing the image UI or vice versa.
+  resetSnippetCard();
+}
+
+if (snippetTabText) snippetTabText.addEventListener('click', () => activateSnippetTab('text'));
+if (snippetTabImage) snippetTabImage.addEventListener('click', () => activateSnippetTab('image'));
 
 if (snippetCaptureBtn) {
   snippetCaptureBtn.addEventListener('click', async () => {
@@ -1116,13 +1181,19 @@ if (snippetCaptureBtn) {
     }
     const candidates = extractPersonBigrams(selection.text);
     currentSnippet = {
+      kind: 'text',
       selection,
       selectedTags: new Set<string>(),
       selectedMentions: new Set<string>(),
       mentionCandidates: candidates,
       note: '',
     };
-    if (snippetPreview) snippetPreview.textContent = selection.text.slice(0, 400);
+    if (snippetPreview) {
+      snippetPreview.style.display = '';
+      snippetPreview.textContent = selection.text.slice(0, 400);
+    }
+    if (snippetImagePreviewWrap) snippetImagePreviewWrap.style.display = 'none';
+    if (snippetMentionsField) snippetMentionsField.style.display = '';
     if (snippetTagsContainer) renderTagChips(snippetTagsContainer, currentSnippet.selectedTags);
     if (snippetMentionsContainer)
       renderMentionChips(snippetMentionsContainer, candidates, currentSnippet.selectedMentions);
@@ -1134,6 +1205,231 @@ if (snippetCaptureBtn) {
 
 if (snippetCancelBtn) {
   snippetCancelBtn.addEventListener('click', () => resetSnippetCard());
+}
+
+// ============================================================
+// Phase 1.5 — image snippet capture (drag/drop, paste, right-click via URL)
+// ============================================================
+
+const ALLOWED_IMAGE_MIMES = new Set<string>([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+]);
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+function detectSnippetPageType(url: string): string | null {
+  try {
+    const host = new URL(url).hostname;
+    if (/web\.archive\.org/.test(host)) return 'WAYBACK';
+    if (/sec\.gov/.test(host)) return 'EDGAR';
+    if (/linkedin\.com/.test(host)) return 'LINKEDIN';
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const CHUNK = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    const slice = bytes.subarray(i, i + CHUNK);
+    binary += String.fromCharCode.apply(null, Array.from(slice) as number[]);
+  }
+  return btoa(binary);
+}
+
+async function loadImageDimensions(
+  dataUrl: string
+): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+async function presentImagePayload(payload: {
+  imageBytes: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  approximateBytes: number;
+  sourceUrl: string;
+  pageUrl: string;
+  pageTitle: string;
+}): Promise<void> {
+  currentSnippet = {
+    kind: 'image',
+    imageBytes: payload.imageBytes,
+    mimeType: payload.mimeType,
+    width: payload.width,
+    height: payload.height,
+    approximateBytes: payload.approximateBytes,
+    sourceUrl: payload.sourceUrl,
+    pageUrl: payload.pageUrl,
+    pageTitle: payload.pageTitle,
+    pageType: detectSnippetPageType(payload.pageUrl || payload.sourceUrl),
+    selectedTags: new Set<string>(),
+    note: '',
+  };
+
+  if (snippetPreview) snippetPreview.style.display = 'none';
+  if (snippetImagePreviewWrap) snippetImagePreviewWrap.style.display = '';
+  if (snippetImagePreview) {
+    snippetImagePreview.src = `data:${payload.mimeType};base64,${payload.imageBytes}`;
+  }
+  const kb = Math.round(payload.approximateBytes / 1024);
+  const dim = payload.width && payload.height ? `${payload.width}×${payload.height} · ` : '';
+  if (snippetImageMeta) {
+    snippetImageMeta.textContent = `${dim}${kb} KB · ${payload.mimeType}${payload.sourceUrl ? ` · ${payload.sourceUrl}` : ''}`;
+  }
+  if (snippetMentionsField) snippetMentionsField.style.display = 'none';
+  if (snippetTagsContainer && currentSnippet.kind === 'image') {
+    renderTagChips(snippetTagsContainer, currentSnippet.selectedTags);
+  }
+  if (snippetNoteEl) snippetNoteEl.value = '';
+  if (snippetCard) snippetCard.style.display = '';
+  if (snippetImageStatus) snippetImageStatus.textContent = 'Image ready. Add tags and save.';
+}
+
+async function ingestImageFile(file: File): Promise<void> {
+  if (!ALLOWED_IMAGE_MIMES.has(file.type)) {
+    if (snippetImageStatus)
+      snippetImageStatus.textContent = `Unsupported type "${file.type || 'unknown'}". Use PNG, JPEG, or WebP.`;
+    return;
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    if (snippetImageStatus)
+      snippetImageStatus.textContent = `Image exceeds 5 MB (got ${Math.round(file.size / 1024)} KB).`;
+    return;
+  }
+  const buffer = await file.arrayBuffer();
+  const base64 = arrayBufferToBase64(buffer);
+  const dataUrl = `data:${file.type};base64,${base64}`;
+  const dims = await loadImageDimensions(dataUrl);
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const pageUrl = tabs[0]?.url ?? '';
+  const pageTitle = tabs[0]?.title ?? '';
+  await presentImagePayload({
+    imageBytes: base64,
+    mimeType: file.type,
+    width: dims?.width ?? null,
+    height: dims?.height ?? null,
+    approximateBytes: buffer.byteLength,
+    sourceUrl: pageUrl,
+    pageUrl,
+    pageTitle,
+  });
+}
+
+async function ingestImageFromUrl(imageUrl: string): Promise<void> {
+  if (!/^https?:\/\//.test(imageUrl)) {
+    if (snippetImageStatus)
+      snippetImageStatus.textContent = 'URL must start with http:// or https://';
+    return;
+  }
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (!tab?.id || !tab.url) {
+    if (snippetImageStatus) snippetImageStatus.textContent = 'No active tab.';
+    return;
+  }
+  const granted = await ensureOriginPermission(tab.url);
+  if (!granted) {
+    if (snippetImageStatus)
+      snippetImageStatus.textContent = 'Grant this site first, then try again.';
+    await updateAddHostButton();
+    return;
+  }
+  await injectSnippetContentScript(tab.id);
+  if (snippetImageStatus) snippetImageStatus.textContent = 'Fetching image…';
+  const response = await new Promise<SnippetImageFromUrlResponse | null>((resolve) => {
+    try {
+      chrome.tabs.sendMessage(
+        tab.id!,
+        {
+          type: 'GET_SNIPPET_IMAGE_FROM_URL',
+          payload: { imageUrl },
+        } satisfies ExtensionMessage,
+        (r: SnippetImageFromUrlResponse | undefined) => {
+          void chrome.runtime.lastError;
+          resolve(r ?? null);
+        }
+      );
+    } catch {
+      resolve(null);
+    }
+  });
+  if (!response || !response.ok || !response.imageBytes || !response.mimeType) {
+    if (snippetImageStatus)
+      snippetImageStatus.textContent = `Fetch failed: ${response?.error ?? 'no response'}`;
+    return;
+  }
+  const approximate = Math.floor((response.imageBytes.length * 3) / 4);
+  await presentImagePayload({
+    imageBytes: response.imageBytes,
+    mimeType: response.mimeType,
+    width: response.width ?? null,
+    height: response.height ?? null,
+    approximateBytes: approximate,
+    sourceUrl: response.sourceUrl ?? imageUrl,
+    pageUrl: response.pageUrl ?? tab.url ?? '',
+    pageTitle: response.pageTitle ?? tab.title ?? '',
+  });
+}
+
+// Drag-and-drop binding
+if (snippetDropzone) {
+  const dz = snippetDropzone;
+  dz.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dz.classList.add('dragover');
+  });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    dz.classList.remove('dragover');
+    const dt = (e as DragEvent).dataTransfer;
+    const file = dt?.files?.[0];
+    if (file) {
+      await ingestImageFile(file);
+      return;
+    }
+    // Fall back to URL drop
+    const url = dt?.getData('text/uri-list') || dt?.getData('text/plain');
+    if (url) await ingestImageFromUrl(url.trim());
+  });
+}
+
+// Clipboard paste binding — listen anywhere in the sidepanel when image
+// tab is active; the paste handler filters to the image pane.
+document.addEventListener('paste', async (e) => {
+  if (!snippetImagePane || snippetImagePane.style.display === 'none') return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of Array.from(items)) {
+    if (item.kind === 'file' && ALLOWED_IMAGE_MIMES.has(item.type)) {
+      const file = item.getAsFile();
+      if (file) {
+        e.preventDefault();
+        await ingestImageFile(file);
+        return;
+      }
+    }
+  }
+});
+
+// URL-fetch button
+if (snippetImageFetchBtn && snippetImageUrlInput) {
+  snippetImageFetchBtn.addEventListener('click', async () => {
+    const url = snippetImageUrlInput.value.trim();
+    if (!url) return;
+    await ingestImageFromUrl(url);
+  });
 }
 
 if (snippetSaveBtn) {
@@ -1150,16 +1446,36 @@ if (snippetSaveBtn) {
       const [source, kind, id] = lastRenderedLock.split(':');
       void source;
       const targetKind = kind === 'person' ? 'contact' : kind;
-      const body = {
-        targetKind,
-        targetId: id,
-        text: currentSnippet.selection.text,
-        sourceUrl: currentSnippet.selection.sourceUrl,
-        pageType: currentSnippet.selection.pageType,
-        tagSlugs: Array.from(currentSnippet.selectedTags),
-        note: snippetNoteEl?.value ?? '',
-        mentionContactIds: Array.from(currentSnippet.selectedMentions),
-      };
+
+      // Build the body based on the active payload kind.
+      const body =
+        currentSnippet.kind === 'image'
+          ? {
+              kind: 'image' as const,
+              targetKind,
+              targetId: id,
+              imageBytes: currentSnippet.imageBytes,
+              mimeType: currentSnippet.mimeType,
+              width: currentSnippet.width ?? undefined,
+              height: currentSnippet.height ?? undefined,
+              sourceUrl:
+                currentSnippet.sourceUrl || currentSnippet.pageUrl || 'about:blank',
+              pageType: currentSnippet.pageType ?? undefined,
+              tagSlugs: Array.from(currentSnippet.selectedTags),
+              note: snippetNoteEl?.value ?? '',
+            }
+          : {
+              kind: 'text' as const,
+              targetKind,
+              targetId: id,
+              text: currentSnippet.selection.text,
+              sourceUrl: currentSnippet.selection.sourceUrl,
+              pageType: currentSnippet.selection.pageType,
+              tagSlugs: Array.from(currentSnippet.selectedTags),
+              note: snippetNoteEl?.value ?? '',
+              mentionContactIds: Array.from(currentSnippet.selectedMentions),
+            };
+
       const appUrl = await getAppUrlBase();
       const { extensionToken } = await new Promise<{ extensionToken?: string }>((r) =>
         chrome.storage.local.get('extensionToken', (v) => r(v)),
@@ -1176,7 +1492,9 @@ if (snippetSaveBtn) {
         const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
         throw new Error((err as { message?: string }).message ?? `HTTP ${res.status}`);
       }
-      if (snippetStatus) snippetStatus.textContent = 'Snippet saved.';
+      const okMsg = currentSnippet.kind === 'image' ? 'Image snippet saved.' : 'Snippet saved.';
+      if (snippetStatus) snippetStatus.textContent = okMsg;
+      if (snippetImageStatus) snippetImageStatus.textContent = okMsg;
       resetSnippetCard();
     } catch (err) {
       if (snippetErrorEl) {
