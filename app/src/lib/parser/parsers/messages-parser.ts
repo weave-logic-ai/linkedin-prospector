@@ -10,6 +10,8 @@ import type {
   ConversationEntry,
   ExtractedField,
 } from '../types';
+import { runFallbacks } from '../fallbacks/registry';
+import '../fallbacks/strategies';
 
 export class MessagesParser implements PageParser {
   readonly pageType = 'MESSAGES' as const;
@@ -92,13 +94,29 @@ export class MessagesParser implements PageParser {
       });
     }
 
+    // Fallback: use href-pattern to populate participantProfileUrl where the
+    // selector chain left it null. The registry strategy returns a list of
+    // /in/ URLs; we fold them into conversations in order.
+    const primaryHit = conversations.length > 0;
+    const registryHits = runFallbacks('MESSAGES', $, url, new Set<string>());
+    fields.push(...registryHits);
+    const urlsField = registryHits.find((f) => f.field === 'participantProfileUrls');
+    if (urlsField && Array.isArray(urlsField.value)) {
+      const urls = urlsField.value as string[];
+      for (let i = 0; i < conversations.length && i < urls.length; i++) {
+        if (!conversations[i].participantProfileUrl) {
+          conversations[i].participantProfileUrl = urls[i];
+        }
+      }
+    }
+
     const data: MessagesParseData = { conversations };
 
     fields.push({
       field: 'conversations',
       value: conversations.map((c) => c.participantName),
       confidence: conversations.length > 0 ? 0.75 : 0,
-      selectorUsed: itemChain?.selectors[0] ?? '',
+      selectorUsed: primaryHit ? (itemChain?.selectors[0] ?? '') : '',
       selectorIndex: 0,
       source: 'selector',
     });

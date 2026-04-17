@@ -1,0 +1,62 @@
+{
+  "_comment": "Snapshot of active selector_configs seeded in data/db/init/017-extension-schema.sql. Kept in sync with migration 017 so fixture tests can run without a live DB. Bump version when the migration changes.",
+  "PROFILE": {
+    "name": { "name": "Full Name", "selectors": ["h1.text-heading-xlarge", ".pv-text-details__left-panel h1", "h1"], "transform": "trim" },
+    "headline": { "name": "Headline", "selectors": [".text-body-medium.break-words", ".pv-text-details__left-panel .text-body-medium", ".text-body-medium"], "transform": "trim" },
+    "location": { "name": "Location", "selectors": [".text-body-small.inline.t-black--light.break-words", ".pv-text-details__left-panel span.text-body-small", ".pv-text-details__right-panel"], "transform": "trim" },
+    "about": { "name": "About", "selectors": ["#about ~ div p", "section[aria-labelledby=about-heading] p", "#about p"], "transform": "trim" },
+    "experience": { "name": "Experience Entries", "selectors": ["section[aria-labelledby=experience-heading] .experience-item", "#experience .experience-item", "li.experience-item"], "multiple": true },
+    "education": { "name": "Education Entries", "selectors": ["section[aria-labelledby=education-heading] .education-item", "#education .education-item", "li.education-item"], "multiple": true },
+    "skills": { "name": "Skills", "selectors": ["section[aria-labelledby=skills-heading] .skill-item span", "#skills .skill-item span", "li.skill-item span"], "multiple": true, "transform": "trim" },
+    "connectionsCount": { "name": "Connections Count", "selectors": [".pv-top-card__connections-count", ".pv-text-details__right-panel span.t-bold"], "transform": "parseConnectionCount" },
+    "profileImageUrl": { "name": "Profile Image", "selectors": ["img[alt*=\"profile picture\"]", ".pv-top-card-profile-picture__image"], "attribute": "src" }
+  },
+  "PROFILE_HEURISTICS": [
+    { "field": "connectionsCount", "pattern": "([\\d,]+)\\+?\\s*connections?", "flags": "i", "captureGroup": 1, "sourceField": "connectionsCount" }
+  ],
+  "SEARCH_PEOPLE": {
+    "resultItem": { "name": "Search Result Item", "selectors": [".reusable-search__result-container", "li.search-result", ".entity-result"], "multiple": true },
+    "resultName": { "name": "Result Name", "selectors": [".entity-result__title-text", ".search-result__title", ".entity-result__title-text span"], "transform": "trim" },
+    "resultHeadline": { "name": "Result Headline", "selectors": [".entity-result__primary-subtitle"], "transform": "trim" },
+    "resultProfileUrl": { "name": "Result Profile URL", "selectors": ["a.app-aware-link", "a[href*=\"/in/\"]"], "attribute": "href" },
+    "resultLocation": { "name": "Result Location", "selectors": [".entity-result__secondary-subtitle"], "transform": "trim" },
+    "resultDegree": { "name": "Result Degree", "selectors": [".entity-result__badge"], "transform": "trim" },
+    "totalResults": { "name": "Total Results", "selectors": [".search-results-page-title"], "transform": "trim" }
+  },
+  "SEARCH_CONTENT": {
+    "resultItem": { "name": "Search Result Item", "selectors": [".reusable-search__result-container"], "multiple": true },
+    "totalResults": { "name": "Total Results", "selectors": [".search-results-page-title"], "transform": "trim" }
+  },
+  "FEED": {
+    "postItem": { "name": "Feed Post", "selectors": [".feed-shared-update-v2", "div[data-urn^=\"urn:li:activity\"]"], "multiple": true },
+    "authorName": { "name": "Post Author", "selectors": [".feed-shared-actor__name", ".feed-shared-actor__name span"], "transform": "trim" },
+    "authorHeadline": { "name": "Author Headline", "selectors": [".feed-shared-actor__description"], "transform": "trim" },
+    "postContent": { "name": "Post Content", "selectors": [".feed-shared-update-v2__description span"], "transform": "trim" },
+    "likeCount": { "name": "Like Count", "selectors": [".social-details-social-counts__reactions-count"], "transform": "parseInt" },
+    "commentCount": { "name": "Comment Count", "selectors": [".social-details-social-counts__comments"], "transform": "parseInt" }
+  },
+  "COMPANY": {
+    "companyName": { "name": "Company Name", "selectors": ["h1.org-top-card-summary__title", "h1"], "transform": "trim" },
+    "industry": { "name": "Industry", "selectors": [".org-top-card-summary-info-list__info-item:first-child", "dt:contains('Industry') + dd", ".org-top-card-summary-info-list__info-item"], "transform": "trim" },
+    "companySize": { "name": "Company Size", "selectors": [".org-about-company-module__company-size-definition-text", "dt:contains('Company size') + dd", ".org-top-card-summary-info-list__info-item"], "transform": "trim" },
+    "headquarters": { "name": "Headquarters", "selectors": [".org-about-module__headquarters", "dt:contains('Headquarters') + dd"], "transform": "trim" },
+    "about": { "name": "About", "selectors": [".org-about-us-organization-description__text", ".org-about-us p"], "transform": "trim" },
+    "website": { "name": "Website", "selectors": [".org-about-us a", "dl dd a"], "attribute": "href" },
+    "followerCount": { "name": "Follower Count", "selectors": [".org-top-card-summary-info-list__info-item"], "transform": "parseInt" },
+    "specialties": { "name": "Specialties", "selectors": [".org-page-details__specialities", "dt:contains('Specialties') + dd"], "transform": "trim" }
+  },
+  "CONNECTIONS": {
+    "connectionItem": { "name": "Connection Item", "selectors": [".mn-connection-card"], "multiple": true },
+    "connectionName": { "name": "Connection Name", "selectors": [".mn-connection-card__name"], "transform": "trim" },
+    "connectionHeadline": { "name": "Connection Headline", "selectors": [".mn-connection-card__occupation"], "transform": "trim" },
+    "connectionProfileUrl": { "name": "Connection URL", "selectors": [".mn-connection-card__link"], "attribute": "href" },
+    "connectedDate": { "name": "Connected Date", "selectors": [".time-badge", ".mn-connection-card time"], "transform": "trim" }
+  },
+  "MESSAGES": {
+    "conversationItem": { "name": "Conversation", "selectors": [".msg-conversation-listitem"], "multiple": true },
+    "participantName": { "name": "Participant Name", "selectors": [".msg-conversation-listitem__participant-names"], "transform": "trim" },
+    "lastMessage": { "name": "Last Message", "selectors": [".msg-conversation-listitem__message-snippet"], "transform": "trim" },
+    "timestamp": { "name": "Timestamp", "selectors": [".msg-conversation-listitem__time-stamp"], "transform": "trim" },
+    "unreadIndicator": { "name": "Unread Indicator", "selectors": [".msg-conversation-listitem__unread-badge"], "transform": "trim" }
+  }
+}

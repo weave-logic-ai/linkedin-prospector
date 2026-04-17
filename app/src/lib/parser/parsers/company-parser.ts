@@ -10,6 +10,8 @@ import type {
   ExtractedField,
 } from '../types';
 import { extractField } from '../selector-extractor';
+import { runFallbacks } from '../fallbacks/registry';
+import '../fallbacks/strategies';
 
 export class CompanyParser implements PageParser {
   readonly pageType = 'COMPANY' as const;
@@ -42,6 +44,13 @@ export class CompanyParser implements PageParser {
         fields.push(extractField($, chain, fieldName));
       }
     }
+
+    // Fallback registry — recovers from hashed-class churn via og-meta + title-tag.
+    const filled = new Set<string>(
+      fields.filter((f) => f.value !== null && f.value !== '').map((f) => f.field)
+    );
+    const fallbackFields = runFallbacks('COMPANY', $, url, filled);
+    fields.push(...fallbackFields);
 
     const getValue = (fieldName: string): string | null => {
       const field = fields.find((f) => f.field === fieldName);

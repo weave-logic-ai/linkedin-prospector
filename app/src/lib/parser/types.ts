@@ -14,7 +14,27 @@ export interface ExtractedField {
   confidence: number; // 0.0 - 1.0
   selectorUsed: string; // Which selector in the chain matched
   selectorIndex?: number; // Position in the chain (0 = first/best)
-  source: 'selector' | 'heuristic' | 'content-heuristic' | 'title-tag' | 'url-slug';
+  source:
+    | 'selector'
+    | 'heuristic'
+    | 'content-heuristic'
+    | 'title-tag'
+    | 'url-slug'
+    | 'fallback';
+}
+
+/**
+ * A chunk of DOM that survived the primary parse without contributing
+ * to any extracted field. Populated by `unmatched-dom.ts` and consumed
+ * by WS-2's sidebar "Report as regression" flow.
+ */
+export interface UnmatchedDomEntry {
+  /** Approximate DOM path (tag + class-first-token + nth-of-type). */
+  domPath: string;
+  /** First ~160 chars of stripped text content, newline-collapsed. */
+  textPreview: string;
+  /** Byte length of the inner HTML fragment (0 when unknown). */
+  byteLength: number;
 }
 
 /** Profile-specific parsed data */
@@ -152,6 +172,12 @@ export interface ParseResult {
   parserVersion: string;
   selectorConfigVersion: number;
   errors: string[];
+  /**
+   * Unexplained DOM regions — populated by `populateUnmatchedDom` after the
+   * parser has run. Empty when no sections survived un-consumed or when the
+   * walker was skipped. Consumed by WS-2 sidebar ("Report as regression").
+   */
+  unmatched?: UnmatchedDomEntry[];
 }
 
 /** Interface for individual page type parsers */

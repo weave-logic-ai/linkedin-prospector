@@ -15,6 +15,8 @@ import { ConnectionsParser } from './parsers/connections-parser';
 import { MessagesParser } from './parsers/messages-parser';
 import type { ParseResult, SearchParseData, ProfileParseData } from './types';
 import { upsertContactFromProfile, upsertContactsFromSearch } from './contact-upsert';
+import { populateUnmatchedDom } from './unmatched-dom';
+import { recordParseResult } from './telemetry';
 
 // Register all parsers
 parserRegistry.register(new ProfileParser());
@@ -131,7 +133,14 @@ export async function parseCachedPage(cacheId: string): Promise<ParseResult> {
   const $ = cheerio.load(row.html_content);
   const result = parser.parse($, config, row.url);
 
+  // Visibility plumbing (WS-2 consumer): record DOM sections that weren't
+  // consumed by any primary selector, heuristic, or fallback.
+  populateUnmatchedDom($, result);
+
   const parseTimeMs = Date.now() - startTime;
+
+  // Best-effort telemetry — always flag-gated inside recordParseResult.
+  await recordParseResult({ ...result, captureId, parseTimeMs });
 
   // Mark as parsed in the DB
   await query(
@@ -202,11 +211,14 @@ export function parseHtml(
       parserVersion: '1.0.0',
       selectorConfigVersion: config.version,
       errors: [`No parser registered for page type: ${pageType}`],
+      unmatched: [],
     };
   }
 
   const $ = cheerio.load(html);
   const result = parser.parse($, config, url);
+
+  populateUnmatchedDom($, result);
 
   return {
     ...result,

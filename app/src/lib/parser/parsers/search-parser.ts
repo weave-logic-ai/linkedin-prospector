@@ -13,6 +13,8 @@ import type {
   ExtractedField,
 } from '../types';
 import { extractField } from '../selector-extractor';
+import { runFallbacks } from '../fallbacks/registry';
+import '../fallbacks/strategies';
 
 export class SearchParser implements PageParser {
   readonly pageType = 'SEARCH_PEOPLE' as const;
@@ -78,7 +80,22 @@ export class SearchParser implements PageParser {
           }
         }
 
-        results.push({ name, headline, profileUrl, location, connectionDegree: null, mutualConnections: null });
+        // Degree badge — §5.3 finding, previously always null in Strategy 1.
+        let connectionDegree: string | null = null;
+        const degreeChain = selectors['resultDegree'];
+        if (degreeChain) {
+          for (const sel of degreeChain.selectors) {
+            const text = $el.find(sel).first().text().trim();
+            if (text) { connectionDegree = text; break; }
+          }
+        }
+
+        // Mutual-connections text — common pattern: "3 mutual connections".
+        let mutualConnections: number | null = null;
+        const mutualMatch = $el.text().match(/(\d+)\s+mutual\s+connection/i);
+        if (mutualMatch) mutualConnections = parseInt(mutualMatch[1], 10);
+
+        results.push({ name, headline, profileUrl, location, connectionDegree, mutualConnections });
       });
     }
 
@@ -215,14 +232,25 @@ export class SearchParser implements PageParser {
       currentPage: currentPage ?? 1,
     };
 
+    const primaryPathHit = results.length > 0 && !errors.some((e) => e.startsWith('Used fallback href-pattern'));
     fields.push({
       field: 'results',
       value: results.map((r) => r.name),
       confidence: results.length > 0 ? 0.8 : 0,
-      selectorUsed: results.length > 0 ? (resultItemChain?.selectors[0] ?? 'fallback:href-pattern') : '',
+      selectorUsed: results.length > 0
+        ? (primaryPathHit ? (resultItemChain?.selectors[0] ?? 'selector') : 'fallback:href-pattern')
+        : '',
       selectorIndex: 0,
-      source: 'selector',
+      source: primaryPathHit ? 'selector' : (results.length > 0 ? 'fallback' : 'selector'),
     });
+
+    // Registry-driven fallback: also surfaces href-pattern hits for telemetry
+    // parity with the other parsers, even when Strategy 1 produced results.
+    const filled = new Set<string>(
+      fields.filter((f) => f.value !== null && f.value !== '').map((f) => f.field)
+    );
+    const registryHits = runFallbacks('SEARCH_PEOPLE', $, url, filled);
+    fields.push(...registryHits);
 
     return {
       success: results.length > 0,
