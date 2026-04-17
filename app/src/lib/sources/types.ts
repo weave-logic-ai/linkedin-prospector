@@ -95,3 +95,43 @@ export interface EdgarInput {
   /** If true, skip filings whose accession number we already stored. */
   dedup?: boolean;
 }
+
+// Phase 3 Track F input shapes. Per-connector env flags gate enablement inside
+// the connector module; see `connectors/rss.ts`, `connectors/google-news.ts`,
+// `connectors/corporate-blog.ts`.
+
+export interface RssInput {
+  /** Feed URL (RSS 2.0 or Atom 1.0). */
+  feedUrl: string;
+  /** Feed kind hint (press_release | blog | news). Written into metadata. */
+  feedKind?: 'press_release' | 'blog' | 'news';
+  /** Optional display label for admin UI. */
+  label?: string;
+  /** Max items to persist per poll (default 50). */
+  maxItems?: number;
+}
+
+export interface GoogleNewsInput {
+  /** Person or company display name the query is built around. */
+  targetName: string;
+  /** Optional contact id to attach source_record_entities links to. */
+  contactId?: string;
+  /** Optional company id to attach source_record_entities links to. */
+  companyId?: string;
+  /** Override the hl/gl — defaults hl=en-US gl=US per §7.2. */
+  hl?: string;
+  gl?: string;
+  /** Max items to persist per poll (default 30). */
+  maxItems?: number;
+}
+
+export interface CorporateBlogInput {
+  /** Company domain, host-only (no scheme, no path). */
+  domain: string;
+  /** Company id, so discovered feed items can link back to the company row. */
+  companyId: string;
+  /** Override the candidate feed-path chain. */
+  candidatePaths?: string[];
+  /** Max items to persist per poll (default 30). */
+  maxItems?: number;
+}

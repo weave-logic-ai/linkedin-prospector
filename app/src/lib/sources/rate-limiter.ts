@@ -24,6 +24,9 @@ export const DEFAULT_BUCKETS: Record<string, BucketConfig> = {
   'web.archive.org': { capacity: 30, refillPerMin: 30 },
   'data.sec.gov': { capacity: 10, refillPerMin: 10 },
   'www.sec.gov': { capacity: 10, refillPerMin: 10 },
+  // Phase 3 Track F — Google News RSS soft cap is 30/min (see §7.2 + §11 of
+  // 05-source-expansion.md). Bucket size 5 keeps the initial burst modest.
+  'news.google.com': { capacity: 5, refillPerMin: 30 },
 };
 
 export class RateLimitExhaustedError extends Error {
