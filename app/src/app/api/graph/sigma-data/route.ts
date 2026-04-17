@@ -22,8 +22,13 @@ export async function GET(request: NextRequest) {
     const nicheId = searchParams.get("nicheId");
     const edgeTypesParam = searchParams.get("edgeTypes");
     const minPagerank = parseFloat(searchParams.get("minPagerank") || "0");
+    // Phase 4 Track I — provenance edges are opt-in. When the caller passes
+    // `includeProvenanceEdges=true`, we pull `evidence_for` / `derived_from`
+    // alongside the real edges. Default behaviour is unchanged.
+    const includeProvenanceEdges =
+      searchParams.get("includeProvenanceEdges") === "true";
 
-    const edgeTypeFilter = edgeTypesParam
+    const baseEdgeTypes = edgeTypesParam
       ? edgeTypesParam.split(",")
       : [
           "CONNECTED_TO",
@@ -33,6 +38,9 @@ export async function GET(request: NextRequest) {
           "ENDORSED",
           "RECOMMENDED",
         ];
+    const edgeTypeFilter = includeProvenanceEdges
+      ? [...baseEdgeTypes, "evidence_for", "derived_from"]
+      : baseEdgeTypes;
 
     // Build nodes query — top contacts by PageRank, optionally filtered by niche
     let nodesQuery: string;

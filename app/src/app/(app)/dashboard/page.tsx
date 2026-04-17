@@ -1,6 +1,10 @@
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  DashboardLayout,
+  type DashboardTargetContext,
+} from "@/components/dashboard/dashboard-layout";
 
 const ScoreScatterWidget = dynamic(
   () =>
@@ -106,6 +110,47 @@ function ChartSkeleton({ title }: { title: string }) {
   );
 }
 
+// Per-target slot. Cards here are rendered once in single-column mode and
+// twice (primary-dimmed, secondary-emphasized) when a secondary target is
+// set. Today these components do not consume the `ctx` parameter because
+// they still read owner-scoped data; future sprints will thread `targetId`
+// through so each column actually reflects its target (see
+// `.planning/research-tools-sprint/04-targets-and-graph.md` §3).
+function PerTargetCards(_ctx: DashboardTargetContext) {
+  return (
+    <>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <NetworkHealthRing />
+        <TierDistributionChart />
+        <EnrichmentBudgetBars />
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <IcpRadarChart />
+        <ScoreScatterWidget />
+      </div>
+    </>
+  );
+}
+
+// Full-width slot. Cards here are network-wide or cross-target and do not
+// make sense duplicated per-target ("Today's activity", the task queue,
+// the discovery feed of items from anywhere). These render full-width in
+// both single- and two-column modes.
+function FullWidthCards() {
+  return (
+    <>
+      <div className="grid gap-4 md:grid-cols-2">
+        <TaskQueueWidget />
+      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <DiscoveryFeed />
+        <TopContactsList />
+        <RecentActivity />
+      </div>
+    </>
+  );
+}
+
 export default function DashboardPage() {
   return (
     <div>
@@ -115,26 +160,11 @@ export default function DashboardPage() {
           Overview of your prospecting activity
         </p>
       </div>
-      <div className="space-y-4">
-        <GoalFocusBanner />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <NetworkHealthRing />
-          <TierDistributionChart />
-          <EnrichmentBudgetBars />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <IcpRadarChart />
-          <TaskQueueWidget />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <ScoreScatterWidget />
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <DiscoveryFeed />
-          <TopContactsList />
-          <RecentActivity />
-        </div>
-      </div>
+      <GoalFocusBanner />
+      <DashboardLayout
+        perTargetSlot={PerTargetCards}
+        fullWidthSlot={<FullWidthCards />}
+      />
     </div>
   );
 }

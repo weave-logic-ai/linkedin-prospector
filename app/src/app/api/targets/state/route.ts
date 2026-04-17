@@ -16,6 +16,7 @@ import {
   getCurrentOwnerProfileId,
   getTargetById,
 } from '@/lib/targets/service';
+import { invalidateForOwner } from '@/lib/graph/data-cache';
 
 export async function GET() {
   try {
@@ -56,6 +57,9 @@ export async function PUT(request: NextRequest) {
     }
 
     const state = await setSecondaryTarget(ownerId, body.secondaryTargetId ?? null);
+    // Phase 4 Track I: invalidate the /api/graph/data cache for this owner
+    // so the re-rooted graph reflects the new secondary immediately.
+    invalidateForOwner(ownerId);
     return NextResponse.json({ data: state });
   } catch (error) {
     return NextResponse.json(

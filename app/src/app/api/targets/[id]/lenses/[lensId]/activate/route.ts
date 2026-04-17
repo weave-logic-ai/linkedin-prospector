@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { activateLensForTarget } from '@/lib/targets/lens-service';
 import { getTargetById } from '@/lib/targets/service';
+import { invalidateForTarget } from '@/lib/graph/data-cache';
 
 export async function PUT(
   _request: NextRequest,
@@ -27,6 +28,9 @@ export async function PUT(
         { status: 404 }
       );
     }
+    // Phase 4 Track I: invalidate the graph-data cache for this target since
+    // the active ICP set (and therefore scoring) changed.
+    invalidateForTarget(id);
     return NextResponse.json({ data: lens });
   } catch (error) {
     return NextResponse.json(

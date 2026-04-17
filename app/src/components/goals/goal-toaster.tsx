@@ -3,6 +3,10 @@
 import { useState, useCallback, createContext, useContext } from "react";
 import { Button } from "@/components/ui/button";
 import { Target, X, Check, AlertTriangle } from "lucide-react";
+import {
+  DeltaBadge,
+  useDeltaThreshold,
+} from "@/components/scoring/delta-badge";
 
 interface GoalToast {
   id: string;
@@ -11,6 +15,9 @@ interface GoalToast {
   description: string;
   priority: number;
   type: "goal" | "warning";
+  /** Optional score delta rendering. */
+  currentValue?: number;
+  previousValue?: number;
 }
 
 interface GoalToasterContextValue {
@@ -29,6 +36,7 @@ export function useGoalToaster() {
 
 export function GoalToasterProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<GoalToast[]>([]);
+  const deltaThreshold = useDeltaThreshold();
 
   const showGoal = useCallback((toast: Omit<GoalToast, "id" | "type">) => {
     const id = `goal-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -91,7 +99,17 @@ export function GoalToasterProvider({ children }: { children: React.ReactNode })
                 <Target className="h-4 w-4 text-primary mt-0.5 shrink-0" />
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium leading-tight">{toast.title}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium leading-tight">{toast.title}</p>
+                  {typeof toast.currentValue === "number" &&
+                    typeof toast.previousValue === "number" && (
+                      <DeltaBadge
+                        currentValue={toast.currentValue}
+                        previousValue={toast.previousValue}
+                        threshold={deltaThreshold}
+                      />
+                    )}
+                </div>
                 {toast.description && (
                   <p className="text-xs text-muted-foreground mt-1 leading-snug">
                     {toast.description}
