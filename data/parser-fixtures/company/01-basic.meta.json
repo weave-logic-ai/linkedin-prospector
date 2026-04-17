@@ -1,0 +1,18 @@
+{
+  "pageType": "COMPANY",
+  "scenario": "Small-company page: name, industry, size, headquarters, about, website, follower count. No founded / no specialties.",
+  "sourceUrlRedacted": "https://www.linkedin.com/company/redacted-slug/",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "name",
+    "industry",
+    "companySize",
+    "headquarters",
+    "about",
+    "website",
+    "followerCount"
+  ],
+  "notes": "Classic About-us + details dl layout. The company parser is pure selector-chain today, so this fixture is the happy path."
+}

@@ -1,0 +1,14 @@
+{
+  "pageType": "CONNECTIONS",
+  "scenario": "Connections page with hashed class names and no visible connected-date. 6 cards. Exercises the hypothesised href-pattern fallback for this parser.",
+  "sourceUrlRedacted": "https://www.linkedin.com/mynetwork/invite-connect/connections/",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "connections[].name",
+    "connections[].headline",
+    "connections[].profileUrl"
+  ],
+  "notes": "connectedDate should be null for every entry. The connections parser today is selector-only, so this fixture will yield 0 with the current implementation — that's the point: it's a regression target for the fallback work in 01-parser-audit.md §5.4."
+}

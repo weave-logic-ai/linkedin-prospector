@@ -1,0 +1,17 @@
+{
+  "pageType": "FEED",
+  "scenario": "Top of feed with 2 original posts, each carrying a data-urn anchor, author link, description, and like/comment counts.",
+  "sourceUrlRedacted": "https://www.linkedin.com/feed/",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "posts[].authorName",
+    "posts[].authorHeadline",
+    "posts[].authorProfileUrl",
+    "posts[].content",
+    "posts[].likes",
+    "posts[].comments"
+  ],
+  "notes": "data-urn=\"urn:li:activity:...\" is the stable anchor called out in 01-parser-audit.md §5.6 for future FEED fallback work. Both posts are original (no repost/article markers)."
+}

@@ -1,0 +1,15 @@
+{
+  "pageType": "MESSAGES",
+  "scenario": "Conversation list with 3 threads: one read, one unread (with badge), one read. Carries participant names, last-message previews, and timestamps.",
+  "sourceUrlRedacted": "https://www.linkedin.com/messaging/",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "conversations[].participantName",
+    "conversations[].lastMessagePreview",
+    "conversations[].timestamp",
+    "conversations[].unread"
+  ],
+  "notes": "The unread state is on the outer <li> class (msg-conversation-listitem--unread) plus an inner badge span. participantProfileUrl is not recoverable from this shape today - see audit hypothesis 5.5."
+}

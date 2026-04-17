@@ -1,0 +1,17 @@
+{
+  "pageType": "SEARCH_PEOPLE",
+  "scenario": "People-search results page 1: 3 results with headline, location, connection degree (1st/2nd/3rd), total count header.",
+  "sourceUrlRedacted": "https://www.linkedin.com/search/results/people/?keywords=redacted&origin=GLOBAL_SEARCH_HEADER",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "results[].name",
+    "results[].headline",
+    "results[].profileUrl",
+    "results[].location",
+    "results[].connectionDegree",
+    "totalResultsEstimate"
+  ],
+  "notes": "The reusable-search__result-container class plus componentkey attribute mirrors LinkedIn's modern search shape. Result 2 carries mutual connections; results 1 and 3 do not."
+}

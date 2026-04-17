@@ -1,0 +1,15 @@
+{
+  "pageType": "CONNECTIONS",
+  "scenario": "My Connections page: 4 cards, each with name, headline, profile URL, and a Connected-on date. Simple case.",
+  "sourceUrlRedacted": "https://www.linkedin.com/mynetwork/invite-connect/connections/",
+  "ruleSetVersion": "1.0.0",
+  "timestamp": "2026-04-17T00:00:00.000Z",
+  "preRedactionSha256": "synthetic-no-raw-input",
+  "expectedFields": [
+    "connections[].name",
+    "connections[].headline",
+    "connections[].profileUrl",
+    "connections[].connectedDate"
+  ],
+  "notes": "The mn-connection-card class is LinkedIn's stable structural class for connection cards. <time class=\"time-badge\"> is visible text today, which the parser happens to extract — but the audit notes this is likely a tooltip in current LinkedIn."
+}
