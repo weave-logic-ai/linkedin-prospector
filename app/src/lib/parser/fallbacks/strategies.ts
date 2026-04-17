@@ -109,6 +109,70 @@ const companyTitleTag: FallbackStrategy = {
   },
 };
 
+// Phase 1.5: scan all anchors + dl entries for a "NNN associated members"-style
+// string or a year-only dd under <dt>Founded</dt>. Robust to hashed classes —
+// only cares about the stable text + /people/ href shape.
+const companyDetailsHref: FallbackStrategy = {
+  name: 'details-href',
+  pageTypes: ['COMPANY'],
+  apply($: CheerioAPI): ExtractedField[] {
+    const out: ExtractedField[] = [];
+
+    // employeesOnLinkedIn — look for anchors whose href points at the company
+    // people roll-up OR text that reads "N associated members". Pick the
+    // largest integer we see; LinkedIn never shows a second one.
+    let best: number | null = null;
+    $('a[href*="/people/"], a[href*="currentCompany"]').each((_idx, el) => {
+      const text = $(el).text();
+      const m = text.match(/([\d,]+)\s+associated\s+members/i) ?? text.match(/([\d,]+)/);
+      if (!m) return;
+      const n = parseInt(m[1].replace(/,/g, ''), 10);
+      if (!isNaN(n) && (best === null || n > best)) best = n;
+    });
+    if (best === null) {
+      const bodyText = $('body').text();
+      const bm = bodyText.match(/([\d,]+)\s+associated\s+members/i);
+      if (bm) {
+        const n = parseInt(bm[1].replace(/,/g, ''), 10);
+        if (!isNaN(n)) best = n;
+      }
+    }
+    if (best !== null) {
+      out.push({
+        field: 'employeesOnLinkedIn',
+        value: best,
+        confidence: 0.65,
+        source: 'fallback',
+        selectorUsed: 'fallback:details-href[associated-members]',
+      });
+    }
+
+    // founded — scan every <dt> for text matching /^\s*Founded\s*$/ and pull
+    // the next <dd>'s 4-digit year. Redundant with the primary dt:contains
+    // selector, but the fallback fires when the selector chain misses (e.g.
+    // obfuscated dl wrappers on live LinkedIn).
+    let founded: string | null = null;
+    $('dt').each((_idx, el) => {
+      const label = $(el).text().trim().toLowerCase();
+      if (label !== 'founded') return;
+      const ddText = $(el).next('dd').text().trim();
+      const ym = ddText.match(/\b(1[89]\d{2}|20\d{2}|21\d{2})\b/);
+      if (ym) founded = ym[1];
+    });
+    if (founded) {
+      out.push({
+        field: 'founded',
+        value: founded,
+        confidence: 0.75,
+        source: 'fallback',
+        selectorUsed: 'fallback:details-href[founded-dd]',
+      });
+    }
+
+    return out;
+  },
+};
+
 // ---------------------------------------------------------------------------
 // CONNECTIONS: href-pattern (generalised from search-parser §5.3 pattern)
 // ---------------------------------------------------------------------------
@@ -335,6 +399,7 @@ export function registerDefaultFallbacks(): void {
   registerFallback(profileTitleTag);
   registerFallback(profileOgMeta);
   registerFallback(companyTitleTag);
+  registerFallback(companyDetailsHref);
   registerFallback(connectionsHrefPattern);
   registerFallback(messagesHrefPattern);
   registerFallback(feedDataUrn);

@@ -43,7 +43,9 @@
     "about": { "name": "About", "selectors": [".org-about-us-organization-description__text", ".org-about-us p"], "transform": "trim" },
     "website": { "name": "Website", "selectors": [".org-about-us a", "dl dd a"], "attribute": "href" },
     "followerCount": { "name": "Follower Count", "selectors": [".org-top-card-summary-info-list__info-item"], "transform": "parseInt" },
-    "specialties": { "name": "Specialties", "selectors": [".org-page-details__specialities", "dt:contains('Specialties') + dd"], "transform": "trim" }
+    "specialties": { "name": "Specialties", "selectors": [".org-page-details__specialities", "dt:contains('Specialties') + dd"], "transform": "trim" },
+    "founded": { "name": "Founded", "selectors": ["dt:contains('Founded') + dd", ".org-about-company-module__founded-text"], "transform": "trim" },
+    "employeesOnLinkedIn": { "name": "Employees on LinkedIn", "selectors": ["a[href*='/people/']", ".org-top-card-secondary-content__see-all-link"], "transform": "trim" }
   },
   "CONNECTIONS": {
     "connectionItem": { "name": "Connection Item", "selectors": [".mn-connection-card"], "multiple": true },

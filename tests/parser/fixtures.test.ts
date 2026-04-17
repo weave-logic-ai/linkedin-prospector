@@ -199,40 +199,20 @@ describe('parser fixture golden snapshots', () => {
             // messages/02 — group thread participantProfileUrl is null by
             // design; anchor only exists on thread 2.
             'messages/02-group-thread.html': new Set([]),
-            // feed/02 — postedTimeAgo / postType / reposts are known gaps
-            // flagged in §5.6 and captured as baseline-findings in the report.
-            'feed/02-mixed-post-types.html': new Set([
-              'posts[].postedTimeAgo',
-              'posts[].postType',
-              'posts[].reposts',
-            ]),
-            // search-content parser does not exist yet; §3.1 notes this. The
-            // fixture is a placeholder — expected fields won't resolve until
-            // the parser is added (out of scope for Track A).
-            'search-content/01-basic.html': new Set([
-              'results[].authorName',
-              'results[].authorHeadline',
-              'results[].authorProfileUrl',
-              'results[].content',
-              'results[].likes',
-              'results[].comments',
-              'totalResultsEstimate',
-            ]),
-            'search-content/02-with-articles.html': new Set([
-              'results[].authorName',
-              'results[].authorHeadline',
-              'results[].authorProfileUrl',
-              'results[].postType',
-              'results[].title',
-              'results[].content',
-              'results[].likes',
-              'results[].comments',
-            ]),
+            // feed/02 — postedTimeAgo / postType / reposts closed in
+            // Phase 1.5 (parser-audit-2026-Q2-update.md). Only the first
+            // post in fixture 02 carries the time/reposts markup, so the
+            // array-level `some` check still passes.
+            'feed/02-mixed-post-types.html': new Set([]),
+            // search-content parser landed in Phase 1.5; expectations now
+            // resolve through `search-content-parser.ts`.
+            'search-content/01-basic.html': new Set([]),
+            'search-content/02-with-articles.html': new Set([]),
             'profile/02-with-experience.html': new Set(['location']),
-            // company-parser.ts:81 / :86 hardcode founded=null and
-            // employeesOnLinkedIn=null. §5.2 flags both as implementable from
-            // the current fixtures; deferred to Phase 1.5.
-            'company/02-with-specialties.html': new Set(['founded', 'employeesOnLinkedIn']),
+            // company-parser.ts now extracts founded + employeesOnLinkedIn
+            // (Phase 1.5). Both fields resolve against fixture 02 via the
+            // primary selector chain + new `details-href` fallback.
+            'company/02-with-specialties.html': new Set([]),
           };
           const gapKey = rel.replace(/\\/g, '/');
           const knownGap = KNOWN_GAPS[gapKey]?.has(expected) ?? false;

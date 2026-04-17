@@ -5,6 +5,12 @@
 **Run date**: 2026-04-17
 **Generator**: `tests/parser/compute-yield.test.ts` (deterministic, DB-free)
 
+> **Update (2026-04-17, Phase 1.5)**: the `founded`, `employeesOnLinkedIn`,
+> `postedTimeAgo`, `reposts`, `postType` gaps and the missing SEARCH_CONTENT
+> parser have all landed. See `parser-audit-2026-Q2-update.md` for the
+> updated yield table and per-field closure notes. The text below is
+> preserved as the baseline snapshot for historical reference.
+
 > Yield = fraction of fixtures in which an expected field came out non-null
 > or non-empty. `expectedFields` for each fixture is declared in its sibling
 > `.meta.json`. Low yield on a single-sample field is flagged regardless.

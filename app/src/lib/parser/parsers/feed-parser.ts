@@ -107,6 +107,59 @@ export class FeedParser implements PageParser {
           }
         }
 
+        // Repost count — only emitted when there are any, per §5.6. The
+        // selector defaults are kept inline so the offline fixture config
+        // does not need to ship the chain.
+        let reposts: number | null = null;
+        const repostSelectors =
+          selectors['repostCount']?.selectors ?? [
+            '.social-details-social-counts__reposts',
+            '.social-details-social-counts__item--right-aligned',
+          ];
+        for (const sel of repostSelectors) {
+          const text = $el.find(sel).first().text().trim();
+          if (!text) continue;
+          const num = parseInt(text.replace(/[,\s]/g, ''), 10);
+          if (!isNaN(num)) {
+            reposts = num;
+            break;
+          }
+        }
+
+        // postedTimeAgo — visible "2h", "3d", "1mo" style string under the
+        // actor subdescription. Accept any relative-time-looking shape.
+        let postedTimeAgo: string | null = null;
+        const timeSelectors =
+          selectors['postedTimeAgo']?.selectors ?? [
+            '.feed-shared-actor__sub-description',
+            '.update-components-actor__sub-description',
+            'time',
+          ];
+        for (const sel of timeSelectors) {
+          const text = $el.find(sel).first().text().trim();
+          if (!text) continue;
+          // Keep the first line; LinkedIn sometimes appends " • Edited" etc.
+          const firstLine = text.split(/\s*[•\n]\s*/)[0].trim();
+          if (/\d+\s*(s|m|h|d|w|mo|y|yr)\b/i.test(firstLine) || /\b(Just now|Yesterday|Today)\b/i.test(firstLine)) {
+            postedTimeAgo = firstLine;
+            break;
+          }
+        }
+
+        // postType classifier — cheapest wins first. Order matters:
+        // repost > poll > article > original. `unknown` only when the shell
+        // is present but nothing identifying is inside (defensive).
+        let postType: FeedPostEntry['postType'] = 'original';
+        if ($el.find('.update-v2-social-activity__reshared-by').length > 0) {
+          postType = 'repost';
+        } else if ($el.find('.feed-shared-poll, .feed-shared-poll__question').length > 0) {
+          postType = 'poll';
+        } else if ($el.find('.feed-shared-article, .feed-shared-article__title').length > 0) {
+          postType = 'article';
+        } else if ($el.find('.feed-shared-event, .feed-shared-event__title').length > 0) {
+          postType = 'event';
+        }
+
         posts.push({
           authorName,
           authorHeadline,
@@ -115,9 +168,9 @@ export class FeedParser implements PageParser {
           postUrl: null,
           likes,
           comments,
-          reposts: null,
-          postedTimeAgo: null,
-          postType: 'unknown',
+          reposts,
+          postedTimeAgo,
+          postType,
         });
       });
     }
