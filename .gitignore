@@ -68,6 +68,12 @@ ruflo.yaml
 # === Test/coverage ===
 coverage/
 .nyc_output/
+# Playwright run artifacts
+app/test-results/
+app/playwright-report/
+app/e2e/screenshots/
+# Misplaced legacy screenshot dir (spec used to write here)
+app/tests/
 
 # === Compressed archives ===
 *.zip
@@ -84,3 +90,4 @@ agent/linkedin-prospector/app/data/
 .archive/
 
 tasks.md
+.claude/settings.json
