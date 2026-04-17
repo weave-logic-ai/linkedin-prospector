@@ -23,6 +23,8 @@ import type {
 import { upsertContactFromProfile, upsertContactsFromSearch } from './contact-upsert';
 import { populateUnmatchedDom } from './unmatched-dom';
 import { recordParseResult } from './telemetry';
+import { wsServer } from '@/lib/websocket/ws-server';
+import { createParseCompleteEvent } from '@/lib/websocket/ws-events';
 
 // Register all parsers
 parserRegistry.register(new ProfileParser());
@@ -207,6 +209,25 @@ export async function parseCachedPage(cacheId: string): Promise<ParseResult> {
     } catch {
       // Non-critical — don't fail the parse result if upsert fails
     }
+  }
+
+  // WS-2 (Phase 2 Track D): push PARSE_COMPLETE to any connected extensions.
+  // Always safe; when nothing is listening, this is a no-op. No feature flag —
+  // per `08-phased-delivery.md` §4.1, the WS push is always on.
+  try {
+    if (wsServer.isRunning) {
+      wsServer.pushToAll(
+        createParseCompleteEvent(
+          captureId,
+          pageType,
+          result.fields
+            .filter((f) => f.value !== null && f.value !== '' && f.value !== undefined)
+            .map((f) => ({ field: f.field, confidence: f.confidence }))
+        )
+      );
+    }
+  } catch {
+    // Never fail a parse over a broadcast hiccup.
   }
 
   return {

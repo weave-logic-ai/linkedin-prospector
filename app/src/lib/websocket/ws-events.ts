@@ -82,14 +82,26 @@ export function createSettingsUpdatedEvent(
   };
 }
 
+/**
+ * WS-2 (Phase 2 Track D) parse-complete push.
+ * Per `08-phased-delivery.md` §4.1: `{type:'PARSE_COMPLETE', captureId,
+ * pageType, fields}` where `fields` is a compact `[{field, confidence}]`
+ * projection so the sidebar can render the Parse Result panel without a
+ * follow-up fetch.
+ */
+export interface ParseCompleteField {
+  field: string;
+  confidence: number;
+}
+
 export function createParseCompleteEvent(
   captureId: string,
-  contactId: string | null,
-  fieldsExtracted: number
+  pageType: string,
+  fields: ParseCompleteField[]
 ): WsPushEvent {
   return {
     type: 'PARSE_COMPLETE',
-    payload: { captureId, contactId, fieldsExtracted },
+    payload: { captureId, pageType, fields },
     timestamp: new Date().toISOString(),
   };
 }

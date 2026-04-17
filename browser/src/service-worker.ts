@@ -584,6 +584,29 @@ async function setupWebSocketHandlers(): Promise<void> {
     }
   });
 
+  // WS-2 Phase 2 Track D: relay parse-complete to the sidebar via
+  // chrome.storage.local (the sidebar listens on storage.onChanged).
+  client.onWsEvent('PARSE_COMPLETE', async (msg: WsMessage) => {
+    try {
+      const p = msg.payload as {
+        captureId?: string;
+        pageType?: string;
+        fields?: Array<{ field: string; confidence: number }>;
+      };
+      if (!p?.captureId) return;
+      await chrome.storage.local.set({
+        lastParseResult: {
+          captureId: p.captureId,
+          pageType: p.pageType ?? 'OTHER',
+          receivedAt: msg.timestamp,
+          fields: Array.isArray(p.fields) ? p.fields : [],
+        },
+      });
+    } catch {
+      // Non-critical
+    }
+  });
+
   await client.connectWebSocket();
 }
 

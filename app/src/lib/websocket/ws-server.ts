@@ -28,10 +28,16 @@ export interface AuthenticatedSocket extends WebSocket {
   extensionId: string;
   isAlive: boolean;
   connectedAt: Date;
+  /** Timestamp (ms) of the last ping we sent and are awaiting a pong for. */
+  lastPingAt?: number;
 }
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
-// const PONG_TIMEOUT_MS = 10_000; // Reserved for future heartbeat enhancement
+// Pong timeout: if a ping is not answered within this window, terminate the
+// socket. Previously this constant was defined but never wired up (see
+// `stub-inventory.md:25`); the heartbeat below now tracks each ping it emits
+// and enforces the timeout on the next tick.
+const PONG_TIMEOUT_MS = 10_000;
 
 class ExtensionWebSocketServer {
   private wss: WebSocketServer | null = null;
@@ -110,6 +116,7 @@ class ExtensionWebSocketServer {
 
     ws.on('pong', () => {
       ws.isAlive = true;
+      ws.lastPingAt = undefined;
     });
 
     ws.on('message', (data: Buffer | string) => {
@@ -194,7 +201,19 @@ class ExtensionWebSocketServer {
 
   private startHeartbeat(): void {
     this.heartbeatInterval = setInterval(() => {
+      const now = Date.now();
       for (const [id, client] of this.clients) {
+        // If a ping is outstanding beyond PONG_TIMEOUT_MS, the peer is gone.
+        if (
+          client.lastPingAt !== undefined &&
+          now - client.lastPingAt >= PONG_TIMEOUT_MS
+        ) {
+          console.log(`[WS] Terminating dead connection (pong timeout): ${id}`);
+          client.terminate();
+          this.clients.delete(id);
+          continue;
+        }
+        // Backstop: if the prior heartbeat cycle flagged this client dead.
         if (!client.isAlive) {
           console.log(`[WS] Terminating dead connection: ${id}`);
           client.terminate();
@@ -202,6 +221,7 @@ class ExtensionWebSocketServer {
           continue;
         }
         client.isAlive = false;
+        client.lastPingAt = now;
         client.ping();
       }
     }, HEARTBEAT_INTERVAL_MS);
