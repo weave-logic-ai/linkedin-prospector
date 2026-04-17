@@ -749,3 +749,121 @@ body {
   font-size: 11px;
   color: #666;
 }
+
+/* WS-2 Phase 2 Track D: visibility panels */
+.visibility-panels {
+  padding-bottom: 0;
+}
+.visibility-details {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: #fff;
+}
+.visibility-summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #111827;
+  list-style: none;
+  user-select: none;
+}
+.visibility-summary::before {
+  content: '▸ ';
+  color: #6b7280;
+  font-size: 11px;
+}
+.visibility-details[open] > .visibility-summary::before {
+  content: '▾ ';
+}
+.visibility-body {
+  padding: 6px 10px 10px;
+  border-top: 1px solid #f3f4f6;
+}
+.visibility-actions {
+  margin-top: 8px;
+}
+.visibility-status {
+  font-size: 11px;
+  color: #4b5563;
+  margin-top: 6px;
+}
+.visibility-subtle {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+.parse-result-meta {
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+.parse-result-fields {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 6px 0;
+  font-size: 12px;
+}
+.parse-result-fields li {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  border-bottom: 1px dotted #f3f4f6;
+}
+.parse-result-fields li.present {
+  color: #111827;
+}
+.parse-result-fields li.missing {
+  color: #9ca3af;
+  font-style: italic;
+}
+.confidence-badge {
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+.capture-diff-changes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+}
+.capture-diff-changes li {
+  padding: 3px 0;
+  border-bottom: 1px dotted #f3f4f6;
+  word-break: break-word;
+}
+.capture-diff-changes li.added {
+  color: #059669;
+}
+.capture-diff-changes li.changed {
+  color: #2563eb;
+}
+.capture-diff-changes li.removed {
+  color: #dc2626;
+  text-decoration: line-through;
+}
+.unmatched-regions {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+}
+.unmatched-regions li {
+  padding: 4px 0;
+  border-bottom: 1px dotted #f3f4f6;
+}
+.unmatched-dom-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: #6b7280;
+  word-break: break-all;
+}
+.unmatched-text-preview {
+  color: #374151;
+  margin: 2px 0 4px;
+}
+.unmatched-flag-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+}

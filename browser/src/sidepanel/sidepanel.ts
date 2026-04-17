@@ -683,6 +683,15 @@ async function updateTargetPanel(): Promise<void> {
     const nameEl = document.getElementById('sp-personalize-contact-name');
     if (nameEl) nameEl.textContent = lock.target.name;
   }
+
+  // Feed the visibility panels with the currently-locked target.
+  visibilityCurrentTarget = lock
+    ? {
+        kind: lock.target.kind === 'person' ? 'contact' : 'company',
+        id: lock.target.id,
+      }
+    : null;
+  void refreshCaptureDiffPanel();
 }
 
 function detectPageTypeFromUrl(url: string): string {
@@ -1520,3 +1529,464 @@ chrome.tabs.onUpdated.addListener((_id, info) => {
 });
 
 void loadSnippetTags().then(() => updateAddHostButton());
+
+// ============================================================
+// WS-2 Phase 2 Track D: visibility panels
+// ============================================================
+//
+// Three collapsible panels under the target panel:
+//   - Parse Result: latest parse_complete for the locked target.
+//   - Capture Diff: server-computed projection diff vs the prior capture.
+//   - Unmatched DOM: regions the parser couldn't claim, with a flag button.
+//
+// Per Q6 in `10-decisions.md`: always-on, collapsible, state persisted in
+// chrome.storage.local. Feature-gated at runtime on
+// RESEARCH_FLAGS.parserTelemetry (queried from the app via
+// /api/extension/analytics — a 404 signals the flag is off and we keep the
+// section hidden).
+
+type VisibilityTargetKind = 'contact' | 'company';
+
+let visibilityCurrentTarget: { kind: VisibilityTargetKind; id: string } | null =
+  null;
+let visibilityFlagEnabled = false;
+let visibilityLastCaptureId: string | null = null;
+let visibilityLastPageType: string | null = null;
+
+const VIS_STORAGE_KEY = 'visibilityPanelState';
+
+async function loadVisibilityState(): Promise<{
+  parseResultCollapsed: boolean;
+  captureDiffCollapsed: boolean;
+  unmatchedCollapsed: boolean;
+}> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(VIS_STORAGE_KEY, (v) => {
+      const s = (v[VIS_STORAGE_KEY] as {
+        parseResultCollapsed?: boolean;
+        captureDiffCollapsed?: boolean;
+        unmatchedCollapsed?: boolean;
+      }) ?? {};
+      resolve({
+        parseResultCollapsed: s.parseResultCollapsed ?? false,
+        captureDiffCollapsed: s.captureDiffCollapsed ?? true,
+        unmatchedCollapsed: s.unmatchedCollapsed ?? true,
+      });
+    });
+  });
+}
+
+async function saveVisibilityState(patch: Record<string, boolean>): Promise<void> {
+  const current = await loadVisibilityState();
+  await chrome.storage.local.set({
+    [VIS_STORAGE_KEY]: { ...current, ...patch },
+  });
+}
+
+function emitAnalytics(event: string, properties: Record<string, unknown> = {}): void {
+  void (async () => {
+    try {
+      const appUrl = await getAppUrlBase();
+      const { extensionToken } = await new Promise<{ extensionToken?: string }>(
+        (r) => chrome.storage.local.get('extensionToken', (v) => r(v)),
+      );
+      await fetch(`${appUrl}/api/extension/analytics`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(extensionToken ? { Authorization: `Bearer ${extensionToken}` } : {}),
+        },
+        body: JSON.stringify({ event, properties }),
+      });
+    } catch {
+      // Analytics are fire-and-forget.
+    }
+  })();
+}
+
+async function probeVisibilityFlag(): Promise<boolean> {
+  try {
+    const appUrl = await getAppUrlBase();
+    const res = await fetch(`${appUrl}/api/extension/analytics`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'parse_panel_viewed' }),
+    });
+    // 404 means the flag is off. 200 / 400 / 401 all mean the endpoint is
+    // live so the flag is on (auth / validation live downstream).
+    return res.status !== 404;
+  } catch {
+    return false;
+  }
+}
+
+function formatConfidence(c: number | null | undefined): string {
+  if (c === null || c === undefined || Number.isNaN(c)) return '—';
+  return c.toFixed(2);
+}
+
+function renderParseResultPanel(payload: {
+  captureId: string;
+  pageType: string;
+  fields: Array<{ field: string; confidence: number }>;
+  receivedAt: string;
+}): void {
+  const empty = document.getElementById('sp-parse-result-empty');
+  const metaEl = document.getElementById('sp-parse-result-meta');
+  const fieldsEl = document.getElementById('sp-parse-result-fields');
+  const regBtn = document.getElementById('sp-regression-run-btn') as
+    | HTMLButtonElement
+    | null;
+  if (!empty || !metaEl || !fieldsEl) return;
+
+  empty.style.display = 'none';
+  metaEl.style.display = '';
+  fieldsEl.style.display = '';
+
+  const present = payload.fields.filter((f) => f.confidence > 0).length;
+  metaEl.textContent = `Capture ${payload.captureId.slice(0, 8)} · ${payload.pageType} · ${present}/${payload.fields.length} fields`;
+
+  fieldsEl.innerHTML = '';
+  const sorted = [...payload.fields].sort((a, b) =>
+    a.field.localeCompare(b.field),
+  );
+  for (const f of sorted) {
+    const li = document.createElement('li');
+    li.className = f.confidence > 0 ? 'present' : 'missing';
+    const name = document.createElement('span');
+    name.textContent = f.field;
+    const badge = document.createElement('span');
+    badge.className = 'confidence-badge';
+    badge.textContent = formatConfidence(f.confidence);
+    li.appendChild(name);
+    li.appendChild(badge);
+    fieldsEl.appendChild(li);
+  }
+
+  if (regBtn) regBtn.disabled = false;
+  emitAnalytics('parse_panel_viewed', {
+    captureId: payload.captureId,
+    pageType: payload.pageType,
+    fields: payload.fields.length,
+  });
+}
+
+async function refreshCaptureDiffPanel(): Promise<void> {
+  const empty = document.getElementById('sp-capture-diff-empty');
+  const changesEl = document.getElementById('sp-capture-diff-changes');
+  const unchangedEl = document.getElementById('sp-capture-diff-unchanged');
+  if (!empty || !changesEl || !unchangedEl) return;
+
+  if (!visibilityFlagEnabled || !visibilityCurrentTarget) {
+    empty.style.display = '';
+    changesEl.style.display = 'none';
+    unchangedEl.style.display = 'none';
+    return;
+  }
+
+  try {
+    const appUrl = await getAppUrlBase();
+    const { extensionToken } = await new Promise<{ extensionToken?: string }>(
+      (r) => chrome.storage.local.get('extensionToken', (v) => r(v)),
+    );
+    const params = new URLSearchParams({
+      kind: visibilityCurrentTarget.kind,
+      id: visibilityCurrentTarget.id,
+    });
+    const res = await fetch(
+      `${appUrl}/api/extension/entity-diff?${params.toString()}`,
+      {
+        headers: extensionToken ? { Authorization: `Bearer ${extensionToken}` } : {},
+      },
+    );
+    if (!res.ok) {
+      empty.textContent =
+        res.status === 404 ? 'Entity not found.' : 'Diff unavailable.';
+      empty.style.display = '';
+      changesEl.style.display = 'none';
+      unchangedEl.style.display = 'none';
+      return;
+    }
+    const diff = (await res.json()) as {
+      changes: Array<{
+        field: string;
+        kind: 'added' | 'removed' | 'changed';
+        before: unknown;
+        after: unknown;
+      }>;
+      unchangedFieldCount: number;
+      fromCaptureId: string | null;
+    };
+
+    if (diff.changes.length === 0) {
+      empty.textContent =
+        diff.fromCaptureId === null
+          ? 'First capture — nothing to diff against.'
+          : 'No changes since the prior capture.';
+      empty.style.display = '';
+      changesEl.style.display = 'none';
+    } else {
+      empty.style.display = 'none';
+      changesEl.style.display = '';
+      changesEl.innerHTML = '';
+      for (const c of diff.changes) {
+        const li = document.createElement('li');
+        li.className = c.kind;
+        const display =
+          c.kind === 'added'
+            ? `+ ${c.field}: ${String(c.after)}`
+            : c.kind === 'removed'
+              ? `- ${c.field}: ${String(c.before)}`
+              : `± ${c.field}: ${String(c.before)} → ${String(c.after)}`;
+        li.textContent = display;
+        changesEl.appendChild(li);
+      }
+    }
+    unchangedEl.textContent = `${diff.unchangedFieldCount} unchanged field(s).`;
+    unchangedEl.style.display = '';
+    emitAnalytics('capture_diff_opened', {
+      kind: visibilityCurrentTarget.kind,
+      changes: diff.changes.length,
+    });
+  } catch {
+    empty.textContent = 'Diff unavailable.';
+    empty.style.display = '';
+    changesEl.style.display = 'none';
+    unchangedEl.style.display = 'none';
+  }
+}
+
+async function flagUnmatchedRegion(region: {
+  domPath: string;
+  textPreview: string;
+  htmlExcerpt?: string;
+}): Promise<void> {
+  if (!visibilityLastCaptureId || !visibilityLastPageType) return;
+  try {
+    const appUrl = await getAppUrlBase();
+    const { extensionToken } = await new Promise<{ extensionToken?: string }>(
+      (r) => chrome.storage.local.get('extensionToken', (v) => r(v)),
+    );
+    const res = await fetch(`${appUrl}/api/parser/flag-unmatched`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(extensionToken ? { Authorization: `Bearer ${extensionToken}` } : {}),
+      },
+      body: JSON.stringify({
+        captureId: visibilityLastCaptureId,
+        pageType: visibilityLastPageType,
+        domPath: region.domPath,
+        // Without a client-side HTML excerpt we fall back to the text preview.
+        // The server caps at 4KB.
+        domHtmlExcerpt: region.htmlExcerpt ?? region.textPreview,
+        textPreview: region.textPreview,
+      }),
+    });
+    const statusEl = document.getElementById('sp-regression-status');
+    if (statusEl) {
+      statusEl.style.display = '';
+      statusEl.textContent = res.ok
+        ? 'Flagged. Thanks.'
+        : `Flag failed (${res.status}).`;
+    }
+  } catch {
+    // Silent failure — the sidebar remains usable.
+  }
+}
+
+function renderUnmatchedPanel(
+  regions: Array<{ domPath: string; textPreview: string; byteLength?: number }>,
+): void {
+  const empty = document.getElementById('sp-unmatched-empty');
+  const listEl = document.getElementById('sp-unmatched-regions');
+  if (!empty || !listEl) return;
+
+  if (regions.length === 0) {
+    empty.style.display = '';
+    listEl.style.display = 'none';
+    return;
+  }
+
+  empty.style.display = 'none';
+  listEl.style.display = '';
+  listEl.innerHTML = '';
+  for (const region of regions) {
+    const li = document.createElement('li');
+    const path = document.createElement('div');
+    path.className = 'unmatched-dom-path';
+    path.textContent = region.domPath;
+    const text = document.createElement('div');
+    text.className = 'unmatched-text-preview';
+    text.textContent = region.textPreview;
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-secondary unmatched-flag-btn';
+    btn.textContent = 'Flag for selector miss';
+    btn.addEventListener('click', () => {
+      btn.disabled = true;
+      btn.textContent = 'Flagging…';
+      void flagUnmatchedRegion(region).then(() => {
+        btn.textContent = 'Flagged';
+      });
+    });
+    li.appendChild(path);
+    li.appendChild(text);
+    li.appendChild(btn);
+    listEl.appendChild(li);
+  }
+}
+
+async function runRegressionReport(): Promise<void> {
+  const statusEl = document.getElementById('sp-regression-status');
+  const btn = document.getElementById('sp-regression-run-btn') as
+    | HTMLButtonElement
+    | null;
+  if (!visibilityLastCaptureId || !visibilityLastPageType || !btn) return;
+  btn.disabled = true;
+  if (statusEl) {
+    statusEl.style.display = '';
+    statusEl.textContent = 'Running regression report…';
+  }
+  try {
+    const appUrl = await getAppUrlBase();
+    const { extensionToken } = await new Promise<{ extensionToken?: string }>(
+      (r) => chrome.storage.local.get('extensionToken', (v) => r(v)),
+    );
+    const res = await fetch(`${appUrl}/api/parser/regression-report`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(extensionToken ? { Authorization: `Bearer ${extensionToken}` } : {}),
+      },
+      body: JSON.stringify({
+        pageType: visibilityLastPageType,
+        rawHtml: '<html></html>',
+        captureId: visibilityLastCaptureId,
+      }),
+    });
+    if (!res.ok) {
+      if (statusEl) statusEl.textContent = `Failed (${res.status}).`;
+      return;
+    }
+    const json = (await res.json()) as {
+      extracted?: { fieldsExtracted?: number; fieldsAttempted?: number };
+    };
+    if (statusEl) {
+      const ex = json.extracted?.fieldsExtracted ?? 0;
+      const att = json.extracted?.fieldsAttempted ?? 0;
+      statusEl.textContent = `Yield: ${ex}/${att} fields extracted.`;
+    }
+  } catch {
+    if (statusEl) statusEl.textContent = 'Regression report failed.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function wireVisibilityDetails(): void {
+  const parseEl = document.getElementById(
+    'sp-parse-result-details',
+  ) as HTMLDetailsElement | null;
+  const diffEl = document.getElementById(
+    'sp-capture-diff-details',
+  ) as HTMLDetailsElement | null;
+  const unmEl = document.getElementById(
+    'sp-unmatched-details',
+  ) as HTMLDetailsElement | null;
+
+  parseEl?.addEventListener('toggle', () => {
+    void saveVisibilityState({
+      parseResultCollapsed: !parseEl.open,
+    });
+  });
+  diffEl?.addEventListener('toggle', () => {
+    void saveVisibilityState({
+      captureDiffCollapsed: !diffEl.open,
+    });
+    if (diffEl.open) void refreshCaptureDiffPanel();
+  });
+  unmEl?.addEventListener('toggle', () => {
+    void saveVisibilityState({
+      unmatchedCollapsed: !unmEl.open,
+    });
+  });
+
+  document
+    .getElementById('sp-regression-run-btn')
+    ?.addEventListener('click', () => {
+      void runRegressionReport();
+    });
+}
+
+async function initVisibilityPanels(): Promise<void> {
+  visibilityFlagEnabled = await probeVisibilityFlag();
+  const section = document.getElementById('sp-visibility-section');
+  if (!section) return;
+  if (!visibilityFlagEnabled) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+
+  const state = await loadVisibilityState();
+  const parseEl = document.getElementById(
+    'sp-parse-result-details',
+  ) as HTMLDetailsElement | null;
+  const diffEl = document.getElementById(
+    'sp-capture-diff-details',
+  ) as HTMLDetailsElement | null;
+  const unmEl = document.getElementById(
+    'sp-unmatched-details',
+  ) as HTMLDetailsElement | null;
+  if (parseEl) parseEl.open = !state.parseResultCollapsed;
+  if (diffEl) diffEl.open = !state.captureDiffCollapsed;
+  if (unmEl) unmEl.open = !state.unmatchedCollapsed;
+
+  wireVisibilityDetails();
+
+  // Seed with any existing parse result already in storage.
+  chrome.storage.local.get('lastParseResult', (v) => {
+    const p = v.lastParseResult as
+      | {
+          captureId: string;
+          pageType: string;
+          fields: Array<{ field: string; confidence: number }>;
+          receivedAt: string;
+        }
+      | undefined;
+    if (p) {
+      visibilityLastCaptureId = p.captureId;
+      visibilityLastPageType = p.pageType;
+      renderParseResultPanel(p);
+    }
+  });
+
+  void refreshCaptureDiffPanel();
+}
+
+// Listen for parse-complete updates pushed by the service worker.
+chrome.storage.onChanged.addListener((changes) => {
+  if (!visibilityFlagEnabled) return;
+  if (changes.lastParseResult) {
+    const p = changes.lastParseResult.newValue as
+      | {
+          captureId: string;
+          pageType: string;
+          fields: Array<{ field: string; confidence: number }>;
+          receivedAt: string;
+        }
+      | undefined;
+    if (p) {
+      visibilityLastCaptureId = p.captureId;
+      visibilityLastPageType = p.pageType;
+      renderParseResultPanel(p);
+      // Clear any stale unmatched view; the current capture's unmatched
+      // list is not part of the WS payload — fetch it lazily via the
+      // capture summary if/when the server exposes one.
+      renderUnmatchedPanel([]);
+      void refreshCaptureDiffPanel();
+    }
+  }
+});
+
+void initVisibilityPanels();

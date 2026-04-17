@@ -296,3 +296,31 @@ export interface StorageSchema {
   overlayPosition: string;
   retryQueue: RetryQueueItem[];
 }
+
+// ============================================================
+// WS-2 Phase 2 Track D: parse-result + visibility panels
+// ============================================================
+
+export interface LastParseResult {
+  captureId: string;
+  pageType: string;
+  receivedAt: string; // ISO
+  fields: Array<{ field: string; confidence: number }>;
+  /** Optional: set from the extension's own capture context. */
+  targetKind?: 'person' | 'company' | null;
+  targetId?: string | null;
+}
+
+export interface UnmatchedDomRegion {
+  domPath: string;
+  textPreview: string;
+  byteLength: number;
+  /** Optional — raw HTML excerpt collected client-side at capture time. */
+  htmlExcerpt?: string;
+}
+
+export interface VisibilityPanelState {
+  parseResultCollapsed: boolean;
+  captureDiffCollapsed: boolean;
+  unmatchedCollapsed: boolean;
+}

@@ -57,6 +57,40 @@
       </button>
     </section>
 
+    <!-- WS-2 Phase 2 Track D: visibility panels.
+         Gated in JS on RESEARCH_FLAGS.parserTelemetry; hidden when flag is off. -->
+    <section class="panel-section visibility-panels" id="sp-visibility-section" style="display: none;" data-testid="sp-visibility-section">
+      <details id="sp-parse-result-details" class="visibility-details" data-testid="sp-parse-result-panel">
+        <summary class="visibility-summary">Parse Result</summary>
+        <div id="sp-parse-result-body" class="visibility-body">
+          <p class="placeholder-text" id="sp-parse-result-empty">No capture yet.</p>
+          <div id="sp-parse-result-meta" class="parse-result-meta" style="display: none;"></div>
+          <ul id="sp-parse-result-fields" class="parse-result-fields" style="display: none;"></ul>
+          <div class="visibility-actions">
+            <button id="sp-regression-run-btn" class="btn btn-secondary btn-full" disabled>Run regression report</button>
+            <p id="sp-regression-status" class="visibility-status" style="display: none;"></p>
+          </div>
+        </div>
+      </details>
+
+      <details id="sp-capture-diff-details" class="visibility-details" data-testid="sp-capture-diff-panel">
+        <summary class="visibility-summary">Capture Diff</summary>
+        <div id="sp-capture-diff-body" class="visibility-body">
+          <p class="placeholder-text" id="sp-capture-diff-empty">Lock a target to see changes since the prior capture.</p>
+          <ul id="sp-capture-diff-changes" class="capture-diff-changes" style="display: none;"></ul>
+          <p id="sp-capture-diff-unchanged" class="visibility-subtle" style="display: none;"></p>
+        </div>
+      </details>
+
+      <details id="sp-unmatched-details" class="visibility-details" data-testid="sp-unmatched-dom-panel">
+        <summary class="visibility-summary">Unmatched DOM</summary>
+        <div id="sp-unmatched-body" class="visibility-body">
+          <p class="placeholder-text" id="sp-unmatched-empty">No unmatched regions.</p>
+          <ul id="sp-unmatched-regions" class="unmatched-regions" style="display: none;"></ul>
+        </div>
+      </details>
+    </section>
+
     <!-- Snippet Widget (Phase 1 Track C + Phase 1.5 image) -->
     <section class="panel-section" id="sp-snippet-section" style="display: none;">
       <h2>Snip to target</h2>

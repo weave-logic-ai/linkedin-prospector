@@ -17,6 +17,7 @@ import { MessagesParser } from '@/lib/parser/parsers/messages-parser';
 import { populateUnmatchedDom } from '@/lib/parser/unmatched-dom';
 import { recordFieldOutcomes } from '@/lib/parser/telemetry';
 import { RESEARCH_FLAGS } from '@/lib/config/research-flags';
+import { recordEvent } from '@/lib/analytics/events';
 import { query } from '@/lib/db/client';
 import { toSelectorConfig } from '@/types/selector-config';
 import type {
@@ -163,6 +164,17 @@ export async function POST(request: NextRequest) {
     parserVersion: parseResult.parserVersion,
     selectorConfigVersion: parseResult.selectorConfigVersion,
     fields: parseResult.fields,
+  });
+
+  // WS-2 analytics — fired once per regression-report run. Best-effort.
+  await recordEvent({
+    event: 'regression_run',
+    properties: {
+      captureId,
+      pageType: body.pageType,
+      fieldsExtracted: parseResult.fieldsExtracted,
+      fieldsAttempted: parseResult.fieldsAttempted,
+    },
   });
 
   return NextResponse.json({
