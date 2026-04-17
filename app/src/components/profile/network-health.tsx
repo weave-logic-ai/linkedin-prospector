@@ -51,6 +51,19 @@ interface NetworkHealth {
   missingCompanyCount: number;
   embeddingCount: number;
   embeddingPct: number;
+  emotDistribution: {
+    hot: number;
+    warm: number;
+    cold: number;
+    unknown: number;
+  };
+  scenGradeDistribution: {
+    A: number;
+    B: number;
+    C: number;
+    D: number;
+    F: number;
+  };
   recentConnections: number;
   activeGoals: number;
   pendingTasks: number;
@@ -71,6 +84,21 @@ const RELATIONSHIP_COLORS: Record<string, string> = {
   cooling: "#f97316",
   dormant: "#ef4444",
   unknown: "#6b7280",
+};
+
+const EMOT_COLORS: Record<string, string> = {
+  hot: "#ef4444",
+  warm: "#f97316",
+  cold: "#3b82f6",
+  unknown: "#9ca3af",
+};
+
+const SCEN_COLORS: Record<string, string> = {
+  A: "#22c55e",
+  B: "#84cc16",
+  C: "#eab308",
+  D: "#f97316",
+  F: "#ef4444",
 };
 
 function MetricRow({
@@ -323,6 +351,107 @@ export function NetworkHealthCard() {
                 {seg.status} ({seg.count})
               </span>
             ))}
+          </div>
+        </div>
+
+        {/* Interest Temperature (EMOT) + Assessment Confidence (SCEN) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm font-medium mb-2">Interest Temperature</p>
+            {(() => {
+              const emot = Object.entries(data.emotDistribution).filter(
+                ([, c]) => c > 0,
+              );
+              const total = emot.reduce((s, [, c]) => s + c, 0);
+              if (total === 0) {
+                return (
+                  <p className="text-xs text-muted-foreground">
+                    No engagement signal yet
+                  </p>
+                );
+              }
+              return (
+                <>
+                  <div className="flex gap-1 h-6 rounded-md overflow-hidden">
+                    {emot.map(([bucket, count]) => {
+                      const pct = (count / total) * 100;
+                      if (pct < 0.5) return null;
+                      return (
+                        <div
+                          key={bucket}
+                          style={{
+                            width: `${pct}%`,
+                            backgroundColor: EMOT_COLORS[bucket] ?? "#9ca3af",
+                            minWidth: "4px",
+                          }}
+                          title={`${bucket}: ${count}`}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-3 mt-2">
+                    {emot.map(([bucket, count]) => (
+                      <span
+                        key={bucket}
+                        className="flex items-center gap-1 text-xs text-muted-foreground"
+                      >
+                        <span
+                          className="inline-block w-2.5 h-2.5 rounded-full"
+                          style={{
+                            backgroundColor: EMOT_COLORS[bucket] ?? "#9ca3af",
+                          }}
+                        />
+                        {bucket} ({count.toLocaleString()})
+                      </span>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
+          <div>
+            <p className="text-sm font-medium mb-2">Assessment Confidence</p>
+            {(() => {
+              const scen = Object.entries(data.scenGradeDistribution);
+              const total = scen.reduce((s, [, c]) => s + c, 0);
+              if (total === 0) {
+                return (
+                  <p className="text-xs text-muted-foreground">
+                    No contacts to grade
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-1.5">
+                  {scen.map(([grade, count]) => {
+                    const pct = (count / total) * 100;
+                    return (
+                      <div key={grade} className="flex items-center gap-2">
+                        <span
+                          className="inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold text-white"
+                          style={{ backgroundColor: SCEN_COLORS[grade] ?? "#9ca3af" }}
+                        >
+                          {grade}
+                        </span>
+                        <div className="flex-1 h-2 bg-muted rounded overflow-hidden">
+                          <div
+                            className="h-full"
+                            style={{
+                              width: `${pct}%`,
+                              backgroundColor: SCEN_COLORS[grade] ?? "#9ca3af",
+                            }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-20 text-right">
+                          {count.toLocaleString()} ({Math.round(pct)}%)
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
 

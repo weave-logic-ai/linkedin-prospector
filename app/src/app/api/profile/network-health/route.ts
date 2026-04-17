@@ -39,6 +39,23 @@ export interface NetworkHealth {
   embeddingCount: number;
   embeddingPct: number;
 
+  // EMOT — interest / engagement temperature histogram
+  emotDistribution: {
+    hot: number;
+    warm: number;
+    cold: number;
+    unknown: number;
+  };
+
+  // SCEN — assessment-confidence grade distribution (derived from field coverage)
+  scenGradeDistribution: {
+    A: number;
+    B: number;
+    C: number;
+    D: number;
+    F: number;
+  };
+
   // Activity
   recentConnections: number;
   activeGoals: number;
@@ -59,6 +76,8 @@ export async function GET() {
       completenessResult,
       embeddingResult,
       recentConnectionsResult,
+      emotResult,
+      scenResult,
       activeGoalsResult,
       pendingTasksResult,
     ] = await Promise.all([
@@ -157,6 +176,53 @@ export async function GET() {
            AND created_at > NOW() - INTERVAL '30 days'`
       ),
 
+      // EMOT — engagement temperature histogram
+      // hot: messaged in last 30 days; warm: created/updated in last 90 days;
+      // cold: known contact with no recent activity; unknown: no signal at all
+      query<{ bucket: string; count: string }>(
+        `SELECT bucket, COUNT(*)::text AS count FROM (
+           SELECT
+             CASE
+               WHEN ms.last_message_at > NOW() - INTERVAL '30 days' THEN 'hot'
+               WHEN c.updated_at > NOW() - INTERVAL '90 days'
+                 OR c.created_at > NOW() - INTERVAL '90 days' THEN 'warm'
+               WHEN ms.last_message_at IS NOT NULL
+                 OR c.updated_at IS NOT NULL THEN 'cold'
+               ELSE 'unknown'
+             END AS bucket
+           FROM contacts c
+           LEFT JOIN message_stats ms ON ms.contact_id = c.id
+           WHERE NOT c.is_archived
+         ) sub
+         GROUP BY bucket`
+      ),
+
+      // SCEN — grade contacts by completeness of 6 tracked identity fields
+      // A: 6/6, B: 5/6, C: 4/6, D: 3/6, F: ≤ 2/6
+      query<{ grade: string; count: string }>(
+        `SELECT grade, COUNT(*)::text AS count FROM (
+           SELECT
+             (CASE WHEN email IS NOT NULL AND email <> '' THEN 1 ELSE 0 END) +
+             (CASE WHEN title IS NOT NULL AND title <> '' THEN 1 ELSE 0 END) +
+             (CASE WHEN current_company IS NOT NULL AND current_company <> '' THEN 1 ELSE 0 END) +
+             (CASE WHEN headline IS NOT NULL AND headline <> '' THEN 1 ELSE 0 END) +
+             (CASE WHEN location IS NOT NULL AND location <> '' THEN 1 ELSE 0 END) +
+             (CASE WHEN about IS NOT NULL AND about <> '' THEN 1 ELSE 0 END) AS filled
+           FROM contacts
+           WHERE NOT is_archived
+         ) counts
+         CROSS JOIN LATERAL (
+           SELECT CASE
+             WHEN filled >= 6 THEN 'A'
+             WHEN filled = 5 THEN 'B'
+             WHEN filled = 4 THEN 'C'
+             WHEN filled = 3 THEN 'D'
+             ELSE 'F'
+           END AS grade
+         ) g
+         GROUP BY grade`
+      ),
+
       // Active goals
       query<{ count: string }>(
         `SELECT COUNT(*)::text AS count FROM goals WHERE status = 'active'`
@@ -207,6 +273,23 @@ export async function GET() {
     const embeddingPct = totalContacts > 0 ? embeddingCount / totalContacts : 0;
 
     const recentConnections = parseInt(recentConnectionsResult.rows[0]?.count ?? '0', 10);
+
+    const emotDistribution = { hot: 0, warm: 0, cold: 0, unknown: 0 };
+    for (const row of emotResult.rows) {
+      const bucket = row.bucket as keyof typeof emotDistribution;
+      if (bucket in emotDistribution) {
+        emotDistribution[bucket] = parseInt(row.count, 10);
+      }
+    }
+
+    const scenGradeDistribution = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+    for (const row of scenResult.rows) {
+      const grade = row.grade as keyof typeof scenGradeDistribution;
+      if (grade in scenGradeDistribution) {
+        scenGradeDistribution[grade] = parseInt(row.count, 10);
+      }
+    }
+
     const activeGoals = parseInt(activeGoalsResult.rows[0]?.count ?? '0', 10);
     const pendingTasks = parseInt(pendingTasksResult.rows[0]?.count ?? '0', 10);
 
@@ -224,6 +307,8 @@ export async function GET() {
       missingCompanyCount,
       embeddingCount,
       embeddingPct,
+      emotDistribution,
+      scenGradeDistribution,
       recentConnections,
       activeGoals,
       pendingTasks,
