@@ -109,7 +109,7 @@ contact's current value is empty, `false` if it would overwrite existing data.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/enrichment/enrich \
+curl -X POST http://localhost:3750/api/enrichment/enrich \
   -H "Content-Type: application/json" \
   -d '{"contactId":"UUID","dryRun":true}'
 ```
@@ -164,7 +164,7 @@ Auto-scoring is triggered after applying enrichment data.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/enrichment/apply \
+curl -X POST http://localhost:3750/api/enrichment/apply \
   -H "Content-Type: application/json" \
   -d '{"contactId":"UUID","fields":[{"field":"email","value":"jane@acme.com"}]}'
 ```
@@ -201,7 +201,7 @@ Returns the current enrichment budget period status.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/enrichment/budget
+curl http://localhost:3750/api/enrichment/budget
 ```
 
 **Error Codes:** `500`
@@ -245,7 +245,7 @@ Estimate the enrichment cost for a batch of contacts before running.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/enrichment/estimate \
+curl -X POST http://localhost:3750/api/enrichment/estimate \
   -H "Content-Type: application/json" \
   -d '{"contactIds":["uuid1","uuid2"]}'
 ```
@@ -283,7 +283,7 @@ Returns paginated enrichment transaction history.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/enrichment/history?page=1&limit=20
+curl http://localhost:3750/api/enrichment/history?page=1&limit=20
 ```
 
 **Error Codes:** `500`
@@ -322,7 +322,7 @@ Returns all configured enrichment providers with their status.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/enrichment/providers
+curl http://localhost:3750/api/enrichment/providers
 ```
 
 **Error Codes:** `500`
@@ -368,7 +368,7 @@ Update provider configuration.
 **curl:**
 
 ```bash
-curl -X PUT http://localhost:3000/api/enrichment/providers/UUID \
+curl -X PUT http://localhost:3750/api/enrichment/providers/UUID \
   -H "Content-Type: application/json" \
   -d '{"isActive":false}'
 ```

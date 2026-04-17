@@ -96,7 +96,8 @@ export function PeoplePanel({ selectedNiche, selectedIcp, selectedOfferings }: P
   function toggleSelect(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -106,7 +107,10 @@ export function PeoplePanel({ selectedNiche, selectedIcp, selectedOfferings }: P
     const all = contacts.every((c) => selected.has(c.id));
     setSelected((prev) => {
       const next = new Set(prev);
-      for (const c of contacts) all ? next.delete(c.id) : next.add(c.id);
+      for (const c of contacts) {
+        if (all) next.delete(c.id);
+        else next.add(c.id);
+      }
       return next;
     });
   }

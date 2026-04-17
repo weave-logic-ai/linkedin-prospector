@@ -7,7 +7,7 @@ import type { TickContext, GoalCandidate, GoalCheck } from '../types';
 const CHECK_HUB_UNEXPLORED = 'hub-unexplored';
 const CHECK_HUB_DORMANT = 'hub-dormant';
 
-async function hubUnexplored(ctx: TickContext): Promise<GoalCandidate[]> {
+async function hubUnexplored(_ctx: TickContext): Promise<GoalCandidate[]> {
   // Find high-connection contacts who haven't been explored for 2nd-degree
   const result = await query<{
     id: string; name: string; connections_count: number; title: string | null;

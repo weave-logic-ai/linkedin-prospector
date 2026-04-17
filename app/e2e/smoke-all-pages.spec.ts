@@ -35,7 +35,7 @@ for (const pg of PAGES) {
     expect(bodyText).not.toContain('Unhandled Runtime Error');
 
     // Screenshot for review
-    await page.screenshot({ path: `tests/e2e/screenshots/${pg.path.replace(/\//g, '_') || '_home'}.png`, fullPage: true });
+    await page.screenshot({ path: `e2e/screenshots/${pg.path.replace(/\//g, '_') || '_home'}.png`, fullPage: true });
   });
 }
 
@@ -95,7 +95,7 @@ test('Discover page shows niches (not just "import data")', async ({ page }) => 
   const bodyText = await page.textContent('body');
 
   // Capture what the page actually shows
-  await page.screenshot({ path: 'tests/e2e/screenshots/discover-detail.png', fullPage: true });
+  await page.screenshot({ path: 'e2e/screenshots/discover-detail.png', fullPage: true });
 
   // Should have loaded niches or ICP data, not just an empty/import state
   const hasContent = bodyText?.includes('niche') ||

@@ -39,6 +39,7 @@ const settingsChevron = document.getElementById('settings-chevron')!;
 const settingAppUrl = document.getElementById('setting-app-url') as HTMLInputElement;
 const saveAppUrlBtn = document.getElementById('save-app-url-btn')!;
 const settingAutoCapture = document.getElementById('setting-auto-capture') as HTMLInputElement;
+const settingAutoPaginate = document.getElementById('setting-auto-paginate') as HTMLInputElement;
 const settingCaptureLimit = document.getElementById('setting-capture-limit') as HTMLInputElement;
 const settingOverlayPosition = document.getElementById('setting-overlay-position') as HTMLSelectElement;
 
@@ -209,7 +210,7 @@ registerBtn.addEventListener('click', async () => {
   try {
     const appUrl = await new Promise<string>((resolve) => {
       chrome.storage.local.get('appUrl', (result) => {
-        resolve((result.appUrl as string) || 'http://localhost:3000');
+        resolve((result.appUrl as string) || 'http://localhost:3750');
       });
     });
 
@@ -297,7 +298,7 @@ async function loadTemplates(): Promise<void> {
   try {
     const appUrl = await new Promise<string>((resolve) => {
       chrome.storage.local.get('appUrl', (result) => {
-        resolve((result.appUrl as string) || 'http://localhost:3000');
+        resolve((result.appUrl as string) || 'http://localhost:3750');
       });
     });
 
@@ -377,7 +378,7 @@ personalizeBtn.addEventListener('click', async () => {
   try {
     const appUrl = await new Promise<string>((resolve) => {
       chrome.storage.local.get('appUrl', (result) => {
-        resolve((result.appUrl as string) || 'http://localhost:3000');
+        resolve((result.appUrl as string) || 'http://localhost:3750');
       });
     });
 
@@ -416,10 +417,11 @@ settingsToggle.addEventListener('click', () => {
 async function loadSettings(): Promise<void> {
   return new Promise((resolve) => {
     chrome.storage.local.get(
-      ['appUrl', 'autoCapture', 'captureLimit', 'overlayPosition'],
+      ['appUrl', 'autoCapture', 'autoPaginate', 'captureLimit', 'overlayPosition'],
       (result) => {
-        settingAppUrl.value = (result.appUrl as string) || 'http://localhost:3000';
+        settingAppUrl.value = (result.appUrl as string) || 'http://localhost:3750';
         settingAutoCapture.checked = !!result.autoCapture;
+        settingAutoPaginate.checked = !!result.autoPaginate;
         settingCaptureLimit.value = String(result.captureLimit ?? 50);
         settingOverlayPosition.value = (result.overlayPosition as string) || 'bottom-right';
         resolve();
@@ -438,6 +440,10 @@ saveAppUrlBtn.addEventListener('click', async () => {
 
 settingAutoCapture.addEventListener('change', async () => {
   await chrome.storage.local.set({ autoCapture: settingAutoCapture.checked });
+});
+
+settingAutoPaginate.addEventListener('change', async () => {
+  await chrome.storage.local.set({ autoPaginate: settingAutoPaginate.checked });
 });
 
 settingCaptureLimit.addEventListener('change', async () => {

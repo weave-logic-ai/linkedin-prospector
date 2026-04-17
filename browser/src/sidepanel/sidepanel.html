@@ -17,15 +17,38 @@
 
     <!-- Current Page Section -->
     <section class="panel-section" id="current-page-section">
-      <h2>Current Page</h2>
+      <div class="target-header">
+        <h2>Target</h2>
+        <span id="sp-target-lock-source" class="target-lock-source" data-source="none">No target</span>
+      </div>
+
       <div class="page-info">
         <span id="sp-page-type" class="page-type-badge">--</span>
         <span id="sp-scroll-depth" class="scroll-depth">0%</span>
       </div>
-      <div id="sp-contact-info" class="contact-info" style="display: none;">
-        <div class="contact-name" id="sp-contact-name"></div>
-        <div class="contact-details" id="sp-contact-details"></div>
+
+      <!-- Target Panel: populated when a profile or company page is active, or a task is targeting an entity -->
+      <div id="sp-target-panel" class="target-panel" style="display: none;">
+        <div class="target-row target-row-main">
+          <span id="sp-target-kind" class="target-kind-badge">person</span>
+          <span id="sp-target-name" class="target-name">--</span>
+          <button id="sp-target-clear" class="btn-icon" title="Clear target" style="display:none;">&times;</button>
+        </div>
+        <div id="sp-target-headline" class="target-headline"></div>
+
+        <div id="sp-target-meta" class="target-meta">
+          <!-- Populated dynamically: tier, score, pending tasks, last captured, etc. -->
+        </div>
+
+        <div id="sp-target-reason" class="target-reason" style="display:none;">
+          <!-- e.g. "Locked from task: Research Jane Doe" -->
+        </div>
       </div>
+
+      <div id="sp-target-empty" class="target-empty">
+        Not on a profile or company page. Navigate to a LinkedIn profile to auto-lock a target, or open a task that references a contact.
+      </div>
+
       <button id="sp-capture-btn" class="btn btn-primary btn-full">Capture This Page</button>
     </section>
 

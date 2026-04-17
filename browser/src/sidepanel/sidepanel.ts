@@ -12,14 +12,21 @@ import { getDailyCaptureCount, getCaptureLimit } from '../utils/storage';
 const connectionStatus = document.getElementById('sp-connection-status')!;
 const pageTypeBadge = document.getElementById('sp-page-type')!;
 const scrollDepthEl = document.getElementById('sp-scroll-depth')!;
-// Contact info elements (used when viewing profile pages)
-// const contactInfo = document.getElementById('sp-contact-info')!;
-// const contactName = document.getElementById('sp-contact-name')!;
-// const contactDetails = document.getElementById('sp-contact-details')!;
 const captureBtn = document.getElementById('sp-capture-btn')!;
 const goalsList = document.getElementById('sp-goals-list')!;
 const captureCount = document.getElementById('sp-capture-count')!;
 const queueDepthEl = document.getElementById('sp-queue-depth')!;
+
+// Target Panel DOM (Task #10)
+const targetLockSource = document.getElementById('sp-target-lock-source')!;
+const targetPanel = document.getElementById('sp-target-panel')!;
+const targetKind = document.getElementById('sp-target-kind')!;
+const targetName = document.getElementById('sp-target-name')!;
+const targetHeadline = document.getElementById('sp-target-headline')!;
+const targetMeta = document.getElementById('sp-target-meta')!;
+const targetReason = document.getElementById('sp-target-reason')!;
+const targetEmpty = document.getElementById('sp-target-empty')!;
+const targetClearBtn = document.getElementById('sp-target-clear')!;
 
 // Template DOM References (Phase 5)
 const templatesList = document.getElementById('sp-templates-list')!;
@@ -229,7 +236,7 @@ async function loadSidepanelTemplates(): Promise<void> {
   try {
     const appUrl = await new Promise<string>((resolve) => {
       chrome.storage.local.get('appUrl', (result) => {
-        resolve((result.appUrl as string) || 'http://localhost:3000');
+        resolve((result.appUrl as string) || 'http://localhost:3750');
       });
     });
 
@@ -368,7 +375,7 @@ spPersonalizeBtn.addEventListener('click', async () => {
   try {
     const appUrl = await new Promise<string>((resolve) => {
       chrome.storage.local.get('appUrl', (result) => {
-        resolve((result.appUrl as string) || 'http://localhost:3000');
+        resolve((result.appUrl as string) || 'http://localhost:3750');
       });
     });
 
@@ -414,6 +421,293 @@ async function updateContactContext(): Promise<void> {
 }
 
 // ============================================================
+// Target Panel (Task #10)
+// ============================================================
+
+type LockSource = 'none' | 'page' | 'task' | 'pinned';
+
+interface ContactTarget {
+  kind: 'person';
+  id: string;
+  name: string;
+  headline: string;
+  tier: string;
+  goldScore: number;
+  tasksPending: number;
+  lastCapturedAt: string | null;
+  lastEnrichedAt: string | null;
+  url: string;
+}
+
+interface CompanyTarget {
+  kind: 'company';
+  id: string;
+  name: string;
+  headline: string; // industry + sizeRange + headquarters, formatted
+  contactCount: number;
+  tasksPending: number;
+  lastCapturedAt: string | null;
+  url: string;
+}
+
+type Target = ContactTarget | CompanyTarget;
+
+interface LockedTarget {
+  target: Target;
+  source: Exclude<LockSource, 'none'>;
+  reason?: string;
+}
+
+// Cache of the currently rendered target to avoid redundant fetches
+let lastRenderedLock: string = '';
+
+async function getAppUrlBase(): Promise<string> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get('appUrl', (result) => {
+      resolve((result.appUrl as string) || 'http://localhost:3750');
+    });
+  });
+}
+
+async function fetchWithAuth(path: string): Promise<Response | null> {
+  try {
+    const appUrl = await getAppUrlBase();
+    const { extensionToken } = await new Promise<{ extensionToken?: string }>((r) =>
+      chrome.storage.local.get('extensionToken', (v) => r(v)),
+    );
+    const res = await fetch(`${appUrl}${path}`, {
+      headers: extensionToken
+        ? { Authorization: `Bearer ${extensionToken}` }
+        : {},
+    });
+    return res;
+  } catch {
+    return null;
+  }
+}
+
+async function lookupContact(url: string): Promise<ContactTarget | null> {
+  const stripped = url.replace(/^https?:\/\//, '');
+  const res = await fetchWithAuth(`/api/extension/contact/${stripped}`);
+  if (!res || !res.ok) return null;
+  const json = await res.json();
+  if (!json.found || !json.contact) return null;
+  return {
+    kind: 'person',
+    id: json.contact.id,
+    name: json.contact.name,
+    headline: json.contact.headline ?? '',
+    tier: json.contact.tier ?? 'unscored',
+    goldScore: json.contact.goldScore ?? 0,
+    tasksPending: json.contact.tasksPending ?? 0,
+    lastCapturedAt: json.contact.lastCapturedAt ?? null,
+    lastEnrichedAt: json.contact.lastEnrichedAt ?? null,
+    url,
+  };
+}
+
+async function lookupCompany(url: string): Promise<CompanyTarget | null> {
+  const stripped = url.replace(/^https?:\/\//, '');
+  const res = await fetchWithAuth(`/api/extension/company/${stripped}`);
+  if (!res || !res.ok) return null;
+  const json = await res.json();
+  if (!json.found || !json.company) return null;
+  const c = json.company;
+  const headlineParts = [c.industry, c.sizeRange, c.headquarters].filter(Boolean);
+  return {
+    kind: 'company',
+    id: c.id,
+    name: c.name,
+    headline: headlineParts.join(' · '),
+    contactCount: c.contactCount ?? 0,
+    tasksPending: c.tasksPending ?? 0,
+    lastCapturedAt: c.lastCapturedAt ?? null,
+    url,
+  };
+}
+
+async function resolveCurrentTargetFromTasks(
+  currentUrl: string,
+): Promise<LockedTarget | null> {
+  const tasks = await new Promise<ExtensionTask[]>((r) =>
+    chrome.storage.local.get('pendingTasks', (v) =>
+      r((v.pendingTasks as ExtensionTask[]) || []),
+    ),
+  );
+  // Prefer an in_progress task whose targetUrl matches the current URL and has a contactId
+  const normalized = currentUrl.replace(/\?.*$/, '').replace(/\/$/, '');
+  const matched = tasks.find((t) => {
+    if (!t.contactId || t.status === 'completed') return false;
+    if (!t.targetUrl) return false;
+    const tu = t.targetUrl.replace(/\?.*$/, '').replace(/\/$/, '');
+    return tu === normalized || normalized.startsWith(tu);
+  });
+  if (!matched || !matched.targetUrl) return null;
+  const contact = await lookupContact(matched.targetUrl);
+  if (!contact) return null;
+  return {
+    target: contact,
+    source: 'task',
+    reason: `Locked from task: ${matched.title}`,
+  };
+}
+
+function formatRelativeTime(iso: string | null): string {
+  if (!iso) return 'never';
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = now - then;
+  if (diffMs < 0) return 'future';
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
+function renderTarget(lock: LockedTarget | null): void {
+  if (!lock) {
+    targetPanel.style.display = 'none';
+    targetEmpty.style.display = '';
+    targetLockSource.setAttribute('data-source', 'none');
+    targetLockSource.textContent = 'No target';
+    return;
+  }
+
+  targetPanel.style.display = '';
+  targetEmpty.style.display = 'none';
+  targetLockSource.setAttribute('data-source', lock.source);
+  targetLockSource.textContent =
+    lock.source === 'page'
+      ? 'Page lock'
+      : lock.source === 'task'
+        ? 'Task lock'
+        : lock.source === 'pinned'
+          ? 'Pinned'
+          : 'No target';
+
+  const t = lock.target;
+  targetKind.textContent = t.kind;
+  targetKind.setAttribute('data-kind', t.kind);
+  targetName.textContent = t.name;
+  targetHeadline.textContent = t.headline;
+
+  // Meta grid
+  const rows: Array<[string, string, string?]> = [];
+  if (t.kind === 'person') {
+    rows.push(['Tier', t.tier.toUpperCase(), `tier-${t.tier}`]);
+    rows.push(['Score', t.goldScore ? t.goldScore.toFixed(1) : '—']);
+    rows.push(['Pending tasks', String(t.tasksPending)]);
+    rows.push(['Last captured', formatRelativeTime(t.lastCapturedAt)]);
+  } else {
+    rows.push(['Contacts here', String(t.contactCount)]);
+    rows.push(['Pending tasks', String(t.tasksPending)]);
+    rows.push(['Last captured', formatRelativeTime(t.lastCapturedAt)]);
+  }
+  targetMeta.innerHTML = rows
+    .map(
+      ([label, value, cls]) => `
+        <div class="meta-row">
+          <span class="meta-label">${label}</span>
+          <span class="meta-value${cls ? ' ' + cls : ''}">${escapeHtml(value)}</span>
+        </div>`,
+    )
+    .join('');
+
+  if (lock.reason) {
+    targetReason.textContent = lock.reason;
+    targetReason.style.display = '';
+  } else {
+    targetReason.style.display = 'none';
+  }
+
+  // Show clear button only when lock is task (user can "break" the task lock
+  // by navigating to a different page — page-locks auto-clear on nav).
+  targetClearBtn.style.display = lock.source === 'task' ? '' : 'none';
+}
+
+let taskLockCleared = false;
+
+async function updateTargetPanel(): Promise<void> {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (!tab?.url) {
+    renderTarget(null);
+    return;
+  }
+
+  const url = tab.url;
+  const pageType = detectPageTypeFromUrl(url);
+
+  let lock: LockedTarget | null = null;
+
+  // 1. Task-lock takes priority unless user cleared it for this URL
+  if (!taskLockCleared) {
+    lock = await resolveCurrentTargetFromTasks(url);
+  }
+
+  // 2. Page auto-lock on PROFILE / COMPANY when no task-lock
+  if (!lock) {
+    if (pageType === 'PROFILE') {
+      const contact = await lookupContact(url);
+      if (contact) lock = { target: contact, source: 'page' };
+    } else if (pageType === 'COMPANY') {
+      const company = await lookupCompany(url);
+      if (company) lock = { target: company, source: 'page' };
+    }
+  }
+
+  const cacheKey = lock
+    ? `${lock.source}:${lock.target.kind}:${lock.target.id}`
+    : 'none';
+  if (cacheKey === lastRenderedLock) return;
+  lastRenderedLock = cacheKey;
+
+  renderTarget(lock);
+
+  // Feed downstream template personalization
+  if (lock && lock.target.kind === 'person') {
+    spCurrentContactName = lock.target.name;
+    spCurrentContactUrl = lock.target.url;
+    const nameEl = document.getElementById('sp-personalize-contact-name');
+    if (nameEl) nameEl.textContent = lock.target.name;
+  }
+}
+
+function detectPageTypeFromUrl(url: string): string {
+  if (/linkedin\.com\/in\/[^/?]+/.test(url)) return 'PROFILE';
+  if (/linkedin\.com\/company\/[^/?]+/.test(url)) return 'COMPANY';
+  if (/linkedin\.com\/search\/results\/people/.test(url)) return 'SEARCH_PEOPLE';
+  if (/linkedin\.com\/search\/results\/content/.test(url)) return 'SEARCH_CONTENT';
+  if (/linkedin\.com\/mynetwork/.test(url)) return 'CONNECTIONS';
+  if (/linkedin\.com\/messaging/.test(url)) return 'MESSAGES';
+  if (/linkedin\.com\/feed/.test(url)) return 'FEED';
+  return 'OTHER';
+}
+
+targetClearBtn.addEventListener('click', () => {
+  taskLockCleared = true;
+  lastRenderedLock = '';
+  void updateTargetPanel();
+});
+
+// Reset task-lock clear when the tab URL changes (new page, fresh decision)
+chrome.tabs.onActivated.addListener(() => {
+  taskLockCleared = false;
+  lastRenderedLock = '';
+});
+chrome.tabs.onUpdated.addListener((_id, info) => {
+  if (info.status === 'complete' || info.url) {
+    taskLockCleared = false;
+    lastRenderedLock = '';
+  }
+});
+
+// ============================================================
 // Capture Button
 // ============================================================
 
@@ -443,6 +737,9 @@ chrome.storage.onChanged.addListener((changes) => {
     updateConnectionStatus(changes.connectionState.newValue);
   }
   if (changes.pendingTasks) {
+    // Re-resolve target lock when the task list changes — a new task may now match the current URL
+    lastRenderedLock = '';
+    void updateTargetPanel();
     const tasks = (changes.pendingTasks.newValue || []) as ExtensionTask[];
     // Group tasks into goals
     const goalsMap = new Map<string, Goal>();
@@ -480,11 +777,13 @@ chrome.storage.onChanged.addListener((changes) => {
 
 chrome.tabs.onActivated.addListener(async () => {
   await updatePageInfo();
+  await updateTargetPanel();
 });
 
 chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo) => {
   if (changeInfo.status === 'complete') {
     await updatePageInfo();
+    await updateTargetPanel();
   }
 });
 
@@ -527,6 +826,7 @@ async function init(): Promise<void> {
   // Load templates (Phase 5)
   await loadSidepanelTemplates();
   await updateContactContext();
+  await updateTargetPanel();
 
   // Check capture rate (Phase 6)
   const dailyCount = await getDailyCaptureCount();
@@ -543,6 +843,7 @@ async function init(): Promise<void> {
     await updateStatus();
     await updatePageInfo();
     await updateContactContext();
+    await updateTargetPanel();
   }, 15000);
 }
 

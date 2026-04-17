@@ -5,7 +5,7 @@ description: "Search, enrich, score, and analyze LinkedIn connections for prospe
 
 # LinkedIn Prospector (v2)
 
-An API-first Claude Code skill for LinkedIn network intelligence. The agent orchestrates the NetworkNav web application at `http://localhost:3000` via REST APIs. Import contacts from CSV or the Chrome extension, enrich profiles through a waterfall of data providers, score contacts across 9 composite dimensions plus 6 referral components, analyze your network graph, and generate personalized outreach -- all backed by PostgreSQL.
+An API-first Claude Code skill for LinkedIn network intelligence. The agent orchestrates the NetworkNav web application at `http://localhost:3750` via REST APIs. Import contacts from CSV or the Chrome extension, enrich profiles through a waterfall of data providers, score contacts across 9 composite dimensions plus 6 referral components, analyze your network graph, and generate personalized outreach -- all backed by PostgreSQL.
 
 ## What This Does
 
@@ -73,35 +73,35 @@ No Playwright. No `.browser-data/`. No local JSON files. The PostgreSQL database
 docker compose up -d
 
 # 2. Verify the app is running
-curl -s http://localhost:3000/api/health | jq .
+curl -s http://localhost:3750/api/health | jq .
 
 # 3. Configure your first ICP profile
-curl -s -X POST http://localhost:3000/api/icps \
+curl -s -X POST http://localhost:3750/api/icps \
   -H "Content-Type: application/json" \
   -d '{"name":"AI Consulting","criteria":{"roles":{"high":["CTO","VP Engineering"],"medium":["Director Engineering","Head of AI"],"low":["Engineering Manager"]},"industries":["saas","technology"],"signals":["AI","machine learning","automation"]}}' | jq .
 
 # 4. Create a niche
-curl -s -X POST http://localhost:3000/api/niches \
+curl -s -X POST http://localhost:3750/api/niches \
   -H "Content-Type: application/json" \
   -d '{"name":"AI/ML Leaders","keywords":["artificial intelligence","machine learning","deep learning","LLM"]}' | jq .
 
 # 5. Import contacts from CSV
-curl -s -X POST http://localhost:3000/api/import/upload \
+curl -s -X POST http://localhost:3750/api/import/upload \
   -F "file=@contacts.csv" | jq .
 
 # 6. Enrich a contact
-curl -s -X POST http://localhost:3000/api/enrichment/enrich \
+curl -s -X POST http://localhost:3750/api/enrichment/enrich \
   -H "Content-Type: application/json" \
   -d '{"contactId":"<uuid>"}' | jq .
 
 # 7. Score all contacts
-curl -s -X POST http://localhost:3000/api/scoring/rescore-all | jq .
+curl -s -X POST http://localhost:3750/api/scoring/rescore-all | jq .
 
 # 8. View dashboard
-curl -s http://localhost:3000/api/dashboard | jq .
+curl -s http://localhost:3750/api/dashboard | jq .
 
 # 9. Get AI analysis of a contact
-curl -s -X POST http://localhost:3000/api/claude/analyze \
+curl -s -X POST http://localhost:3750/api/claude/analyze \
   -H "Content-Type: application/json" \
   -d '{"contactId":"<uuid>"}' | jq .
 ```
@@ -141,7 +141,7 @@ User <-> Claude Agent (this skill)
               |
               | curl / HTTP
               v
-         NetworkNav App (localhost:3000)
+         NetworkNav App (localhost:3750)
               |
               +-- PostgreSQL (ruvector-postgres)
               |       - contacts, scores, edges, clusters

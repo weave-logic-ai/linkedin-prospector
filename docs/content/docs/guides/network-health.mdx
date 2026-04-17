@@ -1,0 +1,90 @@
+---
+title: Network Health
+description: The network-health card on your profile dashboard summarizes how healthy your contact graph is along five ECC-derived dimensions.
+---
+
+The **Network Health** card on `/profile` summarizes the state of your entire contact graph across five dimensions derived from the ECC (Extended Causal Cognition) gauge system. It answers, at a glance: *how complete is my data, how warm is my pipeline, and how confident should I be in my scoring?*
+
+## The five rollups
+
+| Rollup | Source gauge | What it shows |
+|--------|--------------|---------------|
+| **Coverage** | ICP fit match | Percent of non-archived contacts that have at least one ICP fit on record |
+| **Data Completeness** | DCTE | Average fill rate across six identity fields (email, title, current company, headline, location, about). Bar + missing-field callouts. |
+| **Relationship Health** | RSTE | Distribution of contacts across `strong / warm / cooling / dormant / unknown`, bucketed by `last_message_at` |
+| **Interest Temperature** | EMOT | Distribution of `hot / warm / cold / unknown`, combining recent message activity and recent profile-record updates |
+| **Assessment Confidence** | SCEN | Letter-grade distribution `A–F` for how confidently each contact can be scored, based on field coverage |
+
+## How the buckets are drawn
+
+### Coverage
+
+A contact counts as *addressed* if it has at least one row in `contact_icp_fits`. The ratio is displayed as a big-number percent plus a pie slice.
+
+### Data Completeness (DCTE)
+
+For every non-archived contact, six identity fields are checked: `email`, `title`, `current_company`, `headline`, `location`, `about`. The fill rate is summed across all contacts and divided by `total_contacts × 6`. The top-level bar reads as *"your network is X% complete"*. Below, three callouts flag the raw counts of contacts missing each of `email`, `title`, `current_company`.
+
+### Relationship Health (RSTE)
+
+Each contact is bucketed from its `message_stats.last_message_at`:
+
+| Bucket | Age of last message |
+|--------|---------------------|
+| `strong` | < 30 days |
+| `warm` | 30 – 90 days |
+| `cooling` | 90 – 180 days |
+| `dormant` | > 180 days |
+| `unknown` | no message history |
+
+A horizontal stacked bar shows the distribution; a legend below gives raw counts.
+
+### Interest Temperature (EMOT)
+
+Combines two signals — messaging activity *and* recency of profile-record changes:
+
+| Bucket | Rule |
+|--------|------|
+| `hot` | Message in the last 30 days |
+| `warm` | Contact record created or updated in the last 90 days (but not `hot`) |
+| `cold` | Contact has some history (message or update), but older than both thresholds |
+| `unknown` | No signal on record |
+
+Rendered as a stacked bar with a legend.
+
+### Assessment Confidence (SCEN)
+
+Every contact is scored by counting how many of the same six identity fields from DCTE are populated, and mapped to a letter grade:
+
+| Grade | Fields populated |
+|-------|------------------|
+| `A` | 6 / 6 |
+| `B` | 5 / 6 |
+| `C` | 4 / 6 |
+| `D` | 3 / 6 |
+| `F` | ≤ 2 / 6 |
+
+Rendered as five color-coded rows with count and percent.
+
+## Extra metrics on the card
+
+Alongside the five ECC rollups, the card also surfaces:
+
+- **Total Contacts** — non-archived count
+- **Avg Score** — average `composite_score` across scored contacts
+- **Tier Distribution** — horizontal bar for `gold / silver / bronze / watch / unscored`
+- **Embeddings** — count and percent of contacts with a `profile_embeddings` row
+- **Recent Connections** — contacts created in the last 30 days
+- **Active Goals** / **Pending Tasks** — small counters
+
+## Implementation notes
+
+- The rollups are computed on every page load by [`/api/profile/network-health`](/docs/api-reference/profile) via a single `Promise.all` of eleven SQL aggregations. On a 5,000-contact database, total response time is consistently under 150ms.
+- No caching. If you want a refresh, reload the profile page.
+- All queries respect `NOT is_archived` — archived contacts don't skew the numbers.
+- The per-contact ECC gauges themselves (`DCTE`, `DTSE`, `RSTE`, `EMOT`, `SCEN`) live in `app/src/lib/ecc/gauges.ts` and are computed on-demand when you open a single contact's profile page.
+
+## Related
+
+- [Composite Score](/docs/scoring/composite-score)
+- [ICP Alignment](/docs/guides/discover) *(covers the Natural ICP / Desired ICP split that feeds this card's coverage rollup)*

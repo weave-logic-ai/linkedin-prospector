@@ -40,16 +40,6 @@ interface GapAnalysis {
   suggestions: Suggestion[];
 }
 
-function intersect(a: string[], b: string[]): string[] {
-  const setB = new Set(b.map((s) => s.toLowerCase()));
-  return a.filter((s) => setB.has(s.toLowerCase()));
-}
-
-function difference(a: string[], b: string[]): string[] {
-  const setB = new Set(b.map((s) => s.toLowerCase()));
-  return a.filter((s) => !setB.has(s.toLowerCase()));
-}
-
 export async function GET() {
   try {
     // Fetch natural ICP data from profile
@@ -149,7 +139,6 @@ export async function GET() {
     const headlineText = (profile.headline || "").toLowerCase();
     const summaryText = (profile.summary || "").toLowerCase();
     const fullProfileText = [headlineText, summaryText, ...profileSkills].join(" ");
-    const currentIndustries = profile.industry ? [profile.industry] : [];
 
     // Normalize text for fuzzy matching: strip hyphens, &, extra spaces
     const normalize = (s: string) => s.toLowerCase().replace(/[-&]/g, " ").replace(/\s+/g, " ").trim();

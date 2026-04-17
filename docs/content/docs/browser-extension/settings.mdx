@@ -20,11 +20,11 @@ The chevron rotates to indicate the expanded/collapsed state. Settings persist a
 
 ### App URL
 
-**Default:** `http://localhost:3000`
+**Default:** `http://localhost:3750`
 
 The base URL of your NetworkNav instance. All API requests (captures, tasks, health checks, templates) are sent to this URL.
 
-- Enter the full URL including protocol (e.g., `http://localhost:3000` or `https://app.example.com`)
+- Enter the full URL including protocol (e.g., `http://localhost:3750` or `https://app.example.com`)
 - Click **Save** to apply the change
 - The extension will begin using the new URL for all subsequent requests
 - If you change the app URL after registration, you may need to re-register if the new server does not have your token
@@ -46,6 +46,32 @@ When enabled, the extension will automatically capture LinkedIn pages as you nav
 
 <Callout type="warn">
 Auto-capture should be used conservatively. Rapidly capturing many pages could appear as automated behavior to LinkedIn. The daily capture limit provides a safety net, but exercise discretion.
+</Callout>
+
+### Auto-paginate Search Results
+
+**Default:** Off (opt-in)
+
+When on, the extension automatically follows the server-created next-page task after capturing a search page (`SEARCH_PEOPLE` or `SEARCH_CONTENT`).
+
+Flow:
+
+1. You capture a LinkedIn search results page (manual click or auto-capture).
+2. The server stores the page and inserts a follow-up task for `?page=N+1` (capped at 10 pages total).
+3. The extension confirms the follow-up task exists in its pending-tasks cache.
+4. After a 2-second hygiene delay, the extension navigates the tab to the next page URL.
+5. Once the page finishes loading, a fresh capture fires automatically.
+6. The chain continues until the server stops creating follow-up tasks (at the 10-page cap).
+
+Notes:
+
+- Only search-results pages trigger pagination. Profile, company, feed, and connections pages do not.
+- Each paginated capture still counts against your daily capture limit.
+- Navigation is visible — the active tab changes URLs as the chain progresses. Stay on the tab or the chain pauses until it's reactivated.
+- Turning this off mid-chain stops the next hop; any task already queued server-side remains pending and can be clicked through manually.
+
+<Callout type="warn">
+Auto-pagination produces back-to-back captures. At high rates, LinkedIn's rate limiter may flag the behavior. The 2-second inter-capture delay mitigates this but is not a guarantee — exercise judgment.
 </Callout>
 
 ### Daily Capture Limit
@@ -99,7 +125,7 @@ All extension state is stored in `chrome.storage.local` with the following keys:
 |-----|------|---------|-------------|
 | `extensionToken` | `string \| null` | `null` | Authentication token |
 | `extensionId` | `string \| null` | `null` | Server-assigned extension ID |
-| `appUrl` | `string` | `http://localhost:3000` | App base URL |
+| `appUrl` | `string` | `http://localhost:3750` | App base URL |
 | `captureQueue` | `CapturePayload[]` | `[]` | Offline capture queue |
 | `settings` | `ExtensionSettings` | (see defaults above) | Server-pushed settings |
 | `sessionId` | `string` | Random UUID | Current session identifier |
@@ -110,5 +136,6 @@ All extension state is stored in `chrome.storage.local` with the following keys:
 | `connectionState` | `AppConnectionState` | `disconnected` | Current app connection state |
 | `captureLimit` | `number` | `50` | Daily capture limit |
 | `autoCapture` | `boolean` | `false` | Local auto-capture toggle |
+| `autoPaginate` | `boolean` | `false` | Browser-side auto-pagination click-through for search captures |
 | `overlayPosition` | `string` | `bottom-right` | Overlay corner position |
 | `retryQueue` | `RetryQueueItem[]` | `[]` | Failed requests awaiting retry |

@@ -447,3 +447,138 @@ body {
   color: #0c5460;
   background: #d1ecf1;
 }
+
+/* === Target Panel (Task #10) ================================ */
+
+.target-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.target-header h2 {
+  margin: 0;
+}
+
+.target-lock-source {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #e9ecef;
+  color: #6c757d;
+}
+
+.target-lock-source[data-source='page'] {
+  background: #cff4fc;
+  color: #055160;
+}
+
+.target-lock-source[data-source='task'] {
+  background: #fff3cd;
+  color: #664d03;
+}
+
+.target-lock-source[data-source='pinned'] {
+  background: #d1e7dd;
+  color: #0f5132;
+}
+
+.target-panel {
+  background: #f8f9fa;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.target-row-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.target-kind-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #0066cc;
+  color: white;
+}
+
+.target-kind-badge[data-kind='company'] {
+  background: #6f42c1;
+}
+
+.target-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-headline {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+
+.target-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  font-size: 11px;
+  color: #666;
+}
+
+.target-meta .meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.target-meta .meta-label {
+  color: #999;
+}
+
+.target-meta .meta-value {
+  color: #333;
+  font-weight: 500;
+}
+
+.target-meta .meta-value.tier-gold { color: #b58800; }
+.target-meta .meta-value.tier-silver { color: #6c757d; }
+.target-meta .meta-value.tier-bronze { color: #b05d1a; }
+.target-meta .meta-value.tier-watch { color: #0d6efd; }
+.target-meta .meta-value.tier-unscored { color: #adb5bd; }
+
+.target-reason {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #dee2e6;
+  font-size: 11px;
+  color: #555;
+  font-style: italic;
+}
+
+.target-empty {
+  font-size: 12px;
+  color: #999;
+  padding: 8px;
+  margin-bottom: 10px;
+  border: 1px dashed #e5e5e5;
+  border-radius: 6px;
+  line-height: 1.4;
+}

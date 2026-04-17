@@ -1,0 +1,22 @@
+# WeftOS project configuration
+# See: https://weftos.weavelogic.ai/docs/weftos/guides/configuration
+
+[domain]
+name = "network-navigator"
+
+[kernel]
+max_processes = 64
+health_check_interval_secs = 30
+
+[tick]
+interval_ms = 50
+adaptive = true
+
+[sources.files]
+root = "."
+patterns = ["**/*.rs", "**/*.ts", "**/*.py", "**/*.go", "**/*.md"]
+ignore = ["target", "node_modules", "dist", ".git"]
+
+[embedding]
+provider = "local"
+model = "all-MiniLM-L6-v2"

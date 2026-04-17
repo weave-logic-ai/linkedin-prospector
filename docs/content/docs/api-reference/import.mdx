@@ -43,7 +43,7 @@ stores the files for subsequent processing.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/import/upload \
+curl -X POST http://localhost:3750/api/import/upload \
   -F "files=@Connections.csv" \
   -F "files=@Messages.csv"
 ```
@@ -93,7 +93,7 @@ Poll `/api/import/status/:sessionId` for progress.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/import/csv \
+curl -X POST http://localhost:3750/api/import/csv \
   -H "Content-Type: application/json" \
   -d '{"sessionId":"UUID","selfContactId":"UUID"}'
 ```
@@ -151,7 +151,7 @@ starting with `data/` are automatically resolved.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/import/from-directory \
+curl -X POST http://localhost:3750/api/import/from-directory \
   -H "Content-Type: application/json" \
   -d '{"directoryPath":"data/linkedin/LinkedinExport","selfContactId":"UUID"}'
 ```
@@ -203,7 +203,7 @@ by type.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/import/detect-local
+curl http://localhost:3750/api/import/detect-local
 ```
 
 **Error Codes:** Never errors (returns `{ "found": false }` on failure)
@@ -251,7 +251,7 @@ ICP and niche context.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/import/full-profile \
+curl -X POST http://localhost:3750/api/import/full-profile \
   -H "Content-Type: application/json" \
   -d '{"directoryPath":"data/linkedin/LinkedinExport"}'
 ```
@@ -288,7 +288,7 @@ Returns `{ "data": null }` if no profile has been imported.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/import/full-profile
+curl http://localhost:3750/api/import/full-profile
 ```
 
 **Error Codes:** `500`
@@ -324,7 +324,7 @@ Returns a paginated list of past import sessions.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/import/history
+curl http://localhost:3750/api/import/history
 ```
 
 **Error Codes:** `500`
@@ -368,7 +368,7 @@ Returns the progress and status of an import session.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/import/status/UUID
+curl http://localhost:3750/api/import/status/UUID
 ```
 
 **Error Codes:** `400` (invalid UUID), `404` (session not found), `500`
@@ -429,7 +429,7 @@ and graph metrics in a single transaction.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/import/legacy-graph \
+curl -X POST http://localhost:3750/api/import/legacy-graph \
   -H "Content-Type: application/json" \
   -d '{"rescore":true}'
 ```

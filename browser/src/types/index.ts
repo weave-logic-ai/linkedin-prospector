@@ -78,6 +78,7 @@ export interface ExtensionTask {
   searchQuery: string | null;
   contactName: string | null;
   appUrl: string | null;
+  contactId: string | null;
   dueDate: string | null;
   completedAt: string | null;
   createdAt: string;

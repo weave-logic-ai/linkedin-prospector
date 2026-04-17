@@ -4,7 +4,7 @@ import type { PageUrlPattern, ExtensionSettings } from '../types';
 
 export const EXTENSION_VERSION = '0.1.0';
 
-export const DEFAULT_APP_URL = 'http://localhost:3000';
+export const DEFAULT_APP_URL = 'http://localhost:3750';
 
 export const PAGE_URL_PATTERNS: PageUrlPattern[] = [
   {

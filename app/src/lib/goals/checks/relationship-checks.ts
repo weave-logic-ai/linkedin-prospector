@@ -7,7 +7,7 @@ import type { TickContext, GoalCandidate, GoalCheck } from '../types';
 const CHECK_NEW_CONNECTION = 'new-connection-window';
 const CHECK_WARM_COOLING = 'warm-lead-cooling';
 
-async function newConnectionWindow(ctx: TickContext): Promise<GoalCandidate[]> {
+async function newConnectionWindow(_ctx: TickContext): Promise<GoalCandidate[]> {
   // Find contacts connected in the last 7 days with no outreach
   const result = await query<{
     id: string; name: string; title: string | null; connected_days: string;
@@ -31,7 +31,6 @@ async function newConnectionWindow(ctx: TickContext): Promise<GoalCandidate[]> {
   if (result.rows.length === 0) return [];
 
   const count = result.rows.length;
-  const first = result.rows[0];
   const hash = contextHash(CHECK_NEW_CONNECTION, {});
 
   return [{

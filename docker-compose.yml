@@ -26,7 +26,7 @@ services:
       target: runner
     container_name: ctox-app
     ports:
-      - "3000:3000"
+      - "3750:3000"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ctox}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ctox}
       NODE_ENV: production
@@ -35,6 +35,11 @@ services:
       LUSHA_API_KEY: ${LUSHA_API_KEY:-}
       THEIRSTACK_API_KEY: ${THEIRSTACK_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ECC_CAUSAL_GRAPH: ${ECC_CAUSAL_GRAPH:-false}
+      ECC_EXO_CHAIN: ${ECC_EXO_CHAIN:-false}
+      ECC_IMPULSES: ${ECC_IMPULSES:-false}
+      ECC_COGNITIVE_TICK: ${ECC_COGNITIVE_TICK:-false}
+      ECC_CROSS_REFS: ${ECC_CROSS_REFS:-false}
     depends_on:
       db:
         condition: service_healthy

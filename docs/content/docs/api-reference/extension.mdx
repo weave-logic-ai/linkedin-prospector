@@ -57,7 +57,7 @@ and receives authentication credentials and settings.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/extension/register \
+curl -X POST http://localhost:3750/api/extension/register \
   -H "Content-Type: application/json" \
   -d '{"displayToken":"ABC-123-XYZ"}'
 ```
@@ -128,7 +128,7 @@ Side effects:
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/extension/capture \
+curl -X POST http://localhost:3750/api/extension/capture \
   -H "Content-Type: application/json" \
   -H "X-Extension-Token: your-token" \
   -d '{"url":"https://linkedin.com/in/jdoe","pageType":"PROFILE","html":"<html>...</html>","captureId":"uuid"}'
@@ -181,7 +181,7 @@ Returns a paginated list of captured pages.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/extension/captures?limit=10
+curl http://localhost:3750/api/extension/captures?limit=10
 ```
 
 **Error Codes:** `500`
@@ -263,7 +263,7 @@ Status values: `healthy`, `degraded` (WebSocket down), `unhealthy` (DB down).
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/extension/health \
+curl http://localhost:3750/api/extension/health \
   -H "X-Extension-Token: your-token"
 ```
 
@@ -329,7 +329,7 @@ Returns settings for the authenticated extension.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/extension/settings \
+curl http://localhost:3750/api/extension/settings \
   -H "X-Extension-Token: your-token"
 ```
 
@@ -395,7 +395,7 @@ Returns tasks grouped by goal for the extension sidebar and popup.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/extension/tasks?status=pending \
+curl http://localhost:3750/api/extension/tasks?status=pending \
   -H "X-Extension-Token: your-token"
 ```
 
@@ -442,7 +442,7 @@ real-time UI updates and recalculates goal progress.
 **curl:**
 
 ```bash
-curl -X PATCH http://localhost:3000/api/extension/tasks/UUID \
+curl -X PATCH http://localhost:3750/api/extension/tasks/UUID \
   -H "Content-Type: application/json" \
   -H "X-Extension-Token: your-token" \
   -d '{"status":"completed"}'
@@ -485,7 +485,7 @@ after initial generation.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/extension/tokens
+curl http://localhost:3750/api/extension/tokens
 ```
 
 **Error Codes:** `500`
@@ -530,7 +530,7 @@ is the short code shown in the app UI for the extension registration flow.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/extension/tokens
+curl -X POST http://localhost:3750/api/extension/tokens
 ```
 
 **Error Codes:** `500`
@@ -584,7 +584,7 @@ path parameter.
 **curl:**
 
 ```bash
-curl http://localhost:3000/api/extension/contact/https/www.linkedin.com/in/jdoe \
+curl http://localhost:3750/api/extension/contact/https/www.linkedin.com/in/jdoe \
   -H "X-Extension-Token: your-token"
 ```
 
@@ -639,7 +639,7 @@ Render a message template with contact data for clipboard copy in the extension.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/extension/message-render \
+curl -X POST http://localhost:3750/api/extension/message-render \
   -H "Content-Type: application/json" \
   -H "X-Extension-Token: your-token" \
   -d '{"contactUrl":"https://linkedin.com/in/jdoe","templateType":"initial"}'

@@ -186,7 +186,7 @@ export async function upsertContactFromProfile(
  */
 export async function upsertContactsFromSearch(
   results: SearchResultEntry[],
-  sourceUrl: string
+  _sourceUrl: string
 ): Promise<{ created: number; updated: number; skipped: number }> {
   let created = 0;
   let updated = 0;

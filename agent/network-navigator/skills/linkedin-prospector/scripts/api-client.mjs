@@ -1,7 +1,7 @@
 // NetworkNav v2 API Client
-// All operations go through the app's REST API at localhost:3000
+// All operations go through the app's REST API at localhost:3750
 
-const BASE_URL = process.env.NETWORKNAV_URL || 'http://localhost:3000';
+const BASE_URL = process.env.NETWORKNAV_URL || 'http://localhost:3750';
 
 export async function api(path, options = {}) {
   const url = `${BASE_URL}${path}`;

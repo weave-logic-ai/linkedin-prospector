@@ -1,6 +1,6 @@
 # Network Navigator — v2
 
-An API-first Claude Code agent skill for LinkedIn network intelligence. All operations go through the NetworkNav REST API at `localhost:3000` — no Playwright, no local JSON files, no browser automation.
+An API-first Claude Code agent skill for LinkedIn network intelligence. All operations go through the NetworkNav REST API at `localhost:3750` — no Playwright, no local JSON files, no browser automation.
 
 ## Architecture
 
@@ -49,7 +49,7 @@ All scripts live in `skills/linkedin-prospector/scripts/` and use the shared `ap
 
 ### api-client.mjs
 
-Lightweight fetch wrapper targeting `http://localhost:3000` (override with `NETWORKNAV_URL` env var). Exports `get`, `post`, `put`, `del`.
+Lightweight fetch wrapper targeting `http://localhost:3750` (override with `NETWORKNAV_URL` env var). Exports `get`, `post`, `put`, `del`.
 
 ### configure.mjs
 
@@ -104,7 +104,7 @@ Dashboard (Next.js) <-- REST API <-- Database <-------------------------------+
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NETWORKNAV_URL` | `http://localhost:3000` | Base URL for the app API |
+| `NETWORKNAV_URL` | `http://localhost:3750` | Base URL for the app API |
 
 ## License
 

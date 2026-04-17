@@ -147,7 +147,7 @@ Auto-completion uses URL matching. The extension compares the current page URL a
 The Next Best Action endpoint recommends what you should do right now based on your current task queue, contact scores, and recent activity.
 
 ```bash title="Terminal"
-curl http://localhost:3000/api/tasks?action=next-best
+curl http://localhost:3750/api/tasks?action=next-best
 ```
 
 Response:
@@ -186,11 +186,11 @@ The recommendation algorithm considers:
 ### Goals
 
 ```bash title="List goals"
-curl http://localhost:3000/api/goals
+curl http://localhost:3750/api/goals
 ```
 
 ```bash title="Create a goal"
-curl -X POST http://localhost:3000/api/goals \
+curl -X POST http://localhost:3750/api/goals \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Expand into FinTech niche",
@@ -199,17 +199,17 @@ curl -X POST http://localhost:3000/api/goals \
 ```
 
 ```bash title="Generate goals with Claude"
-curl -X POST http://localhost:3000/api/claude/generate-goals
+curl -X POST http://localhost:3750/api/claude/generate-goals
 ```
 
 ### Tasks
 
 ```bash title="List tasks"
-curl http://localhost:3000/api/tasks
+curl http://localhost:3750/api/tasks
 ```
 
 ```bash title="Create a task"
-curl -X POST http://localhost:3000/api/tasks \
+curl -X POST http://localhost:3750/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "goalId": "goal-uuid",
@@ -220,7 +220,7 @@ curl -X POST http://localhost:3000/api/tasks \
 ```
 
 ```bash title="Complete a task"
-curl -X PATCH http://localhost:3000/api/tasks/task-uuid \
+curl -X PATCH http://localhost:3750/api/tasks/task-uuid \
   -H "Content-Type: application/json" \
   -d '{"status": "completed"}'
 ```

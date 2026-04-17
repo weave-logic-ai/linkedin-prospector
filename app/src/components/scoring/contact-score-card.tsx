@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { TierBadge } from "@/components/scoring/tier-badge";
@@ -20,7 +20,6 @@ import {
   PERSONA_DESCRIPTIONS,
   BEHAVIORAL_PERSONA_DESCRIPTIONS,
   REFERRAL_PERSONA_DESCRIPTIONS,
-  TIER_DESCRIPTIONS,
 } from "@/lib/scoring/score-descriptions";
 
 interface DimensionBreakdown {
@@ -74,7 +73,7 @@ export function ContactScoreCard({
   const [loading, setLoading] = useState(true);
   const [rescoring, setRescoring] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/contacts/${contactId}/scores`);
       if (res.ok) {
@@ -86,7 +85,7 @@ export function ContactScoreCard({
     } finally {
       setLoading(false);
     }
-  };
+  }, [contactId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,7 +95,7 @@ export function ContactScoreCard({
     return () => {
       cancelled = true;
     };
-  }, [contactId]);
+  }, [load]);
 
   const handleRescore = async () => {
     setRescoring(true);

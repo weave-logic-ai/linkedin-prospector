@@ -80,7 +80,7 @@ breakdown, and graph metrics to generate insights.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/claude/analyze \
+curl -X POST http://localhost:3750/api/claude/analyze \
   -H "Content-Type: application/json" \
   -d '{"contactId":"UUID"}'
 ```
@@ -154,7 +154,7 @@ suggestions based on the overall network composition.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/claude/suggestions \
+curl -X POST http://localhost:3750/api/claude/suggestions \
   -H "Content-Type: application/json" \
   -d '{"scope":"network"}'
 ```
@@ -207,7 +207,7 @@ their profile data, headline, company, and interests.
 **curl:**
 
 ```bash
-curl -X POST http://localhost:3000/api/claude/personalize \
+curl -X POST http://localhost:3750/api/claude/personalize \
   -H "Content-Type: application/json" \
   -d '{"templateId":"UUID","contactId":"UUID"}'
 ```
