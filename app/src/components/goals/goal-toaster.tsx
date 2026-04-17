@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, createContext, useContext } from "react";
+import { useState, useCallback, createContext, useContext } from "react";
 import { Button } from "@/components/ui/button";
 import { Target, X, Check, AlertTriangle } from "lucide-react";
 

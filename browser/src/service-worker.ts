@@ -134,7 +134,7 @@ async function processCapture(
     // creates a follow-up task for the next search page (up to MAX_SEARCH_PAGES).
     try {
       const tasksData = await client.fetchTasks('pending', 50);
-      const allTasks = tasksData.goals.flatMap((g: { tasks: unknown[] }) => g.tasks);
+      const allTasks = tasksData.goals.flatMap((g) => g.tasks);
       await setStorage('pendingTasks', allTasks);
     } catch {
       // Non-critical
@@ -361,7 +361,7 @@ async function performHealthCheck(): Promise<void> {
     if (state === 'connected') {
       try {
         const tasksData = await client.fetchTasks('pending', 50);
-        const allTasks = tasksData.goals.flatMap((g: { tasks: unknown[] }) => g.tasks);
+        const allTasks = tasksData.goals.flatMap((g) => g.tasks);
         await setStorage('pendingTasks', allTasks);
       } catch {
         // Non-critical -- tasks will load on next check
@@ -495,7 +495,9 @@ chrome.runtime.onMessage.addListener(
 
       case 'TASKS_UPDATE': {
         // Sidebar/popup requested task status update
-        const taskPayload = message.payload as { taskId: string; status: string } | undefined;
+        const taskPayload = message.payload as
+          | { taskId: string; status: 'in_progress' | 'completed' | 'skipped' }
+          | undefined;
         if (taskPayload?.taskId) {
           (async () => {
             try {
@@ -503,7 +505,7 @@ chrome.runtime.onMessage.addListener(
               await client.updateTask(taskPayload.taskId, taskPayload.status);
               // Refresh tasks from server
               const tasksData = await client.fetchTasks('pending', 50);
-              const allTasks = tasksData.goals.flatMap((g: { tasks: unknown[] }) => g.tasks);
+              const allTasks = tasksData.goals.flatMap((g) => g.tasks);
               await setStorage('pendingTasks', allTasks);
               await updateBadge();
               sendResponse({ status: 'ok' });
@@ -656,7 +658,7 @@ processRetryQueue().catch(() => {});
 // WebSocket is optional -- only attempt if explicitly enabled
 // Next.js standalone doesn't support WS upgrade, so skip by default
 getStorage('settings').then((settings) => {
-  const wsEnabled = (settings as Record<string, unknown>)?.wsEnabled;
+  const wsEnabled = (settings as unknown as Record<string, unknown>)?.wsEnabled;
   if (wsEnabled) {
     setupWebSocketHandlers().catch((err) => {
       logger.warn('WebSocket unavailable (HTTP polling active):', (err as Error).message);

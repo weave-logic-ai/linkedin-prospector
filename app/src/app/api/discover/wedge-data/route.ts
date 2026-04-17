@@ -33,7 +33,6 @@ export async function GET() {
     // 2. Match contacts to niches — require >=2 keyword hits for specificity
     // Use a single query with keyword scoring instead of N+1
     const nicheWedges: NicheWedge[] = [];
-    const matchedContactIds = new Set<string>();
 
     for (const niche of nichesResult.rows) {
       if (!niche.keywords || niche.keywords.length === 0) {
@@ -83,12 +82,6 @@ export async function GET() {
 
       const row = countResult.rows[0];
       const contactCount = parseInt(row.contact_count, 10);
-
-      // Track matched IDs for unaddressed calc
-      if (contactCount > 0) {
-        // We don't track all IDs (too expensive), estimate from counts
-        // The matchedContactIds is approximate — used for "addressed" %
-      }
 
       let topContacts: Array<{ id: string; name: string; score: number; tier: string }> = [];
       if (row.top_ids && row.top_ids.length > 0) {
