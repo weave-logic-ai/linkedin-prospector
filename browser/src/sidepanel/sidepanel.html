@@ -50,6 +50,41 @@
       </div>
 
       <button id="sp-capture-btn" class="btn btn-primary btn-full">Capture This Page</button>
+
+      <!-- Add-host button (Phase 1 Track C, ADR-028 Q2) -->
+      <button id="sp-add-host-btn" class="btn btn-secondary btn-full" style="display: none; margin-top: 6px;">
+        Add this site to approved sources
+      </button>
+    </section>
+
+    <!-- Snippet Widget (Phase 1 Track C) -->
+    <section class="panel-section" id="sp-snippet-section" style="display: none;">
+      <h2>Snip to target</h2>
+      <div id="sp-snippet-status" class="placeholder-text">Select text on the page, then click capture.</div>
+      <button id="sp-snippet-capture-btn" class="btn btn-secondary btn-full">Capture selection</button>
+      <div id="sp-snippet-card" class="snippet-card" style="display: none; margin-top: 10px;">
+        <div class="snippet-field">
+          <label>Preview</label>
+          <div id="sp-snippet-preview" class="snippet-preview"></div>
+        </div>
+        <div class="snippet-field">
+          <label>Tags</label>
+          <div id="sp-snippet-tags" class="snippet-tags"></div>
+        </div>
+        <div class="snippet-field">
+          <label>Mentions</label>
+          <div id="sp-snippet-mentions" class="snippet-mentions">No proper nouns detected.</div>
+        </div>
+        <div class="snippet-field">
+          <label for="sp-snippet-note">Note</label>
+          <textarea id="sp-snippet-note" class="snippet-note" rows="2" placeholder="Optional free-text note…"></textarea>
+        </div>
+        <div class="snippet-actions">
+          <button id="sp-snippet-save-btn" class="btn btn-primary">Save snippet</button>
+          <button id="sp-snippet-cancel-btn" class="btn btn-secondary">Cancel</button>
+        </div>
+        <p id="sp-snippet-error" class="snippet-error" style="display: none;"></p>
+      </div>
     </section>
 
     <!-- Goals & Tasks Section -->

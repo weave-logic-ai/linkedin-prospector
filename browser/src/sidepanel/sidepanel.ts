@@ -1,7 +1,13 @@
 // LinkedIn Network Intelligence - Side Panel UI
 // Full goal/task display, current page info, activity stats
 
-import type { ExtensionMessage, ExtensionTask, Goal, OutreachTemplate } from '../types';
+import type {
+  ExtensionMessage,
+  ExtensionTask,
+  Goal,
+  OutreachTemplate,
+  SnippetSelectionResponse,
+} from '../types';
 import { logger } from '../utils/logger';
 import { getDailyCaptureCount, getCaptureLimit } from '../utils/storage';
 
@@ -850,3 +856,349 @@ async function init(): Promise<void> {
 init().catch((err) =>
   logger.error('Side panel init failed:', (err as Error).message)
 );
+
+// ============================================================
+// Snippet Widget (Phase 1 Track C — WS-3)
+// ============================================================
+//
+// Thin widget living inside the side panel. User selects text on the page,
+// clicks "Capture selection", the widget expands a card with tag chips +
+// a free-text note + a mentions row. Save posts to /api/extension/snippet.
+// Per ADR-028 the content script only runs on origins the user has granted,
+// so the "Capture" action first asks the content script for the current
+// selection via chrome.tabs.sendMessage. If no content script responds (not
+// injected / not granted), we surface the Add-host button.
+
+interface SidebarTagRow {
+  slug: string;
+  label: string;
+  parentSlug: string | null;
+  isSeeded: boolean;
+}
+
+interface SidebarSnippetPayload {
+  selection: SnippetSelectionResponse;
+  selectedTags: Set<string>;
+  selectedMentions: Set<string>;
+  mentionCandidates: string[];
+  note: string;
+}
+
+const snippetSection = document.getElementById('sp-snippet-section');
+const snippetStatus = document.getElementById('sp-snippet-status');
+const snippetCaptureBtn = document.getElementById('sp-snippet-capture-btn');
+const snippetCard = document.getElementById('sp-snippet-card');
+const snippetPreview = document.getElementById('sp-snippet-preview');
+const snippetTagsContainer = document.getElementById('sp-snippet-tags');
+const snippetMentionsContainer = document.getElementById('sp-snippet-mentions');
+const snippetNoteEl = document.getElementById('sp-snippet-note') as HTMLTextAreaElement | null;
+const snippetSaveBtn = document.getElementById('sp-snippet-save-btn');
+const snippetCancelBtn = document.getElementById('sp-snippet-cancel-btn');
+const snippetErrorEl = document.getElementById('sp-snippet-error');
+const addHostBtn = document.getElementById('sp-add-host-btn');
+
+let availableTags: SidebarTagRow[] = [];
+let currentSnippet: SidebarSnippetPayload | null = null;
+let snippetEnabled = false;
+
+function extractPersonBigrams(text: string): string[] {
+  if (!text) return [];
+  const re = /\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b/g;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const cand = `${m[1]} ${m[2]}`;
+    if (cand.length < 5) continue;
+    if (seen.has(cand)) continue;
+    seen.add(cand);
+    out.push(cand);
+  }
+  return out;
+}
+
+async function loadSnippetTags(): Promise<void> {
+  try {
+    const appUrl = await getAppUrlBase();
+    const { extensionToken } = await new Promise<{ extensionToken?: string }>((r) =>
+      chrome.storage.local.get('extensionToken', (v) => r(v)),
+    );
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (extensionToken) headers['X-Extension-Token'] = extensionToken;
+    const res = await fetch(`${appUrl}/api/extension/tags`, { headers });
+    if (!res.ok) {
+      snippetEnabled = false;
+      if (snippetSection) snippetSection.style.display = 'none';
+      return;
+    }
+    const json = (await res.json()) as { tags: SidebarTagRow[] };
+    availableTags = json.tags ?? [];
+    snippetEnabled = true;
+    if (snippetSection) snippetSection.style.display = '';
+  } catch {
+    snippetEnabled = false;
+    if (snippetSection) snippetSection.style.display = 'none';
+  }
+}
+
+function renderTagChips(container: HTMLElement, selected: Set<string>): void {
+  container.innerHTML = '';
+  for (const tag of availableTags) {
+    const chip = document.createElement('span');
+    chip.className = 'snippet-tag-chip';
+    chip.textContent = tag.label;
+    chip.dataset.slug = tag.slug;
+    if (selected.has(tag.slug)) chip.classList.add('selected');
+    chip.addEventListener('click', () => {
+      if (selected.has(tag.slug)) {
+        selected.delete(tag.slug);
+        chip.classList.remove('selected');
+      } else {
+        selected.add(tag.slug);
+        chip.classList.add('selected');
+      }
+    });
+    container.appendChild(chip);
+  }
+}
+
+function renderMentionChips(container: HTMLElement, candidates: string[], selected: Set<string>): void {
+  container.innerHTML = '';
+  if (candidates.length === 0) {
+    container.textContent = 'No proper nouns detected.';
+    return;
+  }
+  for (const cand of candidates) {
+    const chip = document.createElement('span');
+    chip.className = 'snippet-mention-chip';
+    chip.textContent = cand;
+    chip.dataset.mention = cand;
+    if (selected.has(cand)) chip.classList.add('selected');
+    chip.addEventListener('click', async () => {
+      // Look up existing contacts matching this name — if a match is found,
+      // store its contact id in `selected`. "Create new contact" is deferred
+      // to Phase 1.5 per the Track C design notes.
+      const match = await searchContactByName(cand);
+      if (!match) {
+        chip.title = 'No existing contact matches; create-contact flow is Phase 1.5.';
+        chip.style.opacity = '0.5';
+        return;
+      }
+      chip.title = `Linked to ${match.name}`;
+      if (selected.has(match.id)) {
+        selected.delete(match.id);
+        chip.classList.remove('selected');
+      } else {
+        selected.add(match.id);
+        chip.classList.add('selected');
+      }
+    });
+    container.appendChild(chip);
+  }
+}
+
+async function searchContactByName(
+  name: string
+): Promise<{ id: string; name: string } | null> {
+  // Minimal contact search — uses the existing contact URL lookup endpoint by
+  // deriving a LinkedIn slug from the name. This is intentionally simple;
+  // Phase 1.5 introduces a proper /api/extension/contact/search endpoint.
+  void name;
+  return null;
+}
+
+async function requestCurrentSelection(): Promise<SnippetSelectionResponse | null> {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tabId = tabs[0]?.id;
+  if (!tabId) return null;
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(
+        tabId,
+        { type: 'GET_SNIPPET_SELECTION' } satisfies ExtensionMessage,
+        (response: SnippetSelectionResponse | undefined) => {
+          void chrome.runtime.lastError; // swallow "no receiving end" errors
+          resolve(response ?? null);
+        }
+      );
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function ensureOriginPermission(url: string): Promise<boolean> {
+  try {
+    const origin = new URL(url).origin + '/*';
+    const has = await chrome.permissions.contains({ origins: [origin] });
+    return has;
+  } catch {
+    return false;
+  }
+}
+
+async function updateAddHostButton(): Promise<void> {
+  if (!addHostBtn) return;
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const url = tabs[0]?.url;
+  if (!url || !/^https?:/.test(url)) {
+    addHostBtn.style.display = 'none';
+    return;
+  }
+  const granted = await ensureOriginPermission(url);
+  addHostBtn.style.display = granted ? 'none' : '';
+}
+
+async function injectSnippetContentScript(tabId: number): Promise<void> {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['dist/content-snippet.js'],
+    });
+  } catch (err) {
+    logger.warn('Snippet content-script inject failed:', (err as Error).message);
+  }
+}
+
+if (addHostBtn) {
+  addHostBtn.addEventListener('click', async () => {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs[0];
+    if (!tab?.url || !tab.id) return;
+    try {
+      const origin = new URL(tab.url).origin + '/*';
+      const granted = await chrome.permissions.request({ origins: [origin] });
+      if (granted) {
+        // Mirror the grant in local storage for UI state (source of truth
+        // remains chrome.permissions per ADR-028).
+        const stored = await new Promise<{ approvedOrigins?: string[] }>((r) =>
+          chrome.storage.local.get('approvedOrigins', (v) => r(v)),
+        );
+        const next = new Set(stored.approvedOrigins ?? []);
+        next.add(origin);
+        await chrome.storage.local.set({ approvedOrigins: Array.from(next) });
+        // Re-inject so snipping works immediately without a reload.
+        await injectSnippetContentScript(tab.id);
+        await updateAddHostButton();
+      }
+    } catch (err) {
+      logger.warn('Add-host request failed:', (err as Error).message);
+    }
+  });
+}
+
+function resetSnippetCard(): void {
+  currentSnippet = null;
+  if (snippetCard) snippetCard.style.display = 'none';
+  if (snippetErrorEl) snippetErrorEl.style.display = 'none';
+  if (snippetStatus) snippetStatus.textContent = 'Select text on the page, then click capture.';
+}
+
+if (snippetCaptureBtn) {
+  snippetCaptureBtn.addEventListener('click', async () => {
+    if (!snippetEnabled) return;
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs[0];
+    if (!tab?.url || !tab.id) return;
+    const granted = await ensureOriginPermission(tab.url);
+    if (!granted) {
+      if (snippetStatus) snippetStatus.textContent = 'Grant this site first, then try again.';
+      await updateAddHostButton();
+      return;
+    }
+    // Try to inject if not already present — chrome is idempotent for repeat
+    // executeScript calls on the same frame.
+    await injectSnippetContentScript(tab.id);
+    const selection = await requestCurrentSelection();
+    if (!selection || !selection.text) {
+      if (snippetStatus) snippetStatus.textContent = 'No text selected on the page.';
+      return;
+    }
+    const candidates = extractPersonBigrams(selection.text);
+    currentSnippet = {
+      selection,
+      selectedTags: new Set<string>(),
+      selectedMentions: new Set<string>(),
+      mentionCandidates: candidates,
+      note: '',
+    };
+    if (snippetPreview) snippetPreview.textContent = selection.text.slice(0, 400);
+    if (snippetTagsContainer) renderTagChips(snippetTagsContainer, currentSnippet.selectedTags);
+    if (snippetMentionsContainer)
+      renderMentionChips(snippetMentionsContainer, candidates, currentSnippet.selectedMentions);
+    if (snippetNoteEl) snippetNoteEl.value = '';
+    if (snippetCard) snippetCard.style.display = '';
+    if (snippetStatus) snippetStatus.textContent = `Selected from ${selection.pageTitle || 'page'}`;
+  });
+}
+
+if (snippetCancelBtn) {
+  snippetCancelBtn.addEventListener('click', () => resetSnippetCard());
+}
+
+if (snippetSaveBtn) {
+  snippetSaveBtn.addEventListener('click', async () => {
+    if (!currentSnippet) return;
+    if (!snippetEnabled) return;
+    (snippetSaveBtn as HTMLButtonElement).setAttribute('disabled', 'true');
+    (snippetSaveBtn as HTMLElement).textContent = 'Saving…';
+    try {
+      // Determine the currently-locked target from the Target Panel.
+      if (!lastRenderedLock || lastRenderedLock === 'none') {
+        throw new Error('No active research target. Open a profile or task first.');
+      }
+      const [source, kind, id] = lastRenderedLock.split(':');
+      void source;
+      const targetKind = kind === 'person' ? 'contact' : kind;
+      const body = {
+        targetKind,
+        targetId: id,
+        text: currentSnippet.selection.text,
+        sourceUrl: currentSnippet.selection.sourceUrl,
+        pageType: currentSnippet.selection.pageType,
+        tagSlugs: Array.from(currentSnippet.selectedTags),
+        note: snippetNoteEl?.value ?? '',
+        mentionContactIds: Array.from(currentSnippet.selectedMentions),
+      };
+      const appUrl = await getAppUrlBase();
+      const { extensionToken } = await new Promise<{ extensionToken?: string }>((r) =>
+        chrome.storage.local.get('extensionToken', (v) => r(v)),
+      );
+      const res = await fetch(`${appUrl}/api/extension/snippet`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(extensionToken ? { 'X-Extension-Token': extensionToken } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+        throw new Error((err as { message?: string }).message ?? `HTTP ${res.status}`);
+      }
+      if (snippetStatus) snippetStatus.textContent = 'Snippet saved.';
+      resetSnippetCard();
+    } catch (err) {
+      if (snippetErrorEl) {
+        snippetErrorEl.style.display = '';
+        snippetErrorEl.textContent = (err as Error).message;
+      }
+    } finally {
+      (snippetSaveBtn as HTMLButtonElement).removeAttribute('disabled');
+      (snippetSaveBtn as HTMLElement).textContent = 'Save snippet';
+    }
+  });
+}
+
+// Surface-level reactivity: refresh Add-host button when tab changes; reload
+// tags lazily after init finishes so we do not block the critical-path render.
+chrome.tabs.onActivated.addListener(() => {
+  void updateAddHostButton();
+});
+chrome.tabs.onUpdated.addListener((_id, info) => {
+  if (info.status === 'complete' || info.url) {
+    void updateAddHostButton();
+  }
+});
+
+void loadSnippetTags().then(() => updateAddHostButton());

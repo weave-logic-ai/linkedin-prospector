@@ -7,12 +7,26 @@
     "storage",
     "activeTab",
     "sidePanel",
-    "alarms"
+    "alarms",
+    "scripting"
   ],
   "host_permissions": [
     "https://www.linkedin.com/*",
     "https://linkedin.com/*",
-    "http://localhost/*"
+    "http://localhost/*",
+    "https://web.archive.org/*",
+    "https://*.sec.gov/*",
+    "https://news.ycombinator.com/*",
+    "https://techcrunch.com/*",
+    "https://www.bloomberg.com/*",
+    "https://www.reuters.com/*",
+    "https://www.wsj.com/*",
+    "https://www.cnbc.com/*",
+    "https://www.ft.com/*",
+    "https://www.nytimes.com/*"
+  ],
+  "optional_host_permissions": [
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "dist/service-worker.js",

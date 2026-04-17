@@ -236,7 +236,19 @@ export type ExtensionMessageType =
   | 'GET_STATUS'
   | 'OPEN_SIDE_PANEL'
   | 'FETCH_TEMPLATES'
-  | 'PERSONALIZE_TEMPLATE';
+  | 'PERSONALIZE_TEMPLATE'
+  // Research-tools sprint (Phase 1 Track C)
+  | 'GET_SNIPPET_SELECTION'
+  | 'REQUEST_HOST_PERMISSION';
+
+// Response shape returned by content-snippet content scripts when the side
+// panel asks them for the currently-selected text.
+export interface SnippetSelectionResponse {
+  text: string;
+  sourceUrl: string;
+  pageTitle: string;
+  pageType: string | null;
+}
 
 export interface ExtensionMessage {
   type: ExtensionMessageType;
