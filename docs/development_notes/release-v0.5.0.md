@@ -45,7 +45,7 @@ Totals: 43 files changed, ~4200 insertions, ~60 deletions (mostly test code + do
 | `cd app && npm run lint` | clean in touched files |
 | `cd app && npm run build` | succeeds |
 | `cd app && npm test` | 38 suites / 273 tests / 0 failures |
-| `cd browser && npm run typecheck` | only pre-existing `service-worker.ts` warnings (unrelated) |
+| `cd browser && npm run typecheck` | clean (the pre-existing `service-worker.ts` casts were resolved during final prep in `c71bd97`) |
 | `cd browser && npm run build` | succeeds — content.js, popup.js, sidepanel.js, service-worker.js |
 | Live ECC DB-write verification | **deferred** — see `ecc/runtime-verification.md`; not runnable from the WSL shell (Docker integration off) |
 
@@ -107,4 +107,3 @@ These were intentionally deferred from this release; they belong in a future spr
 3. **Parser audit + graph re-centering + primary/secondary target architecture** — future joint sprint.
 4. **P0 from `stub-inventory.md`**: `DEFAULT_TENANT_ID='default'` in `causal-graph/scoring-adapter.ts:7` must be addressed before multi-tenant mode ships.
 5. **Webhook impulse branch** in `dispatcher.ts:88` is a silent no-op; needs proper handler.
-6. **Pre-existing `service-worker.ts` tsc warnings** — small cleanup, independent from this release.

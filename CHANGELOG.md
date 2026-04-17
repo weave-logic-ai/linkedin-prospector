@@ -66,7 +66,6 @@ See `docs/plans/browser-snippet-expansion.md`. Short version: snippet editor (mu
 - **Pre-existing SHA-256 `exo_chain_entries` rows** will fail `verifyChainHashes` after the BLAKE3 swap. These are auxiliary audit rows — the runbook documents `TRUNCATE exo_chain_entries` as the expected clean-up for existing volumes.
 - **Hardcoded `DEFAULT_TENANT_ID = 'default'`** in `app/src/lib/ecc/causal-graph/scoring-adapter.ts:7`. Benign today (single-tenant); flagged P0 in `stub-inventory.md` for when multi-tenant lands.
 - **Webhook impulse branch** in `app/src/lib/ecc/impulses/dispatcher.ts:88` silently returns `{ skipped: true }`. Known gap.
-- **Browser service-worker tsc warnings** (unchanged `unknown[] → ExtensionTask[]` casts) are pre-existing and not introduced by this release.
 
 ### Verification gates run for this release
 
