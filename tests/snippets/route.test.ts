@@ -37,13 +37,24 @@ describe('snippet payload validation shape', () => {
     if (typeof b.targetId !== 'string' || b.targetId.length === 0) {
       return { ok: false, message: 'targetId must be a non-empty string' };
     }
+    if (typeof b.sourceUrl !== 'string' || !/^https?:\/\//.test(b.sourceUrl)) {
+      return { ok: false, message: 'sourceUrl must be an http(s) URL' };
+    }
+    // Link-kind validator mirror — the real route delegates to service-link
+    // for the fetch. Here we only validate shape.
+    if (b.kind === 'link') {
+      if (typeof b.href !== 'string' || b.href.trim().length === 0) {
+        return { ok: false, message: 'href must be a non-empty string' };
+      }
+      if (!/^https?:\/\//i.test(b.href)) {
+        return { ok: false, message: 'href must be an http(s) URL' };
+      }
+      return { ok: true };
+    }
     if (typeof b.text !== 'string' || b.text.trim().length === 0) {
       return { ok: false, message: 'text must be a non-empty string' };
     }
     if (b.text.length > 20000) return { ok: false, message: 'text exceeds 20,000 character limit' };
-    if (typeof b.sourceUrl !== 'string' || !/^https?:\/\//.test(b.sourceUrl)) {
-      return { ok: false, message: 'sourceUrl must be an http(s) URL' };
-    }
     return { ok: true };
   }
 
@@ -96,6 +107,39 @@ describe('snippet payload validation shape', () => {
       sourceUrl: 'https://example.com',
     });
     expect(r).toEqual({ ok: false, message: expect.stringMatching(/20,000/) });
+  });
+
+  it('accepts a well-formed link body', () => {
+    expect(
+      validateSnippetBody({
+        kind: 'link',
+        targetKind: 'contact',
+        targetId: 'id',
+        href: 'https://example.com/page',
+        sourceUrl: 'https://news.example.com',
+      })
+    ).toEqual({ ok: true });
+  });
+
+  it('rejects link body with non-http href', () => {
+    const r = validateSnippetBody({
+      kind: 'link',
+      targetKind: 'contact',
+      targetId: 'id',
+      href: 'file:///etc/passwd',
+      sourceUrl: 'https://example.com',
+    });
+    expect(r).toEqual({ ok: false, message: expect.stringMatching(/href/) });
+  });
+
+  it('rejects link body with missing href', () => {
+    const r = validateSnippetBody({
+      kind: 'link',
+      targetKind: 'contact',
+      targetId: 'id',
+      sourceUrl: 'https://example.com',
+    });
+    expect(r).toEqual({ ok: false, message: expect.stringMatching(/href/) });
   });
 
   it('rejects missing targetId', () => {

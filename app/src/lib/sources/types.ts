@@ -11,7 +11,8 @@ export type SourceType =
   | 'rss'
   | 'news'
   | 'blog'
-  | 'podcast';
+  | 'podcast'
+  | 'link';
 
 /**
  * Everything a connector needs from its caller at fetch time. Carried through

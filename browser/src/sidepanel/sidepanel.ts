@@ -895,6 +895,17 @@ interface SidebarSnippetTextPayload {
   note: string;
 }
 
+interface SidebarSnippetLinkPayload {
+  kind: 'link';
+  href: string;
+  linkText: string | null;
+  sourceUrl: string;
+  pageTitle: string;
+  pageType: string | null;
+  selectedTags: Set<string>;
+  note: string;
+}
+
 interface SidebarSnippetImagePayload {
   kind: 'image';
   /** base64-encoded bytes (no `data:` prefix). */
@@ -911,7 +922,10 @@ interface SidebarSnippetImagePayload {
   note: string;
 }
 
-type SidebarSnippetPayload = SidebarSnippetTextPayload | SidebarSnippetImagePayload;
+type SidebarSnippetPayload =
+  | SidebarSnippetTextPayload
+  | SidebarSnippetImagePayload
+  | SidebarSnippetLinkPayload;
 
 const snippetSection = document.getElementById('sp-snippet-section');
 const snippetStatus = document.getElementById('sp-snippet-status');
@@ -942,6 +956,17 @@ const snippetImagePreview = document.getElementById(
   'sp-snippet-image-preview'
 ) as HTMLImageElement | null;
 const snippetImageMeta = document.getElementById('sp-snippet-image-meta');
+// Phase 1.5 — link tab DOM (WS-3 closure)
+const snippetTabLink = document.getElementById('sp-snippet-tab-link');
+const snippetLinkPane = document.getElementById('sp-snippet-link-pane');
+const snippetLinkStatus = document.getElementById('sp-snippet-link-status');
+const snippetLinkHrefInput = document.getElementById(
+  'sp-snippet-link-href-input'
+) as HTMLInputElement | null;
+const snippetLinkTextInput = document.getElementById(
+  'sp-snippet-link-text-input'
+) as HTMLInputElement | null;
+const snippetLinkPrepBtn = document.getElementById('sp-snippet-link-prep-btn');
 
 let availableTags: SidebarTagRow[] = [];
 let currentSnippet: SidebarSnippetPayload | null = null;
@@ -987,6 +1012,73 @@ async function loadSnippetTags(): Promise<void> {
   }
 }
 
+/**
+ * Phase 1.5 — when the source URL matches a well-known provenance pattern,
+ * default to a matching tag in the taxonomy. Purely client-side (per the
+ * scope note in `03-snippet-editor.md` §16): the tag taxonomy already ships
+ * `provenance/wayback` + `filing/sec-*` slugs so we just need to pre-flag
+ * whichever applies.
+ *
+ * Rules (non-overlapping, first match wins on the filing side):
+ *   - `web.archive.org`           → `provenance/wayback`
+ *   - `/sec.gov/.../10-K` URL     → `filing/sec-10k`
+ *   - `/sec.gov/.../10-Q`         → `filing/sec-10q`
+ *   - `/sec.gov/.../8-K`          → `filing/sec-8k`
+ *   - `/sec.gov/.../13F`          → `filing/sec-13f`
+ *   - `/sec.gov/.../DEF 14A`      → `filing/sec-proxy`
+ *   - Any other `sec.gov` URL     → generic fallback (no filing-specific slug)
+ *
+ * Returns the set of slugs that should be pre-selected. Only slugs that exist
+ * in the tenant's taxonomy (live `availableTags`) are returned — this avoids
+ * adding a chip the user can't see.
+ */
+export function suggestTagSlugsForUrl(
+  url: string,
+  known: Iterable<string>
+): string[] {
+  const hits = new Set<string>();
+  const has = new Set<string>(known);
+  if (!url) return [];
+  let host = '';
+  let path = '';
+  try {
+    const u = new URL(url);
+    host = u.hostname.toLowerCase();
+    path = u.pathname + u.search;
+  } catch {
+    return [];
+  }
+  if (/(^|\.)web\.archive\.org$/.test(host) && has.has('provenance/wayback')) {
+    hits.add('provenance/wayback');
+  }
+  if (/(^|\.)sec\.gov$/.test(host)) {
+    // EDGAR filing-type heuristics. The accession-number pattern doesn't
+    // carry the form type, but the `type=` query or a substring like `10-K`
+    // in the path is stable for most /cgi-bin/browse-edgar and /Archives/
+    // links.
+    const upper = `${path} ${url}`.toUpperCase();
+    if (/\b10-K\b/.test(upper) && has.has('filing/sec-10k')) {
+      hits.add('filing/sec-10k');
+    } else if (/\b10-Q\b/.test(upper) && has.has('filing/sec-10q')) {
+      hits.add('filing/sec-10q');
+    } else if (/\b8-K\b/.test(upper) && has.has('filing/sec-8k')) {
+      hits.add('filing/sec-8k');
+    } else if (/\b13F\b/.test(upper) && has.has('filing/sec-13f')) {
+      hits.add('filing/sec-13f');
+    } else if (/DEF\s*14A/.test(upper) && has.has('filing/sec-proxy')) {
+      hits.add('filing/sec-proxy');
+    }
+    // Always add the generic `public-record` style fallback if the taxonomy
+    // carries it. (Current seed doesn't, so this is a forward-compat guard.)
+    if (has.has('filing/court')) {
+      // Court filings aren't usually on sec.gov — keep this only if the URL
+      // *also* matches a court path. Guard against false positives.
+      if (/court|case|docket/i.test(path)) hits.add('filing/court');
+    }
+  }
+  return Array.from(hits);
+}
+
 function renderTagChips(container: HTMLElement, selected: Set<string>): void {
   container.innerHTML = '';
   for (const tag of availableTags) {
@@ -1020,13 +1112,42 @@ function renderMentionChips(container: HTMLElement, candidates: string[], select
     chip.textContent = cand;
     chip.dataset.mention = cand;
     if (selected.has(cand)) chip.classList.add('selected');
-    chip.addEventListener('click', async () => {
-      // Look up existing contacts matching this name — if a match is found,
-      // store its contact id in `selected`. "Create new contact" is deferred
-      // to Phase 1.5 per the Track C design notes.
+
+    // State machine: idle → "searching…" → (matched | unmatched). When
+    // unmatched a second click on the same chip fires "Create new contact"
+    // through the Q9 endpoint. Shift-click always creates a new contact
+    // regardless of whether an existing one matched, for the case where the
+    // user knows the mention is a different person than the dedup hit.
+    chip.title = 'Click to link to an existing contact; shift-click to create new.';
+    let attempted = false;
+    chip.addEventListener('click', async (ev) => {
+      const shift = (ev as MouseEvent).shiftKey === true;
+      if (shift || attempted) {
+        // Create-new path (Q9 A+C).
+        const excerpt =
+          currentSnippet && currentSnippet.kind === 'text'
+            ? currentSnippet.selection.text
+            : '';
+        const sourceUrl =
+          currentSnippet && currentSnippet.kind === 'text'
+            ? currentSnippet.selection.sourceUrl
+            : '';
+        const created = await createContactFromMention(cand, sourceUrl, excerpt);
+        if (!created?.contactId) {
+          chip.title = 'Create-new failed; check the app logs.';
+          chip.style.opacity = '0.5';
+          return;
+        }
+        chip.title = `Created contact ${created.fullName}${created.reused ? ' (existing)' : ''}`;
+        selected.add(created.contactId);
+        chip.classList.add('selected');
+        chip.style.opacity = '1';
+        return;
+      }
+      attempted = true;
       const match = await searchContactByName(cand);
       if (!match) {
-        chip.title = 'No existing contact matches; create-contact flow is Phase 1.5.';
+        chip.title = 'No existing contact matches. Click again to create, or shift-click to force-create.';
         chip.style.opacity = '0.5';
         return;
       }
@@ -1046,11 +1167,82 @@ function renderMentionChips(container: HTMLElement, candidates: string[], select
 async function searchContactByName(
   name: string
 ): Promise<{ id: string; name: string } | null> {
-  // Minimal contact search — uses the existing contact URL lookup endpoint by
-  // deriving a LinkedIn slug from the name. This is intentionally simple;
-  // Phase 1.5 introduces a proper /api/extension/contact/search endpoint.
-  void name;
-  return null;
+  // Phase 1.5 closure — hits /api/extension/contact/search and returns the
+  // top-confidence match (or null if nothing clears the threshold). When the
+  // user wants to create a brand-new contact instead they use
+  // `createContactFromMention` below. Separating the two keeps the existing
+  // chip's "one click = link" interaction working.
+  try {
+    const appUrl = await getAppUrlBase();
+    const { extensionToken } = await new Promise<{ extensionToken?: string }>((r) =>
+      chrome.storage.local.get('extensionToken', (v) => r(v)),
+    );
+    const res = await fetch(
+      `${appUrl}/api/extension/contact/search?q=${encodeURIComponent(name)}&limit=3`,
+      {
+        headers: extensionToken
+          ? { 'X-Extension-Token': extensionToken }
+          : undefined,
+      }
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      matches?: Array<{ id: string; fullName: string; confidence: number }>;
+    };
+    const top = json.matches?.[0];
+    if (!top) return null;
+    // Only auto-link on >=0.85 confidence. Weaker hits fall back to the
+    // "Create new" flow so we don't silently misattribute.
+    if (top.confidence < 0.85) return null;
+    return { id: top.id, name: top.fullName };
+  } catch {
+    return null;
+  }
+}
+
+interface CreateFromMentionResponse {
+  success: boolean;
+  contactId: string;
+  fullName: string;
+  reused: boolean;
+  enrichment?: { invoked: boolean; skipReason?: string };
+}
+
+/**
+ * POST /api/extension/contact/create-from-mention. Posts the name + a 200-char
+ * context excerpt so downstream reviewers can see why the contact exists. The
+ * caller passes the snippet's source URL + the full selection text so the
+ * server can derive the excerpt without re-computing the mention offset.
+ */
+async function createContactFromMention(
+  name: string,
+  snippetSourceUrl: string,
+  excerpt: string,
+  linkedinUrl?: string
+): Promise<CreateFromMentionResponse | null> {
+  try {
+    const appUrl = await getAppUrlBase();
+    const { extensionToken } = await new Promise<{ extensionToken?: string }>((r) =>
+      chrome.storage.local.get('extensionToken', (v) => r(v)),
+    );
+    const res = await fetch(`${appUrl}/api/extension/contact/create-from-mention`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(extensionToken ? { 'X-Extension-Token': extensionToken } : {}),
+      },
+      body: JSON.stringify({
+        name,
+        linkedinUrl,
+        snippetSourceUrl,
+        context: excerpt.slice(0, 200),
+      }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as CreateFromMentionResponse;
+  } catch {
+    return null;
+  }
 }
 
 async function requestCurrentSelection(): Promise<SnippetSelectionResponse | null> {
@@ -1146,10 +1338,16 @@ function resetSnippetCard(): void {
   if (snippetImagePreview) snippetImagePreview.removeAttribute('src');
   if (snippetPreview) snippetPreview.style.display = '';
   if (snippetImageUrlInput) snippetImageUrlInput.value = '';
+  if (snippetLinkStatus) {
+    snippetLinkStatus.textContent =
+      'Paste a URL and (optionally) the link text. We\'ll fetch it through the shared source-records pipeline.';
+  }
+  if (snippetLinkHrefInput) snippetLinkHrefInput.value = '';
+  if (snippetLinkTextInput) snippetLinkTextInput.value = '';
 }
 
 // ----- Tab switching -----
-function activateSnippetTab(kind: 'text' | 'image'): void {
+function activateSnippetTab(kind: 'text' | 'image' | 'link'): void {
   if (snippetTabText) {
     snippetTabText.classList.toggle('active', kind === 'text');
     snippetTabText.setAttribute('aria-selected', kind === 'text' ? 'true' : 'false');
@@ -1158,8 +1356,13 @@ function activateSnippetTab(kind: 'text' | 'image'): void {
     snippetTabImage.classList.toggle('active', kind === 'image');
     snippetTabImage.setAttribute('aria-selected', kind === 'image' ? 'true' : 'false');
   }
+  if (snippetTabLink) {
+    snippetTabLink.classList.toggle('active', kind === 'link');
+    snippetTabLink.setAttribute('aria-selected', kind === 'link' ? 'true' : 'false');
+  }
   if (snippetTextPane) snippetTextPane.style.display = kind === 'text' ? '' : 'none';
   if (snippetImagePane) snippetImagePane.style.display = kind === 'image' ? '' : 'none';
+  if (snippetLinkPane) snippetLinkPane.style.display = kind === 'link' ? '' : 'none';
   // Always hide any in-flight card when user flips tabs — avoids saving a
   // text payload while showing the image UI or vice versa.
   resetSnippetCard();
@@ -1167,6 +1370,7 @@ function activateSnippetTab(kind: 'text' | 'image'): void {
 
 if (snippetTabText) snippetTabText.addEventListener('click', () => activateSnippetTab('text'));
 if (snippetTabImage) snippetTabImage.addEventListener('click', () => activateSnippetTab('image'));
+if (snippetTabLink) snippetTabLink.addEventListener('click', () => activateSnippetTab('link'));
 
 if (snippetCaptureBtn) {
   snippetCaptureBtn.addEventListener('click', async () => {
@@ -1189,10 +1393,14 @@ if (snippetCaptureBtn) {
       return;
     }
     const candidates = extractPersonBigrams(selection.text);
+    const suggestedTags = suggestTagSlugsForUrl(
+      selection.sourceUrl,
+      availableTags.map((t) => t.slug)
+    );
     currentSnippet = {
       kind: 'text',
       selection,
-      selectedTags: new Set<string>(),
+      selectedTags: new Set<string>(suggestedTags),
       selectedMentions: new Set<string>(),
       mentionCandidates: candidates,
       note: '',
@@ -1271,6 +1479,10 @@ async function presentImagePayload(payload: {
   pageUrl: string;
   pageTitle: string;
 }): Promise<void> {
+  const imageSuggested = suggestTagSlugsForUrl(
+    payload.pageUrl || payload.sourceUrl,
+    availableTags.map((t) => t.slug)
+  );
   currentSnippet = {
     kind: 'image',
     imageBytes: payload.imageBytes,
@@ -1282,7 +1494,7 @@ async function presentImagePayload(payload: {
     pageUrl: payload.pageUrl,
     pageTitle: payload.pageTitle,
     pageType: detectSnippetPageType(payload.pageUrl || payload.sourceUrl),
-    selectedTags: new Set<string>(),
+    selectedTags: new Set<string>(imageSuggested),
     note: '',
   };
 
@@ -1441,6 +1653,47 @@ if (snippetImageFetchBtn && snippetImageUrlInput) {
   });
 }
 
+// ============================================================
+// Phase 1.5 — link snippet capture (WS-3 closure)
+// ============================================================
+
+if (snippetLinkPrepBtn) {
+  snippetLinkPrepBtn.addEventListener('click', async () => {
+    if (!snippetEnabled) return;
+    const href = snippetLinkHrefInput?.value.trim() ?? '';
+    if (!/^https?:\/\//i.test(href)) {
+      if (snippetLinkStatus)
+        snippetLinkStatus.textContent = 'URL must start with http:// or https://';
+      return;
+    }
+    const linkText = snippetLinkTextInput?.value.trim() ?? '';
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const sourceUrl = tabs[0]?.url ?? 'about:blank';
+    const pageTitle = tabs[0]?.title ?? '';
+    const suggested = suggestTagSlugsForUrl(href, availableTags.map((t) => t.slug));
+    currentSnippet = {
+      kind: 'link',
+      href,
+      linkText: linkText.length > 0 ? linkText : null,
+      sourceUrl,
+      pageTitle,
+      pageType: detectSnippetPageType(href),
+      selectedTags: new Set<string>(suggested),
+      note: '',
+    };
+    if (snippetPreview) {
+      snippetPreview.style.display = '';
+      snippetPreview.textContent = linkText ? `${linkText} — ${href}` : href;
+    }
+    if (snippetImagePreviewWrap) snippetImagePreviewWrap.style.display = 'none';
+    if (snippetMentionsField) snippetMentionsField.style.display = 'none';
+    if (snippetTagsContainer) renderTagChips(snippetTagsContainer, currentSnippet.selectedTags);
+    if (snippetNoteEl) snippetNoteEl.value = '';
+    if (snippetCard) snippetCard.style.display = '';
+    if (snippetLinkStatus) snippetLinkStatus.textContent = 'Link ready. Add tags and save.';
+  });
+}
+
 if (snippetSaveBtn) {
   snippetSaveBtn.addEventListener('click', async () => {
     if (!currentSnippet) return;
@@ -1457,33 +1710,47 @@ if (snippetSaveBtn) {
       const targetKind = kind === 'person' ? 'contact' : kind;
 
       // Build the body based on the active payload kind.
-      const body =
-        currentSnippet.kind === 'image'
-          ? {
-              kind: 'image' as const,
-              targetKind,
-              targetId: id,
-              imageBytes: currentSnippet.imageBytes,
-              mimeType: currentSnippet.mimeType,
-              width: currentSnippet.width ?? undefined,
-              height: currentSnippet.height ?? undefined,
-              sourceUrl:
-                currentSnippet.sourceUrl || currentSnippet.pageUrl || 'about:blank',
-              pageType: currentSnippet.pageType ?? undefined,
-              tagSlugs: Array.from(currentSnippet.selectedTags),
-              note: snippetNoteEl?.value ?? '',
-            }
-          : {
-              kind: 'text' as const,
-              targetKind,
-              targetId: id,
-              text: currentSnippet.selection.text,
-              sourceUrl: currentSnippet.selection.sourceUrl,
-              pageType: currentSnippet.selection.pageType,
-              tagSlugs: Array.from(currentSnippet.selectedTags),
-              note: snippetNoteEl?.value ?? '',
-              mentionContactIds: Array.from(currentSnippet.selectedMentions),
-            };
+      let body: Record<string, unknown>;
+      if (currentSnippet.kind === 'image') {
+        body = {
+          kind: 'image' as const,
+          targetKind,
+          targetId: id,
+          imageBytes: currentSnippet.imageBytes,
+          mimeType: currentSnippet.mimeType,
+          width: currentSnippet.width ?? undefined,
+          height: currentSnippet.height ?? undefined,
+          sourceUrl:
+            currentSnippet.sourceUrl || currentSnippet.pageUrl || 'about:blank',
+          pageType: currentSnippet.pageType ?? undefined,
+          tagSlugs: Array.from(currentSnippet.selectedTags),
+          note: snippetNoteEl?.value ?? '',
+        };
+      } else if (currentSnippet.kind === 'link') {
+        body = {
+          kind: 'link' as const,
+          targetKind,
+          targetId: id,
+          href: currentSnippet.href,
+          linkText: currentSnippet.linkText ?? undefined,
+          sourceUrl: currentSnippet.sourceUrl || 'about:blank',
+          pageType: currentSnippet.pageType ?? undefined,
+          tagSlugs: Array.from(currentSnippet.selectedTags),
+          note: snippetNoteEl?.value ?? '',
+        };
+      } else {
+        body = {
+          kind: 'text' as const,
+          targetKind,
+          targetId: id,
+          text: currentSnippet.selection.text,
+          sourceUrl: currentSnippet.selection.sourceUrl,
+          pageType: currentSnippet.selection.pageType,
+          tagSlugs: Array.from(currentSnippet.selectedTags),
+          note: snippetNoteEl?.value ?? '',
+          mentionContactIds: Array.from(currentSnippet.selectedMentions),
+        };
+      }
 
       const appUrl = await getAppUrlBase();
       const { extensionToken } = await new Promise<{ extensionToken?: string }>((r) =>
@@ -1501,9 +1768,15 @@ if (snippetSaveBtn) {
         const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
         throw new Error((err as { message?: string }).message ?? `HTTP ${res.status}`);
       }
-      const okMsg = currentSnippet.kind === 'image' ? 'Image snippet saved.' : 'Snippet saved.';
+      const okMsg =
+        currentSnippet.kind === 'image'
+          ? 'Image snippet saved.'
+          : currentSnippet.kind === 'link'
+          ? 'Link snippet saved.'
+          : 'Snippet saved.';
       if (snippetStatus) snippetStatus.textContent = okMsg;
       if (snippetImageStatus) snippetImageStatus.textContent = okMsg;
+      if (snippetLinkStatus) snippetLinkStatus.textContent = okMsg;
       resetSnippetCard();
     } catch (err) {
       if (snippetErrorEl) {

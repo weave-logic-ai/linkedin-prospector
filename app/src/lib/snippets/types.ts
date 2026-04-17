@@ -10,9 +10,12 @@ import type { SnippetTargetKind } from './chain';
 
 /**
  * Snippet content kind discriminator. Text landed in Phase 1 Track C;
- * image lands in Phase 1.5; link is deferred behind Phase 2 WS-5.
+ * image lands in Phase 1.5; link also lands in Phase 1.5 (closes WS-3
+ * acceptance item §3 / Q9). The link flow fetches the `href` via the shared
+ * `gatedFetch` helper, writes a `source_records` row with source_type='link',
+ * and references it from `causal_nodes.output.content.sourceRecordId`.
  */
-export type SnippetKind = 'text' | 'image';
+export type SnippetKind = 'text' | 'image' | 'link';
 
 /**
  * Text-snippet request body. Historical shape — the route accepted a
@@ -56,7 +59,38 @@ export interface SnippetSaveImageRequest {
   sessionId?: string;
 }
 
-export type SnippetSaveRequest = SnippetSaveTextRequest | SnippetSaveImageRequest;
+/**
+ * Link-snippet request body. Phase 1.5 scope closing WS-3 acceptance item §3.
+ *
+ * On save the server:
+ *   1. `gatedFetch` pulls the `href` (rate-limited + robots-respecting).
+ *   2. `writeSourceRecord` persists the body under `source_type='link'`.
+ *   3. `causal_nodes.output.content` references the record id alongside the
+ *      `href` + `linkText` so the widget can show a preview without an extra
+ *      round trip.
+ *
+ * If the fetch fails (robots, HTTP error, timeout) the snippet still saves —
+ * `sourceRecordId` is null and a warning is surfaced. Callers can retry by
+ * saving again with the same href; the service deduplicates at the
+ * `source_records` layer.
+ */
+export interface SnippetSaveLinkRequest {
+  kind: 'link';
+  targetKind: SnippetTargetKind;
+  targetId: string;
+  href: string;
+  linkText?: string;
+  sourceUrl: string;
+  pageType?: string;
+  tagSlugs?: string[];
+  note?: string;
+  sessionId?: string;
+}
+
+export type SnippetSaveRequest =
+  | SnippetSaveTextRequest
+  | SnippetSaveImageRequest
+  | SnippetSaveLinkRequest;
 
 export interface SnippetSaveResponse {
   snippetId: string;
@@ -70,6 +104,12 @@ export interface SnippetSaveResponse {
   blobId?: string;
   /** For image snippets: whether the blob was deduped against an existing row. */
   blobReused?: boolean;
+  /** For link snippets: the `source_records.id` created by the fetch, or null
+   * when the fetch failed (robots disallow, HTTP error, etc.). */
+  sourceRecordId?: string | null;
+  /** For link snippets: whether the source record was newly fetched (false
+   * means the canonical href was already stored for this tenant). */
+  sourceRecordNew?: boolean;
 }
 
 /**

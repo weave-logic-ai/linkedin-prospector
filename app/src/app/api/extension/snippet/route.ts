@@ -14,6 +14,7 @@ import { withExtensionAuth } from '@/lib/middleware/extension-auth-middleware';
 import { RESEARCH_FLAGS } from '@/lib/config/research-flags';
 import { getDefaultTenantId } from '@/lib/snippets/tenant';
 import { saveTextSnippet, saveImageSnippet } from '@/lib/snippets/service';
+import { saveLinkSnippet } from '@/lib/snippets/service-link';
 import {
   decodeAndValidateImage,
   ALLOWED_IMAGE_MIME_TYPES,
@@ -70,6 +71,22 @@ export async function POST(req: NextRequest) {
           mimeType: body.mimeType,
           width: body.width ?? null,
           height: body.height ?? null,
+          sourceUrl: body.sourceUrl,
+          pageType: body.pageType,
+          tagSlugs: body.tagSlugs,
+          note: body.note,
+          sessionId: body.sessionId,
+        });
+        return NextResponse.json({ success: true, ...result });
+      }
+
+      if (body.kind === 'link') {
+        const result = await saveLinkSnippet({
+          tenantId,
+          targetKind: body.targetKind,
+          targetId: body.targetId,
+          href: body.href,
+          linkText: body.linkText,
           sourceUrl: body.sourceUrl,
           pageType: body.pageType,
           tagSlugs: body.tagSlugs,
@@ -154,8 +171,24 @@ function validateSnippetBody(
     return { ok: true };
   }
 
+  if (kind === 'link') {
+    if (typeof b.href !== 'string' || b.href.trim().length === 0) {
+      return { ok: false, message: 'href must be a non-empty string' };
+    }
+    if (!/^https?:\/\//i.test(b.href)) {
+      return { ok: false, message: 'href must be an http(s) URL' };
+    }
+    if (b.href.length > 2048) {
+      return { ok: false, message: 'href exceeds 2048-char limit' };
+    }
+    if (b.linkText !== undefined && typeof b.linkText !== 'string') {
+      return { ok: false, message: 'linkText must be a string when provided' };
+    }
+    return { ok: true };
+  }
+
   if (kind !== 'text') {
-    return { ok: false, message: 'kind must be one of text | image' };
+    return { ok: false, message: 'kind must be one of text | image | link' };
   }
 
   // Text-kind validation (legacy shape).

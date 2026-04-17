@@ -4,7 +4,10 @@
 // obvious `First Last` bigrams. These tests pin that exact shape and the
 // unique-by-first-appearance ordering.
 
-import { extractPersonMentionCandidates } from '@/lib/snippets/mentions';
+import {
+  extractMentionContext,
+  extractPersonMentionCandidates,
+} from '@/lib/snippets/mentions';
 
 describe('extractPersonMentionCandidates', () => {
   it('returns an empty array for empty input', () => {
@@ -35,6 +38,24 @@ describe('extractPersonMentionCandidates', () => {
     // "A B" has capitals but is too short. The /[a-z]+/ part in the regex
     // already rejects single-letter tokens, so this is belt-and-braces.
     expect(extractPersonMentionCandidates('A B came through.')).toEqual([]);
+  });
+
+  it('extractMentionContext clips around the match with ellipses', () => {
+    const text =
+      'In 2024 Acme announced that Jane Doe joined as CTO, leaving TechCo after a decade.';
+    const ctx = extractMentionContext(text, 'Jane Doe', 10);
+    // Radius=10 on each side plus the mention token "Jane Doe" → ~28 chars.
+    expect(ctx).toMatch(/Jane Doe/);
+    expect(ctx.startsWith('…')).toBe(true);
+    expect(ctx.endsWith('…')).toBe(true);
+    expect(ctx.length).toBeLessThanOrEqual('Jane Doe'.length + 20 + 2);
+  });
+
+  it('extractMentionContext falls back to a leading window when mention absent', () => {
+    const text = 'No match here at all.';
+    const ctx = extractMentionContext(text, 'Jane Doe', 100);
+    // No `Jane Doe` → returns the leading window (up to 2*radius chars).
+    expect(ctx).toBe('No match here at all.');
   });
 
   it('emits non-overlapping bigrams across a Title Case run', () => {
