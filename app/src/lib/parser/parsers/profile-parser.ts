@@ -13,6 +13,8 @@ import type {
   ExtractedField,
 } from '../types';
 import { extractField, applyHeuristics } from '../selector-extractor';
+import { runFallbacks } from '../fallbacks/registry';
+import '../fallbacks/strategies';
 
 export class ProfileParser implements PageParser {
   readonly pageType = 'PROFILE' as const;
@@ -50,6 +52,13 @@ export class ProfileParser implements PageParser {
     // Apply heuristics from config
     const heuristicFields = applyHeuristics(fields, config.heuristics);
     fields.push(...heuristicFields);
+
+    // Strategy 3: fallback registry — fills gaps the primary path left open.
+    const filled = new Set<string>(
+      fields.filter((f) => f.value !== null && f.value !== '').map((f) => f.field)
+    );
+    const fallbackFields = runFallbacks('PROFILE', $, url, filled);
+    fields.push(...fallbackFields);
 
     // Build structured data
     const data = this.buildProfileData(fields);

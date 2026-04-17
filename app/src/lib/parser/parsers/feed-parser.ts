@@ -10,6 +10,8 @@ import type {
   FeedPostEntry,
   ExtractedField,
 } from '../types';
+import { runFallbacks } from '../fallbacks/registry';
+import '../fallbacks/strategies';
 
 export class FeedParser implements PageParser {
   readonly pageType = 'FEED' as const;
@@ -118,6 +120,31 @@ export class FeedParser implements PageParser {
           postType: 'unknown',
         });
       });
+    }
+
+    // Fallback registry: data-urn is the most stable feed anchor. We use it
+    // to back-fill authorProfileUrl where the selector chain left it null.
+    const registryHits = runFallbacks('FEED', $, url, new Set<string>());
+    fields.push(...registryHits);
+    const authorsField = registryHits.find((f) => f.field === 'postAuthorHrefs');
+    if (authorsField && typeof authorsField.value === 'string') {
+      try {
+        const authors = JSON.parse(authorsField.value) as Array<{
+          urn: string;
+          url: string | null;
+          name: string | null;
+        }>;
+        for (let i = 0; i < posts.length && i < authors.length; i++) {
+          if (!posts[i].authorProfileUrl && authors[i].url) {
+            posts[i].authorProfileUrl = authors[i].url;
+          }
+          if (!posts[i].postUrl && authors[i].urn) {
+            posts[i].postUrl = `https://www.linkedin.com/feed/update/${authors[i].urn}/`;
+          }
+        }
+      } catch {
+        // Ignore — fallback is best-effort.
+      }
     }
 
     const data: FeedParseData = { posts };

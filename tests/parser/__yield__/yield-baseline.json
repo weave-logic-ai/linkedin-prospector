@@ -1,0 +1,482 @@
+{
+  "generatedAt": "2026-04-17T15:00:12.788Z",
+  "rows": [
+    {
+      "pageType": "COMPANY",
+      "field": "about",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 1,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "COMPANY",
+      "field": "companySize",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.85,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "COMPANY",
+      "field": "employeesOnLinkedIn",
+      "yield": 0,
+      "nSamples": 1,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "COMPANY",
+      "field": "followerCount",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 1,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "COMPANY",
+      "field": "founded",
+      "yield": 0,
+      "nSamples": 1,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "COMPANY",
+      "field": "headquarters",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.85,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "COMPANY",
+      "field": "industry",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 1,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "COMPANY",
+      "field": "name",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.6,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "COMPANY",
+      "field": "specialties",
+      "yield": 1,
+      "nSamples": 1,
+      "nPresent": 1,
+      "avgConfidence": 1,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "COMPANY",
+      "field": "website",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.85,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "CONNECTIONS",
+      "field": "connections[].connectedDate",
+      "yield": 1,
+      "nSamples": 1,
+      "nPresent": 1,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "CONNECTIONS",
+      "field": "connections[].headline",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "CONNECTIONS",
+      "field": "connections[].name",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "CONNECTIONS",
+      "field": "connections[].profileUrl",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "FEED",
+      "field": "posts[].authorHeadline",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "FEED",
+      "field": "posts[].authorName",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "FEED",
+      "field": "posts[].authorProfileUrl",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "FEED",
+      "field": "posts[].comments",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "FEED",
+      "field": "posts[].content",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "FEED",
+      "field": "posts[].likes",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "FEED",
+      "field": "posts[].postedTimeAgo",
+      "yield": 0,
+      "nSamples": 1,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "FEED",
+      "field": "posts[].postType",
+      "yield": 1,
+      "nSamples": 1,
+      "nPresent": 1,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "FEED",
+      "field": "posts[].reposts",
+      "yield": 0,
+      "nSamples": 1,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "MESSAGES",
+      "field": "conversations[].lastMessagePreview",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "MESSAGES",
+      "field": "conversations[].participantName",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "MESSAGES",
+      "field": "conversations[].participantProfileUrl",
+      "yield": 1,
+      "nSamples": 1,
+      "nPresent": 1,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "MESSAGES",
+      "field": "conversations[].timestamp",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "MESSAGES",
+      "field": "conversations[].unread",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "PROFILE",
+      "field": "about",
+      "yield": 1,
+      "nSamples": 1,
+      "nPresent": 1,
+      "avgConfidence": 0.85,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "PROFILE",
+      "field": "connectionsCount",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 1,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "PROFILE",
+      "field": "education",
+      "yield": 1,
+      "nSamples": 1,
+      "nPresent": 1,
+      "avgConfidence": 1,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "PROFILE",
+      "field": "experience",
+      "yield": 1,
+      "nSamples": 1,
+      "nPresent": 1,
+      "avgConfidence": 1,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "PROFILE",
+      "field": "headline",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "PROFILE",
+      "field": "location",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "PROFILE",
+      "field": "name",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "PROFILE",
+      "field": "profileImageUrl",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 1,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "PROFILE",
+      "field": "skills",
+      "yield": 1,
+      "nSamples": 1,
+      "nPresent": 1,
+      "avgConfidence": 1,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_CONTENT",
+      "field": "results[].authorHeadline",
+      "yield": 0,
+      "nSamples": 2,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_CONTENT",
+      "field": "results[].authorName",
+      "yield": 0,
+      "nSamples": 2,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_CONTENT",
+      "field": "results[].authorProfileUrl",
+      "yield": 0,
+      "nSamples": 2,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_CONTENT",
+      "field": "results[].comments",
+      "yield": 0,
+      "nSamples": 2,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_CONTENT",
+      "field": "results[].content",
+      "yield": 0,
+      "nSamples": 2,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_CONTENT",
+      "field": "results[].likes",
+      "yield": 0,
+      "nSamples": 2,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_CONTENT",
+      "field": "results[].postType",
+      "yield": 0,
+      "nSamples": 1,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_CONTENT",
+      "field": "results[].title",
+      "yield": 0,
+      "nSamples": 1,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_CONTENT",
+      "field": "totalResultsEstimate",
+      "yield": 0,
+      "nSamples": 1,
+      "nPresent": 0,
+      "avgConfidence": 0,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_PEOPLE",
+      "field": "results[].connectionDegree",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_PEOPLE",
+      "field": "results[].headline",
+      "yield": 1,
+      "nSamples": 1,
+      "nPresent": 1,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_PEOPLE",
+      "field": "results[].location",
+      "yield": 1,
+      "nSamples": 1,
+      "nPresent": 1,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_PEOPLE",
+      "field": "results[].mutualConnections",
+      "yield": 1,
+      "nSamples": 1,
+      "nPresent": 1,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_PEOPLE",
+      "field": "results[].name",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_PEOPLE",
+      "field": "results[].profileUrl",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.7,
+      "fallbackShareOfHits": 0
+    },
+    {
+      "pageType": "SEARCH_PEOPLE",
+      "field": "totalResultsEstimate",
+      "yield": 1,
+      "nSamples": 2,
+      "nPresent": 2,
+      "avgConfidence": 0.6,
+      "fallbackShareOfHits": 0
+    }
+  ]
+}

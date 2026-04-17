@@ -10,6 +10,8 @@ import type {
   ConnectionEntry,
   ExtractedField,
 } from '../types';
+import { runFallbacks } from '../fallbacks/registry';
+import '../fallbacks/strategies';
 
 export class ConnectionsParser implements PageParser {
   readonly pageType = 'CONNECTIONS' as const;
@@ -89,15 +91,45 @@ export class ConnectionsParser implements PageParser {
       });
     }
 
+    // Fallback registry: when primary selectors return nothing, harvest
+    // connections via href-pattern scan. We append the fallback-derived
+    // entries to `connections` so the parsed data actually benefits, not
+    // just the telemetry row.
+    const primaryHit = connections.length > 0;
+    if (!primaryHit) {
+      const registryHits = runFallbacks('CONNECTIONS', $, url, new Set<string>());
+      fields.push(...registryHits);
+      const hrefHitsField = registryHits.find((f) => f.field === 'connectionHrefHits');
+      if (hrefHitsField && typeof hrefHitsField.value === 'string') {
+        try {
+          const parsed = JSON.parse(hrefHitsField.value) as Array<{
+            name: string;
+            headline: string | null;
+            profileUrl: string;
+          }>;
+          for (const p of parsed) {
+            connections.push({
+              name: p.name,
+              headline: p.headline,
+              profileUrl: p.profileUrl,
+              connectedDate: null,
+            });
+          }
+        } catch {
+          // Ignore — corrupt payload; the telemetry row is still informative.
+        }
+      }
+    }
+
     const data: ConnectionsParseData = { connections };
 
     fields.push({
       field: 'connections',
       value: connections.map((c) => c.name),
-      confidence: connections.length > 0 ? 0.8 : 0,
-      selectorUsed: itemChain?.selectors[0] ?? '',
+      confidence: connections.length > 0 ? (primaryHit ? 0.8 : 0.6) : 0,
+      selectorUsed: primaryHit ? (itemChain?.selectors[0] ?? '') : 'fallback:href-pattern',
       selectorIndex: 0,
-      source: 'selector',
+      source: primaryHit ? 'selector' : (connections.length > 0 ? 'fallback' : 'selector'),
     });
 
     return {
