@@ -11,6 +11,15 @@ import type {
 } from '../types';
 import { logger } from '../utils/logger';
 import { getDailyCaptureCount, getCaptureLimit } from '../utils/storage';
+import {
+  detectAndScrubPii,
+  summarizePiiDetection,
+} from '../shared/pii-scrubber';
+import {
+  enqueueSnippet,
+  getSnippetQueueDepth,
+  SNIPPET_QUEUE_KEY,
+} from '../shared/snippet-queue';
 
 // ============================================================
 // DOM References
@@ -752,6 +761,12 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes.connectionState) {
     updateConnectionStatus(changes.connectionState.newValue);
   }
+  // WS-3 Phase 6 §7 — approvedOrigins is rewritten by the service worker on
+  // chrome.permissions.onRemoved / onAdded. Re-render the grant CTA so the
+  // UI reflects the new state without a sidebar reload.
+  if (changes.approvedOrigins) {
+    void updateAddHostButton();
+  }
   if (changes.pendingTasks) {
     // Re-resolve target lock when the task list changes — a new task may now match the current URL
     lastRenderedLock = '';
@@ -942,6 +957,9 @@ const snippetImagePreview = document.getElementById(
   'sp-snippet-image-preview'
 ) as HTMLImageElement | null;
 const snippetImageMeta = document.getElementById('sp-snippet-image-meta');
+// WS-3 Phase 6 §9/§10 additions
+const snippetPiiBanner = document.getElementById('sp-snippet-pii-banner');
+const snippetQueueDepthEl = document.getElementById('sp-snippet-queue-depth');
 
 let availableTags: SidebarTagRow[] = [];
 let currentSnippet: SidebarSnippetPayload | null = null;
@@ -1146,7 +1164,68 @@ function resetSnippetCard(): void {
   if (snippetImagePreview) snippetImagePreview.removeAttribute('src');
   if (snippetPreview) snippetPreview.style.display = '';
   if (snippetImageUrlInput) snippetImageUrlInput.value = '';
+  if (snippetPiiBanner) {
+    snippetPiiBanner.style.display = 'none';
+    snippetPiiBanner.textContent = '';
+  }
 }
+
+/**
+ * WS-3 Phase 6 §9 — show an advisory banner when the currently-selected text
+ * contains PII. The banner lets the user cancel before save; the save handler
+ * is what actually scrubs, so the banner is purely informational.
+ */
+function showPiiBannerForText(text: string): void {
+  if (!snippetPiiBanner) return;
+  const result = detectAndScrubPii(text ?? '');
+  if (!result.hit) {
+    snippetPiiBanner.style.display = 'none';
+    snippetPiiBanner.textContent = '';
+    return;
+  }
+  const summary = summarizePiiDetection(result) ?? '';
+  snippetPiiBanner.innerHTML = '';
+  const strong = document.createElement('strong');
+  strong.textContent = 'PII detected';
+  snippetPiiBanner.appendChild(strong);
+  snippetPiiBanner.appendChild(
+    document.createTextNode(
+      ` — will be scrubbed on save (${summary}). Cancel if that's not what you want.`
+    )
+  );
+  snippetPiiBanner.style.display = '';
+}
+
+/**
+ * WS-3 Phase 6 §10 — render the offline-snippet-queue badge. Shown only when
+ * there's at least one queued item; clicking does nothing (replay is driven
+ * by the service worker).
+ */
+async function refreshSnippetQueueDepth(): Promise<void> {
+  if (!snippetQueueDepthEl) return;
+  try {
+    const depth = await getSnippetQueueDepth();
+    if (depth <= 0) {
+      snippetQueueDepthEl.style.display = 'none';
+      snippetQueueDepthEl.textContent = '';
+      return;
+    }
+    snippetQueueDepthEl.style.display = '';
+    snippetQueueDepthEl.textContent = `${depth} queued`;
+    snippetQueueDepthEl.title = `${depth} snippet${depth === 1 ? '' : 's'} waiting for the server to come back.`;
+  } catch {
+    snippetQueueDepthEl.style.display = 'none';
+  }
+}
+
+// Re-render queue depth whenever the queue key changes (the service worker
+// rewrites it on replay / flush).
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (changes[SNIPPET_QUEUE_KEY]) void refreshSnippetQueueDepth();
+});
+// Seed the badge on sidebar mount.
+void refreshSnippetQueueDepth();
 
 // ----- Tab switching -----
 function activateSnippetTab(kind: 'text' | 'image'): void {
@@ -1201,6 +1280,8 @@ if (snippetCaptureBtn) {
       snippetPreview.style.display = '';
       snippetPreview.textContent = selection.text.slice(0, 400);
     }
+    // WS-3 Phase 6 §9 — surface PII advisory before the user clicks Save.
+    showPiiBannerForText(selection.text);
     if (snippetImagePreviewWrap) snippetImagePreviewWrap.style.display = 'none';
     if (snippetMentionsField) snippetMentionsField.style.display = '';
     if (snippetTagsContainer) renderTagChips(snippetTagsContainer, currentSnippet.selectedTags);
@@ -1456,6 +1537,15 @@ if (snippetSaveBtn) {
       void source;
       const targetKind = kind === 'person' ? 'contact' : kind;
 
+      // WS-3 Phase 6 §9 — PII scrub for text snippets. The banner shown in
+      // `detectPiiAndShowBanner` was advisory; now we actually redact. Image
+      // snippets don't have scannable text so we skip.
+      let scrubbedText: string | null = null;
+      if (currentSnippet.kind === 'text') {
+        const pass = detectAndScrubPii(currentSnippet.selection.text);
+        if (pass.hit) scrubbedText = pass.scrubbedText;
+      }
+
       // Build the body based on the active payload kind.
       const body =
         currentSnippet.kind === 'image'
@@ -1477,7 +1567,7 @@ if (snippetSaveBtn) {
               kind: 'text' as const,
               targetKind,
               targetId: id,
-              text: currentSnippet.selection.text,
+              text: scrubbedText ?? currentSnippet.selection.text,
               sourceUrl: currentSnippet.selection.sourceUrl,
               pageType: currentSnippet.selection.pageType,
               tagSlugs: Array.from(currentSnippet.selectedTags),
@@ -1489,15 +1579,39 @@ if (snippetSaveBtn) {
       const { extensionToken } = await new Promise<{ extensionToken?: string }>((r) =>
         chrome.storage.local.get('extensionToken', (v) => r(v)),
       );
-      const res = await fetch(`${appUrl}/api/extension/snippet`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(extensionToken ? { 'X-Extension-Token': extensionToken } : {}),
-        },
-        body: JSON.stringify(body),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${appUrl}/api/extension/snippet`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(extensionToken ? { 'X-Extension-Token': extensionToken } : {}),
+          },
+          body: JSON.stringify(body),
+        });
+      } catch (networkErr) {
+        // WS-3 Phase 6 §10 — server unreachable → queue for later replay.
+        await enqueueSnippet(body, (networkErr as Error).message ?? 'network');
+        await refreshSnippetQueueDepth();
+        if (snippetStatus)
+          snippetStatus.textContent = 'Offline — saved locally. Will retry.';
+        if (snippetImageStatus)
+          snippetImageStatus.textContent = 'Offline — saved locally. Will retry.';
+        resetSnippetCard();
+        return;
+      }
       if (!res.ok) {
+        // 5xx → queue for retry (server failure). 4xx → surface validation.
+        if (res.status >= 500 && res.status < 600) {
+          await enqueueSnippet(body, `HTTP ${res.status}`);
+          await refreshSnippetQueueDepth();
+          if (snippetStatus)
+            snippetStatus.textContent = `Server unavailable (HTTP ${res.status}) — saved locally.`;
+          if (snippetImageStatus)
+            snippetImageStatus.textContent = `Server unavailable (HTTP ${res.status}) — saved locally.`;
+          resetSnippetCard();
+          return;
+        }
         const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
         throw new Error((err as { message?: string }).message ?? `HTTP ${res.status}`);
       }

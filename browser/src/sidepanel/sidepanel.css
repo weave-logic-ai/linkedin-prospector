@@ -867,3 +867,38 @@ body {
   font-size: 11px;
   padding: 2px 8px;
 }
+
+/* WS-3 Phase 6 polish — PII banner + snippet queue-depth badge */
+.snippet-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.snippet-header-row h2 {
+  margin: 0;
+}
+.snippet-queue-depth {
+  display: inline-flex;
+  align-items: center;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid #fcd34d;
+}
+.snippet-pii-banner {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.snippet-pii-banner strong {
+  color: #7c2d12;
+}

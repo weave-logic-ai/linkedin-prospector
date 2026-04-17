@@ -15,6 +15,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { query } from '@/lib/db/client';
 import { RESEARCH_FLAGS } from '@/lib/config/research-flags';
 import { recordEvent } from '@/lib/analytics/events';
+import {
+  buildRegressionPayload,
+  dispatchRegressionToGithub,
+} from '@/lib/analytics/github-webhook';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EXCERPT_MAX_BYTES = 4096;
@@ -132,7 +136,38 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ id: flagId, stored: true });
+    // WS-2 §14 — mirror into GitHub via webhook when configured. Never fail
+    // the endpoint on a dispatch error: we log-warn in the helper and return
+    // `dispatched: false`. This runs inline (not deferred) so tests can
+    // observe the outcome — the operation is <5s cap via AbortController.
+    let webhookDispatched = false;
+    try {
+      const payload = buildRegressionPayload({
+        captureId: body.captureId,
+        pageType: body.pageType,
+        domPath: body.domPath,
+        textPreview,
+        userNote,
+        flagId,
+      });
+      const dispatchResult = await dispatchRegressionToGithub(payload);
+      webhookDispatched = dispatchResult.dispatched;
+    } catch (err) {
+      // Paranoia belt — dispatcher already traps, but swallow here too so an
+      // unexpected programming error never bubbles out of this route.
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(
+          '[flag-unmatched] github webhook dispatch threw unexpectedly:',
+          (err as Error).message
+        );
+      }
+    }
+
+    return NextResponse.json({
+      id: flagId,
+      stored: true,
+      webhookDispatched,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
