@@ -20,11 +20,16 @@ jest.mock('@/lib/ecc/impulses/handlers/notification', () => ({
   executeNotification: jest.fn(),
 }));
 
+jest.mock('@/lib/ecc/impulses/handlers/webhook', () => ({
+  executeWebhook: jest.fn(),
+}));
+
 import { query } from '@/lib/db/client';
 import { dispatchImpulse } from '@/lib/ecc/impulses/dispatcher';
 import { executeTaskGenerator } from '@/lib/ecc/impulses/handlers/task-generator';
 import { executeCampaignEnroller } from '@/lib/ecc/impulses/handlers/campaign-enroller';
 import { executeNotification } from '@/lib/ecc/impulses/handlers/notification';
+import { executeWebhook } from '@/lib/ecc/impulses/handlers/webhook';
 
 const mockQuery = query as jest.MockedFunction<typeof query>;
 
@@ -56,6 +61,7 @@ describe('dispatchImpulse', () => {
     (executeTaskGenerator as jest.Mock).mockReset();
     (executeCampaignEnroller as jest.Mock).mockReset();
     (executeNotification as jest.Mock).mockReset();
+    (executeWebhook as jest.Mock).mockReset();
   });
 
   it('throws when impulse is not found', async () => {
@@ -141,13 +147,16 @@ describe('dispatchImpulse', () => {
     expect(result.results.every(r => r.status === 'success')).toBe(true);
   });
 
-  it('returns skipped result for unknown webhook handler type', async () => {
+  it('routes webhook handler type to executeWebhook and records success ack', async () => {
     mockQuery.mockReturnValueOnce(mockRows([impulseRow()]));
     mockQuery.mockReturnValueOnce(mockRows([handlerRow({ handler_type: 'webhook' })]));
     mockQuery.mockReturnValueOnce(mockRows([])); // ack
 
+    (executeWebhook as jest.Mock).mockResolvedValueOnce({ dispatched: true, status: 200, durationMs: 12 });
+
     const result = await dispatchImpulse('imp-1');
+    expect(executeWebhook).toHaveBeenCalledTimes(1);
     expect(result.results[0].status).toBe('success');
-    expect(result.results[0].result).toEqual({ skipped: true, reason: 'webhook handler not yet implemented' });
+    expect(result.results[0].result).toEqual({ dispatched: true, status: 200, durationMs: 12 });
   });
 });

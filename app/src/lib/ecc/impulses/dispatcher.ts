@@ -4,6 +4,7 @@ import type { HandlerExecutionResult, DispatchResult } from './types';
 import { executeTaskGenerator } from './handlers/task-generator';
 import { executeCampaignEnroller } from './handlers/campaign-enroller';
 import { executeNotification } from './handlers/notification';
+import { executeWebhook } from './handlers/webhook';
 
 const HANDLER_TIMEOUT_MS = 5000;
 const MAX_FAILURES_BEFORE_DISABLE = 3;
@@ -85,7 +86,7 @@ async function executeHandler(
     case 'notification':
       return executeNotification(impulse, handler.config);
     case 'webhook':
-      return { skipped: true, reason: 'webhook handler not yet implemented' };
+      return executeWebhook(impulse, handler.config);
     default:
       return { skipped: true, reason: `Unknown handler type: ${handler.handlerType}` };
   }
