@@ -15,10 +15,32 @@ import {
   ContentRelevanceScorer,
   GraphCentralityScorer,
 } from './scorers';
-import { DimensionScorer, ScoringRunResult, IcpCriteria, ContactScoringData, CompositeScore } from './types';
+import { DimensionScorer, ScoringRunResult, IcpCriteria, ContactScoringData, CompositeScore, IcpProfile } from './types';
 import * as scoringQueries from '../db/queries/scoring';
 import { checkAndGenerateTasks } from './task-triggers';
 import { resolveTaxonomyChain } from '../taxonomy/service';
+import { RESEARCH_FLAGS } from '../config/research-flags';
+import { getActiveLensIcps } from '../targets/lens-service';
+
+/**
+ * Resolve the list of ICP profiles to score against.
+ *
+ * When the Phase 1.5 targets flag is on AND a `targetId` is provided, we
+ * query the target's active lens's ICPs (see
+ * `app/src/lib/targets/lens-service.ts`). If that list is empty — no lens,
+ * no config ICPs, or all inactive — we fall back to the owner-default
+ * `getActiveIcpProfiles()` so existing callers see no regression.
+ *
+ * When the flag is off OR targetId is absent, behavior is exactly today's:
+ * the owner-default ICP list is returned unchanged.
+ */
+async function resolveIcpProfilesForScoring(targetId?: string): Promise<IcpProfile[]> {
+  if (RESEARCH_FLAGS.targets && targetId) {
+    const lensIcps = await getActiveLensIcps(targetId);
+    if (lensIcps.length > 0) return lensIcps;
+  }
+  return scoringQueries.getActiveIcpProfiles();
+}
 
 const behavioralScorer = new BehavioralScorer();
 
@@ -39,12 +61,10 @@ export async function scoreContact(
   profileName?: string,
   targetId?: string
 ): Promise<ScoringRunResult> {
-  // targetId is a passthrough parameter introduced in WS-4 (Phase 1 Track B).
-  // Today's callers do not pass it; when omitted we fall through to the
-  // owner's self-target. The parameter is reserved for the Phase 1.5 ICP
-  // plumbing per target — keeping the signature stable now avoids a breaking
-  // change when that lands. See `.planning/research-tools-sprint/04-targets-and-graph.md` §3.1.
-  void targetId;
+  // Phase 1.5 — WS-4 per-target ICP plumbing. When `RESEARCH_FLAGS.targets`
+  // is on and `targetId` resolves to a target with an active lens, the ICP
+  // set used below is the lens-scoped set. Otherwise we keep today's
+  // behavior: owner-default ICPs via `getActiveIcpProfiles()`.
   const weightManager = new WeightManager();
   await weightManager.loadProfile(profileName);
 
@@ -58,8 +78,8 @@ export async function scoreContact(
   const availableDimensions = getAvailableDimensions(contact);
   const weights = weightManager.redistributeWeights(availableDimensions);
 
-  // Load active ICP profiles
-  const icpProfiles = await scoringQueries.getActiveIcpProfiles();
+  // Load active ICP profiles — lens-scoped when a targetId + flag resolve.
+  const icpProfiles = await resolveIcpProfilesForScoring(targetId);
 
   // Find the best-matching ICP for this contact's composite score
   let bestIcpCriteria: IcpCriteria | undefined;
@@ -181,14 +201,16 @@ export async function scoreContact(
 
 export async function scoreBatch(
   contactIds?: string[],
-  profileName?: string
+  profileName?: string,
+  targetId?: string
 ): Promise<ScoringRunResult[]> {
   const weightManager = new WeightManager();
   await weightManager.loadProfile(profileName);
 
   // If no IDs provided, score all non-archived contacts
   const ids = contactIds ?? await scoringQueries.getAllContactIds();
-  const icpProfiles = await scoringQueries.getActiveIcpProfiles();
+  // Phase 1.5 — lens-scoped ICPs when a targetId + flag resolve.
+  const icpProfiles = await resolveIcpProfilesForScoring(targetId);
   const batchIcpFitScorer = new IcpFitScorer();
 
   // Pre-compute baselines for referral scoring (once for the batch)

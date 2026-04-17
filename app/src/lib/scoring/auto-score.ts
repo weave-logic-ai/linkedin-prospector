@@ -44,8 +44,13 @@ export function triggerBatchAutoScore(contactIds: string[]): void {
  * Trigger a full rescore of all contacts in the background.
  * Creates a scoring_run record and updates progress.
  * Returns the run ID for status polling.
+ *
+ * Phase 1.5 — WS-4 per-target ICP plumbing. When `targetId` is provided (and
+ * the targets flag is on), the background loop feeds it to `scoreContact` so
+ * every contact is rescored under the target's active lens. Callers that do
+ * not pass it get today's owner-default behavior.
  */
-export async function triggerRescoreAll(): Promise<string> {
+export async function triggerRescoreAll(targetId?: string): Promise<string> {
   const contactIds = await scoringQueries.getAllContactIds();
   const runId = await scoringQueries.createScoringRun('rescore-all', contactIds.length);
 
@@ -56,7 +61,7 @@ export async function triggerRescoreAll(): Promise<string> {
 
     for (const id of contactIds) {
       try {
-        await scoreContact(id);
+        await scoreContact(id, undefined, targetId);
         scored++;
       } catch (err) {
         failed++;

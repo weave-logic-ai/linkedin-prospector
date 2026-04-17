@@ -1,9 +1,16 @@
 // GET /api/scoring/preview - Preview impact of weight changes
+//
+// Phase 1.5 — WS-4 per-target ICP plumbing: accepts an optional `targetId`
+// query param. When set (and the targets flag is on), preview scores are
+// computed against the ICP attached to the target's active lens; otherwise
+// the first active owner-default ICP is used (today's behavior).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { WeightManager } from '@/lib/scoring/weight-manager';
 import { computeCompositeScore } from '@/lib/scoring/composite';
 import * as scoringQueries from '@/lib/db/queries/scoring';
+import { getActiveLensIcps } from '@/lib/targets/lens-service';
+import { RESEARCH_FLAGS } from '@/lib/config/research-flags';
 import {
   IcpFitScorer,
   NetworkHubScorer,
@@ -21,6 +28,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const weightsParam = searchParams.get('weights');
     const limitParam = searchParams.get('limit');
+    const targetId = searchParams.get('targetId') ?? undefined;
     const limit = Math.min(20, Math.max(1, parseInt(limitParam || '10', 10)));
 
     if (!weightsParam) {
@@ -55,8 +63,17 @@ export async function GET(request: NextRequest) {
     await weightManager.loadProfile();
     const currentWeights = weightManager.getWeights();
 
-    const icpProfiles = await scoringQueries.getActiveIcpProfiles();
-    const icpCriteria = icpProfiles[0]?.criteria;
+    // Resolve ICP criteria: lens-scoped first when flag + targetId are set,
+    // fall back to the first active owner-default ICP for today's behavior.
+    let icpCriteria: Parameters<typeof computeCompositeScore>[3];
+    if (RESEARCH_FLAGS.targets && targetId) {
+      const lensIcps = await getActiveLensIcps(targetId);
+      if (lensIcps.length > 0) icpCriteria = lensIcps[0].criteria;
+    }
+    if (!icpCriteria) {
+      const icpProfiles = await scoringQueries.getActiveIcpProfiles();
+      icpCriteria = icpProfiles[0]?.criteria;
+    }
 
     const previews = [];
     for (const contactId of sampleIds) {

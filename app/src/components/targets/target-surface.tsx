@@ -15,6 +15,7 @@ import {
 } from "@/lib/targets/service";
 import { TargetBreadcrumbs } from "./target-breadcrumbs";
 import { TargetPickerModal } from "./target-picker-modal";
+import { LensSelector } from "./lens-selector";
 
 export async function TargetSurface() {
   if (!RESEARCH_FLAGS.targets) return null;
@@ -46,6 +47,11 @@ export async function TargetSurface() {
         initialSecondaryLabel={secondaryLabel}
         initialSecondaryTargetId={state.secondaryTargetId}
       />
+      {state.primaryTargetId ? (
+        <div className="flex items-center justify-end border-b border-border/40 bg-muted/10 px-4 py-1">
+          <LensSelector primaryTargetId={state.primaryTargetId} />
+        </div>
+      ) : null}
       <TargetPickerModal />
     </>
   );
