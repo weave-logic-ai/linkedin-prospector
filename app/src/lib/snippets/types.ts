@@ -9,10 +9,19 @@
 import type { SnippetTargetKind } from './chain';
 
 /**
- * Request body for `POST /api/extension/snippet`. Text-only scope for
- * Phase 1 Track C — image / link / marquee defer to Phase 1.5.
+ * Snippet content kind discriminator. Text landed in Phase 1 Track C;
+ * image lands in Phase 1.5; link is deferred behind Phase 2 WS-5.
  */
-export interface SnippetSaveRequest {
+export type SnippetKind = 'text' | 'image';
+
+/**
+ * Text-snippet request body. Historical shape — the route accepted a
+ * bare-text payload before `kind` became a discriminator. When `kind` is
+ * omitted it is treated as `'text'` for backward compatibility with the
+ * shipped Phase 1 extension bundle.
+ */
+export interface SnippetSaveTextRequest {
+  kind?: 'text';
   targetKind: SnippetTargetKind;
   targetId: string;
   text: string;
@@ -25,6 +34,30 @@ export interface SnippetSaveRequest {
   sessionId?: string;
 }
 
+/**
+ * Image-snippet request body. Phase 1.5 scope per
+ * `.planning/research-tools-sprint/08-phased-delivery.md` §3.4.
+ *
+ * `imageBytes` is base64-encoded (optionally prefixed with `data:<mime>;base64,`).
+ * Size cap: 5 MB. Mime type: image/png, image/jpeg, image/webp.
+ */
+export interface SnippetSaveImageRequest {
+  kind: 'image';
+  targetKind: SnippetTargetKind;
+  targetId: string;
+  imageBytes: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+  sourceUrl: string;
+  pageType?: string;
+  tagSlugs?: string[];
+  note?: string;
+  sessionId?: string;
+}
+
+export type SnippetSaveRequest = SnippetSaveTextRequest | SnippetSaveImageRequest;
+
 export interface SnippetSaveResponse {
   snippetId: string;
   causalNodeId: string;
@@ -33,6 +66,10 @@ export interface SnippetSaveResponse {
   chainSequence: number;
   /** Human-readable warnings (non-fatal). */
   warnings: string[];
+  /** For image snippets: the blob id referenced by the snippet node. */
+  blobId?: string;
+  /** For image snippets: whether the blob was deduped against an existing row. */
+  blobReused?: boolean;
 }
 
 /**
@@ -44,7 +81,13 @@ export interface SnippetListItem {
   causalNodeId: string;
   targetKind: SnippetTargetKind;
   targetId: string;
+  kind: SnippetKind;
   text: string;
+  /** Image-only: blob id for fetching bytes via GET /api/snippets/blob/:id. */
+  blobId?: string | null;
+  mimeType?: string | null;
+  width?: number | null;
+  height?: number | null;
   sourceUrl: string;
   pageType: string | null;
   tagSlugs: string[];
