@@ -111,6 +111,7 @@ export async function GET(req: NextRequest) {
             searchQuery: string | null;
             contactName: string | null;
             appUrl: string | null;
+            contactId: string | null;
             dueDate: string | null;
             completedAt: string | null;
             createdAt: string;
@@ -158,6 +159,7 @@ export async function GET(req: NextRequest) {
           appUrl: row.contact_id
             ? `/contacts/${row.contact_id}`
             : null,
+          contactId: row.contact_id ?? null,
           dueDate: row.due_date,
           completedAt: row.completed_at,
           createdAt: row.created_at,
