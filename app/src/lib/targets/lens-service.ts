@@ -60,6 +60,8 @@ export interface ResearchLens {
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Populated by migration 043 — non-null means the lens was soft-deleted. */
+  deletedAt: string | null;
 }
 
 interface LensConfigWithIcps {
@@ -79,6 +81,7 @@ function rowToLens(row: Record<string, unknown>): ResearchLens {
     isDefault: Boolean(row.is_default),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
+    deletedAt: row.deleted_at ? String(row.deleted_at) : null,
   };
 }
 
@@ -96,17 +99,58 @@ function mapIcpRow(row: Record<string, unknown>): IcpProfile {
 }
 
 /**
- * List every lens attached to a target as `primary_target_id`, ordered
- * default-first then by creation time.
+ * List every non-deleted lens attached to a target as `primary_target_id`,
+ * ordered default-first then by creation time.
+ *
+ * Soft-deleted lenses (deleted_at IS NOT NULL) are filtered out. Callers
+ * that need the soft-deleted row (e.g. the deep-link "this lens was
+ * deleted" banner path) should use `getLensById` which returns any row
+ * regardless of delete state.
  */
 export async function listLensesForTarget(targetId: string): Promise<ResearchLens[]> {
   const res = await query<Record<string, unknown>>(
     `SELECT * FROM research_lenses
-     WHERE primary_target_id = $1
+     WHERE primary_target_id = $1 AND deleted_at IS NULL
      ORDER BY is_default DESC, created_at ASC`,
     [targetId]
   );
   return res.rows.map(rowToLens);
+}
+
+/**
+ * Fetch a single lens by id regardless of soft-delete state. Used by the
+ * deep-link deserializer so we can render a "this lens was deleted" banner
+ * instead of a 404.
+ */
+export async function getLensById(lensId: string): Promise<ResearchLens | null> {
+  const res = await query<Record<string, unknown>>(
+    `SELECT * FROM research_lenses WHERE id = $1 LIMIT 1`,
+    [lensId]
+  );
+  return res.rows[0] ? rowToLens(res.rows[0]) : null;
+}
+
+/**
+ * Soft-delete a lens. Sets deleted_at on the row without removing it, so
+ * shared URLs can distinguish "this lens never existed" (404) from "this
+ * lens was deleted" (banner + fall through to default).
+ *
+ * If the target-scoped lens being deleted was the active default, we do NOT
+ * promote a sibling — activation is an explicit user action. The UI simply
+ * renders the target's default view until the user activates a new lens.
+ */
+export async function softDeleteLens(
+  targetId: string,
+  lensId: string
+): Promise<ResearchLens | null> {
+  const res = await query<Record<string, unknown>>(
+    `UPDATE research_lenses
+     SET deleted_at = NOW(), is_default = FALSE, updated_at = NOW()
+     WHERE id = $1 AND primary_target_id = $2 AND deleted_at IS NULL
+     RETURNING *`,
+    [lensId, targetId]
+  );
+  return res.rows[0] ? rowToLens(res.rows[0]) : null;
 }
 
 /**
@@ -205,19 +249,20 @@ export async function activateLensForTarget(
 ): Promise<ResearchLens | null> {
   return transaction(async (client: PoolClient) => {
     const check = await client.query(
-      `SELECT id FROM research_lenses WHERE id = $1 AND primary_target_id = $2`,
+      `SELECT id FROM research_lenses
+       WHERE id = $1 AND primary_target_id = $2 AND deleted_at IS NULL`,
       [lensId, targetId]
     );
     if (check.rows.length === 0) return null;
 
     await client.query(
       `UPDATE research_lenses SET is_default = FALSE, updated_at = NOW()
-       WHERE primary_target_id = $1 AND id <> $2`,
+       WHERE primary_target_id = $1 AND id <> $2 AND deleted_at IS NULL`,
       [targetId, lensId]
     );
     const res = await client.query(
       `UPDATE research_lenses SET is_default = TRUE, updated_at = NOW()
-       WHERE id = $1
+       WHERE id = $1 AND deleted_at IS NULL
        RETURNING *`,
       [lensId]
     );
