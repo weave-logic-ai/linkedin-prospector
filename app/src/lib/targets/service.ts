@@ -122,7 +122,66 @@ export async function getResearchTargetState(
      RETURNING *`,
     [tenantId, resolvedOwnerId, selfTarget.id]
   );
-  return upserted.rows[0] ? rowToState(upserted.rows[0]) : null;
+  const state = upserted.rows[0] ? rowToState(upserted.rows[0]) : null;
+  if (!state) return null;
+
+  // WS-4 polish (tab-close restore): if the secondary points at a target
+  // whose underlying entity (contact/company) has since been archived or
+  // merged away, silently clear the pointer. The schema uses
+  // `ON DELETE SET NULL` on `research_targets.contact_id` / `company_id`
+  // so the target row survives with all three subject FKs NULL — we treat
+  // that as "the target is gone" for UI purposes. This keeps the restore
+  // flow from re-rendering a stale secondary after a contact delete.
+  if (state.secondaryTargetId) {
+    const cleared = await clearSecondaryIfDangling(
+      state.tenantId,
+      state.userId,
+      state.secondaryTargetId
+    );
+    if (cleared) {
+      state.secondaryTargetId = null;
+    }
+  }
+  return state;
+}
+
+/**
+ * Check whether `secondaryTargetId` points at a target whose underlying
+ * subject row (contact / company) still exists. If the target row has all
+ * three subject FKs NULL (the ON DELETE SET NULL state after a contact or
+ * company delete), clear the pointer on `research_target_state` and return
+ * true.
+ *
+ * Self-targets have a non-null owner_id; they can only become dangling if
+ * the owner_profiles row was deleted, which is also surfaced as "all three
+ * FKs NULL" by the same check.
+ */
+async function clearSecondaryIfDangling(
+  tenantId: string,
+  userId: string | null,
+  secondaryTargetId: string
+): Promise<boolean> {
+  const res = await query<{
+    owner_id: string | null;
+    contact_id: string | null;
+    company_id: string | null;
+  }>(
+    `SELECT owner_id, contact_id, company_id
+     FROM research_targets WHERE id = $1 LIMIT 1`,
+    [secondaryTargetId]
+  );
+  const row = res.rows[0];
+  const allNull =
+    !row || (row.owner_id == null && row.contact_id == null && row.company_id == null);
+  if (!allNull) return false;
+
+  await query(
+    `UPDATE research_target_state
+     SET secondary_target_id = NULL, updated_at = NOW()
+     WHERE tenant_id = $1 AND user_id = $2`,
+    [tenantId, userId]
+  );
+  return true;
 }
 
 /**

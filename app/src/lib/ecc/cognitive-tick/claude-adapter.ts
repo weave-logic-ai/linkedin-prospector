@@ -4,21 +4,52 @@ import {
   createSession, getSession, addSessionMessage,
   getSessionMessages, updateSessionContext
 } from './session-service';
+import { getDefaultTenantId, getTargetById } from '../../targets/service';
 import type { SessionIntent, IntentShift } from './types';
 
-const DEFAULT_TENANT_ID = 'default';
+/**
+ * Resolve the tenant id for a cognitive-tick session.
+ *
+ * Resolution order (matches `ecc/causal-graph/scoring-adapter.ts` and
+ * `ecc/impulses/scoring-adapter.ts` — `DEFAULT_TENANT_ID = 'default'`
+ * literal removed per WS-4 polish):
+ *   1. Caller-supplied override (`tenantIdOverride`).
+ *   2. The `tenant_id` on the target row referenced by `targetId`.
+ *   3. Fallback to the default tenant (single-tenant local mode).
+ *
+ * Preserves single-tenant behavior: when the caller doesn't pass a tenant
+ * and the cognitive-tick call is not scoped to a target, the resolver
+ * falls through to `tenants.slug='default'`.
+ */
+async function resolveTenantId(
+  targetId?: string,
+  tenantIdOverride?: string
+): Promise<string> {
+  if (tenantIdOverride) return tenantIdOverride;
+  if (targetId) {
+    const target = await getTargetById(targetId);
+    if (target) return target.tenantId;
+  }
+  return getDefaultTenantId();
+}
 
 /**
  * Analyze a contact with session context.
  * When ECC_COGNITIVE_TICK is disabled, performs a stateless analysis.
+ *
+ * The `tenantId` parameter stays optional for existing callers. When
+ * omitted the adapter resolves via the shared resolver above; when the
+ * cognitive-tick is scoped to a target, pass `targetId` so the resolver
+ * can pick the right tenant from the target row.
  */
 export async function analyzeWithSession(
-  tenantId: string = DEFAULT_TENANT_ID,
+  tenantId: string | undefined,
   userId: string,
   contactId: string,
   prompt: string,
   contactSummary: string,
-  sessionId?: string
+  sessionId?: string,
+  targetId?: string
 ): Promise<{ response: string; sessionId: string | null }> {
   if (!ECC_FLAGS.cognitiveTick) {
     // Stateless fallback
@@ -27,19 +58,21 @@ export async function analyzeWithSession(
     return { response, sessionId: null };
   }
 
+  const resolvedTenantId = await resolveTenantId(targetId, tenantId);
+
   // Get or create session
   let session;
   if (sessionId) {
     session = await getSession(sessionId);
     if (!session || session.status !== 'active') {
       // Create new session if provided one is invalid
-      session = await createSession(tenantId, userId, {
+      session = await createSession(resolvedTenantId, userId, {
         goal: 'analyze',
         contactIds: [contactId],
       });
     }
   } else {
-    session = await createSession(tenantId, userId, {
+    session = await createSession(resolvedTenantId, userId, {
       goal: 'analyze',
       contactIds: [contactId],
     });

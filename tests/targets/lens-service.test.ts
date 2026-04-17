@@ -36,10 +36,18 @@ describe('targets/lens-service', () => {
 
   it('getActiveLensForTarget picks the default lens first, then oldest', async () => {
     const { query } = await import('@/lib/db/client');
-    // The service ORDER BYs is_default DESC, created_at ASC — so the mock
-    // returns rows in that already-sorted order.
-    (query as jest.MockedFunction<typeof query>).mockImplementation(() =>
-      mockRows<Record<string, unknown>>([
+    // After migration 045 the service first checks
+    // research_target_state.last_used_lens_id (returns null here so we
+    // exercise the fall-through path) then ORDER BYs is_default DESC,
+    // created_at ASC.
+    (query as jest.MockedFunction<typeof query>).mockImplementation((sql: unknown) => {
+      const text = String(sql);
+      if (text.includes('last_used_lens_id')) {
+        return mockRows<Record<string, unknown>>([
+          { last_used_lens_id: null },
+        ]) as ReturnType<typeof query>;
+      }
+      return mockRows<Record<string, unknown>>([
         {
           id: 'lens-default',
           tenant_id: 't',
@@ -64,8 +72,8 @@ describe('targets/lens-service', () => {
           created_at: 'b',
           updated_at: 'b',
         },
-      ]) as ReturnType<typeof query>
-    );
+      ]) as ReturnType<typeof query>;
+    });
     const svc = await import('@/lib/targets/lens-service');
     const lens = await svc.getActiveLensForTarget('target-1');
     expect(lens?.id).toBe('lens-default');
@@ -77,6 +85,11 @@ describe('targets/lens-service', () => {
     const mockQuery = query as jest.MockedFunction<typeof query>;
     mockQuery.mockImplementation((sql: unknown) => {
       const text = String(sql);
+      if (text.includes('last_used_lens_id')) {
+        return mockRows<Record<string, unknown>>([
+          { last_used_lens_id: null },
+        ]) as ReturnType<typeof query>;
+      }
       if (text.includes('FROM research_lenses')) {
         return mockRows<Record<string, unknown>>([
           {
@@ -120,8 +133,14 @@ describe('targets/lens-service', () => {
 
   it('getActiveLensIcps returns [] when the lens has no icpProfileIds in config', async () => {
     const { query } = await import('@/lib/db/client');
-    (query as jest.MockedFunction<typeof query>).mockImplementation(() =>
-      mockRows<Record<string, unknown>>([
+    (query as jest.MockedFunction<typeof query>).mockImplementation((sql: unknown) => {
+      const text = String(sql);
+      if (text.includes('last_used_lens_id')) {
+        return mockRows<Record<string, unknown>>([
+          { last_used_lens_id: null },
+        ]) as ReturnType<typeof query>;
+      }
+      return mockRows<Record<string, unknown>>([
         {
           id: 'lens-1',
           tenant_id: 't',
@@ -134,8 +153,8 @@ describe('targets/lens-service', () => {
           created_at: 'x',
           updated_at: 'x',
         },
-      ]) as ReturnType<typeof query>
-    );
+      ]) as ReturnType<typeof query>;
+    });
     const svc = await import('@/lib/targets/lens-service');
     const icps = await svc.getActiveLensIcps('target-1');
     expect(icps).toEqual([]);
@@ -147,6 +166,11 @@ describe('targets/lens-service', () => {
     const insertCalls: Array<{ params: unknown[] }> = [];
     mockQuery.mockImplementation((sql: unknown, params?: unknown[]) => {
       const text = String(sql);
+      if (text.includes('last_used_lens_id')) {
+        return mockRows<Record<string, unknown>>([
+          { last_used_lens_id: null },
+        ]) as ReturnType<typeof query>;
+      }
       if (text.includes('SELECT *') && text.includes('FROM research_lenses')) {
         // No existing lenses — so the new lens should be marked default.
         return mockRows<Record<string, unknown>>([]) as ReturnType<typeof query>;
@@ -188,17 +212,34 @@ describe('targets/lens-service', () => {
     });
   });
 
-  it('activateLensForTarget flips is_default inside a transaction', async () => {
+  it('activateLensForTarget writes last_used_lens_id inside a transaction (migration 045)', async () => {
     const { query, transaction } = await import('@/lib/db/client');
     void query;
     const clientQueries: Array<{ sql: string; params: unknown[] }> = [];
     const clientStub = {
       query: (sql: string, params?: unknown[]) => {
         clientQueries.push({ sql, params: params ?? [] });
-        if (sql.includes('SELECT id FROM research_lenses')) {
-          return mockRows<Record<string, unknown>>([{ id: 'lens-2' }]);
+        if (sql.includes('SELECT * FROM research_lenses') && sql.includes('primary_target_id')) {
+          return mockRows<Record<string, unknown>>([
+            {
+              id: 'lens-2',
+              tenant_id: 't',
+              user_id: null,
+              name: 'Activated',
+              primary_target_id: 'target-1',
+              secondary_target_id: null,
+              config: {},
+              is_default: false,
+              created_at: 'x',
+              updated_at: 'x',
+            },
+          ]);
         }
-        if (sql.includes('UPDATE research_lenses SET is_default = TRUE')) {
+        if (sql.includes('SELECT id FROM research_lenses')) {
+          // No existing default — activate should opportunistically promote.
+          return mockRows<Record<string, unknown>>([]);
+        }
+        if (sql.includes('UPDATE research_lenses') && sql.includes('is_default = TRUE')) {
           return mockRows<Record<string, unknown>>([
             {
               id: 'lens-2',
@@ -224,18 +265,22 @@ describe('targets/lens-service', () => {
     const svc = await import('@/lib/targets/lens-service');
     const lens = await svc.activateLensForTarget('target-1', 'lens-2');
     expect(lens?.id).toBe('lens-2');
-    expect(lens?.isDefault).toBe(true);
-    // Exactly one clear + one set inside the transaction.
-    expect(
-      clientQueries.some((q) =>
-        q.sql.includes('UPDATE research_lenses SET is_default = FALSE')
-      )
-    ).toBe(true);
-    expect(
-      clientQueries.some((q) =>
-        q.sql.includes('UPDATE research_lenses SET is_default = TRUE')
-      )
-    ).toBe(true);
+    // Migration 045: the authoritative "active lens" pointer lives on the
+    // state row, so the key assertion is that we wrote it there.
+    const stateWrite = clientQueries.find(
+      (q) =>
+        q.sql.includes('UPDATE research_target_state') &&
+        q.sql.includes('last_used_lens_id = $1')
+    );
+    expect(stateWrite).toBeDefined();
+    expect(stateWrite?.params[0]).toBe('lens-2');
+    // No sibling "UPDATE ... is_default = FALSE" writes: we no longer flip
+    // other rows — is_default is a hint, not an activation switch.
+    const siblingClear = clientQueries.find((q) =>
+      q.sql.includes('UPDATE research_lenses') &&
+      q.sql.includes('is_default = FALSE')
+    );
+    expect(siblingClear).toBeUndefined();
   });
 
   it('activateLensForTarget returns null when the lens does not belong to the target', async () => {
